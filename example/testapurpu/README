@@ -1,0 +1,64 @@
+## Cachecoherent test through RPU to APU
+
+
+1.This test is to target cache to memory flush&invalid logic
+
+
+2.As we know cpu have a native cache and all write read is go to the cache instead of the MEMORY directly
+  for the purpose accelerate the performance
+
+3. to cooperate with DMA or other compute unit, we need to flush the cache data into ddr after write, then
+   invalid or load the data from memory into cache when reading, 
+
+4. then if the flush & invalid function not work properly , we will have problem
+
+5. this test is target to test whether the used library (libxil) can do the correct flush & invalid work
+   
+6. we have rpu.c which running on rpu, and disable the cache, then all the data write will go to the ddr
+   directly
+
+7. we have the apu.c which runing on the apu, with enable cache, by calling invalid and flush api it should
+   can get the ddr data written by rpu
+
+8.build the apu rpu
+
+   ```
+   make
+   cp rpu apu /proj/xsjsswstaff/huaj/vek280/RPUAPU/
+	```
+9. the process is  in board farm xsdb
+
+```
+   1. power 0 power 1
+   2. xsdb
+   3. conn
+   4. tar 1
+   5. device program /proj/xsjsswstaff/huaj/vek280/APU/allgmio.pdi
+   // run apu first which will clear the ddr data and wait a signal from rpu afterwrite data
+   6. tar 6
+   7. rst -proc
+   8. dow -force /proj/xsjsswstaff/huaj/vek280/RPUAPU/apu
+   9. con
+   // run rpu second to write data and send signal by write 1 into a ddr address
+   10. tar 3
+   11. rst -proc
+   12. dow -force /proj/xsjsswstaff/huaj/vek280/RPUAPU/rpu
+   13. con
+```
+
+we will see whether the apu can get correct data
+
+10. practice
+
+ 1.both apu rpu disable cache , sync is suc
+
+ 2. apu enable cache rpu disable cache
+    
+    2.1 apu write a output data into 0 then flush 
+       
+        apu can read the correct data after rpu write , when it called the inavlid function
+
+    2.2 apu write a output data into 0 with flush
+
+        apu can not read the correct data after rpu write, even if it called the invalid function 
+   

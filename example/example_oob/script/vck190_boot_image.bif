@@ -1,0 +1,42 @@
+/**
+* Copyright (C) 2025 Advanced Micro Devices, Inc.
+*
+* Licensed under the Apache License, Version 2.0 (the "License"). You may
+* not use this file except in compliance with the License. A copy of the
+* License is located at
+*
+*     http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing, software
+* distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+* WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+* License for the specific language governing permissions and limitations
+* under the License.
+*/
+
+all:
+{
+    image
+    {
+        { type=bootimage, file=../../../thirdparty/arch/platform/pdi/vck190/allgmiorpu.pdi }
+    }
+    image
+    {
+        name=aie_image, id=0x1c000000
+        { type=cdo
+          /* The following commented lines show the CDOs used to create a merged CDO 'aie.cdo.merged.bin'. For debugging purpose,
+             uncomment these CDOs and comment the line that adds 'aie.cdo.merged.bin' */
+          file = ../Work/ps/cdo/aie_cdo_reset.bin
+          file = ../Work/ps/cdo/aie_cdo_clock_gating.bin
+          file = ../Work/ps/cdo/aie_cdo_error_handling.bin
+          file = ../Work/ps/cdo/aie_cdo_elfs.bin
+          file = ../Work/ps/cdo/aie_cdo_init.bin
+          /*file=/scratch/staff/huaj/debug/oobtest/xgemm/designs/xgemm-gmio/ps/baremetal/aie.merged.cdo.bin*/
+        }
+    }
+    image
+    {
+        name=default_subsys, id=0x1c000000
+        { core=a72-0, file=./vck190.elf }
+    }
+}
