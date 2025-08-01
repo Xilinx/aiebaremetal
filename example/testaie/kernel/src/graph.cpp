@@ -18,7 +18,6 @@
 #include <xaiengine.h>
 
 #include "aiebaremetal.h"
-//#ifndef __BAREMETAL_HW__
 #if defined(__AIESIM__) || defined(__ADF_FRONTEND__)
 #include "graph.h"
 myGraph gradf;
@@ -35,8 +34,6 @@ BaremetalGraph gr("gradf");
 
 int main(int argc, char ** argv)
 {
-	//trigger the ps_ix.so load and the elf load
-	//gradf.init();
 	gr.selftestexit();
   return 0;
 }
