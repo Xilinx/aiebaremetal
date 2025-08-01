@@ -40,14 +40,12 @@ AbrGraph gr("gradf", rpu);
 
 int main(int argc, char ** argv)
 {
-	printf("adfr--2---\n");
 #if (defined(__AIESIM__) || defined(__ADF_FRONTEND__))
  gradf.init();
 #else
 #ifdef _RPU_
  //RPU need to disable data cache, without cache diable app will stuck
 	Xil_DCacheDisable();
-	//Xil_ICacheDisable();
 #endif
 #endif
 
@@ -73,9 +71,7 @@ int main(int argc, char ** argv)
 
 	gr.gm2aie_nb("gradf.in",reinterpret_cast<char*>(&inputArray[0]), DATA_LENGTH*sizeof(int32_t));
 	gr.aie2gm_nb("gradf.out",reinterpret_cast<char*>(&outputArray[0]), DATA_LENGTH*sizeof(int32_t));
-	//std::cout << "before gmio_wait ---" << std::endl;
 	gr.gmio_wait("gradf.out"); //assuming data from gm1 are processed by the graph and output to gm2
-	//printf("3\n");
 	gr.wait();
 	gr.end();
 
