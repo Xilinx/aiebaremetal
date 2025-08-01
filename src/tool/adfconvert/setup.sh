@@ -14,14 +14,38 @@
 #!/usr/bin/env bash
 
 
-export GLOBAL_DIR="$(dirname "$(realpath "$0")")"
+GLOBAL_DIR=$(dirname "$(realpath "${BASH_SOURCE[0]}")")
 elf_path="$GLOBAL_DIR/adftoaeg"
-deps_path="$GLOBAL_DIR/thirdparty/adftoaeg_deps"
+run_path="$GLOBAL_DIR/convert.sh"
 
-if [[ -f "$elf_path" ]] && [[ -d "$deps_path" ]]  ; then
+if [[ -z "${XILINX_VITIS}" ]]; then
+    source /proj/xbuilds/HEAD_qualified_latest/installs/lin64/HEAD/Vitis/settings64.sh
+fi
+echo "XILINX_VITIS: ${XILINX_VITIS}"
+
+LIB_PATH="${XILINX_VITIS}/gnu/aarch64/lin/aarch64-none/x86_64-oesdk-linux/usr/lib"
+LIB_BASE_PATH="${XILINX_VITIS}/gnu/aarch64/lin/aarch64-none/x86_64-oesdk-linux/lib"
+LD_SO="${LIB_BASE_PATH}/ld-linux-x86-64.so.2"
+CLANG_INCLUDE_PATH="${XILINX_VITIS}/gnu/aarch64/lin/aarch64-none/x86_64-oesdk-linux/usr/lib/aarch64-xilinx-elf/gcc/aarch64-xilinx-elf/13.3.0/include"
+
+if [[ -f "$elf_path" ]] && [[ -d "$LIB_PATH" ]] && [[ -d "$LIB_BASE_PATH" ]] && [[ -f "$LD_SO" ]] ; then
+    LIB_PATH="${LIB_PATH}/"
+    LIB_BASE_PATH="${LIB_BASE_PATH}/"
+    CLANG_INCLUDE_PATH="${CLANG_INCLUDE_PATH}/"
+    export LIB_PATH 
+    export LIB_BASE_PATH
+    export LD_SO
+    export CLANG_INCLUDE_PATH
     export GLOBAL_DIR
-    export MY_DEPS_PATH=""$GLOBAL_DIR"/thirdparty/adftoaeg_deps"
-    echo "Setup is done."
+
+    echo "Executable and its dependencies found."
 else
-    echo "The executable adftoaeg and/or its dependencies thirdparty/adftoaeg_deps are not found in the current working directory."
+    echo "Error: Unable to find adftoaeg executable and/or its dependencies."
+fi
+
+if [[ -f "$run_path" ]] ; then 
+    alias convert.sh="$GLOBAL_DIR/convert.sh"
+    echo "Command created"
+else
+    echo "Command not created; run.sh not in the current working directory"
 fi

@@ -13,6 +13,7 @@
 * License for the specific language governing permissions and limitations
 * under the License.
 */
+
 #include "clang/AST/ASTConsumer.h"
 #include "clang/Frontend/FrontendAction.h"
 #include "llvm/Support/CommandLine.h"
@@ -28,8 +29,11 @@
 #include "clang/Rewrite/Core/Rewriter.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 
+#include <clang/AST/Stmt.h>
+#include <clang/Basic/SourceLocation.h>
 #include <iostream>
 #include <fstream>
+#include <llvm/Support/Casting.h>
 #include <sstream>
 #include <ostream>
 
@@ -117,8 +121,58 @@ private:
     }
 };
 
+class MemberExprChain {
+	std::vector<std::string> parts;
+public:
+	std::string graphName;
+	std::string function;
+	
+	std::string setup;
+	std::string as_string;
+
+
+	MemberExprChain() {}
+
+	MemberExprChain(std::string graphName, std::string function,
+		std::vector<std::string> parts, std::string setup, std::string as_string):
+		parts{parts}, graphName(graphName), function(function), setup{setup}, as_string{as_string} {}
+};
+
 using namespace clang;
 using namespace clang::tooling;
+
+static StringRef getLine(const SourceManager &SM, SourceLocation Loc) {
+	std::pair<FileID, unsigned> loc = SM.getDecomposedLoc(Loc);
+	bool invalid = false;
+	StringRef file = SM.getBufferData(loc.first, &invalid);
+	if (invalid)
+		return StringRef();
+
+	const char *start = file.data() + loc.second;
+	while (start > file.data() && start[-1] != '\n')
+		--start;
+
+	const char *end = start;
+	while (*end && *end != '\n')
+		++end;
+
+	return StringRef(start, end - start);
+}
+
+static unsigned getIndentation(StringRef line) {
+	unsigned index = 0, indent = 0;
+	while (index < line.size()) {
+		if(line[index] == ' ')
+			indent += 1;
+		else if(line[index] == '\t')
+			indent += 4;
+		else
+			break;
+		index += 1;
+	}
+	return indent;
+}
+
 class GlobalFunctionVisitor : public RecursiveASTVisitor<GlobalFunctionVisitor>
 {
 private:
@@ -189,12 +243,6 @@ public:
 			llvm::raw_string_ostream OS(Result);
 			ASE->getBase()->printPretty(OS, nullptr, PrintingPolicy(Context->getLangOpts()));
 		}
-		else if (const UnaryOperator *UO = dyn_cast<UnaryOperator>(ArgExpr)){
-			if (UO->getOpcode() == UO_AddrOf){
-				llvm::raw_string_ostream OS(Result);
-				UO->getSubExpr()->printPretty(OS, nullptr, PrintingPolicy(Context->getLangOpts()));
-			}
-		}
 		else if (const ImplicitCastExpr *ICE = dyn_cast<ImplicitCastExpr>(ArgExpr)){
 			Result = GetArgument(ICE->getSubExpr());
 		}
@@ -205,28 +253,83 @@ public:
 		return Result;
 	};
 
-	void printMemberExprChain(const Expr *Expr, std::vector<std::string> &names){
-		if (const MemberExpr *Member = dyn_cast<MemberExpr>(Expr->IgnoreImplicit())){
-			printMemberExprChain(Member->getBase(), names);
+	void getMemberExprChainInternal(const Expr *Expr, std::vector<std::string> &names, std::vector<std::string> &parts){
+		if (const MemberExpr *Member = dyn_cast<MemberExpr>(Expr->IgnoreImplicit())) {
+			getMemberExprChainInternal(Member->getBase(), names, parts);
 			names.push_back(Member->getMemberDecl()->getNameAsString());
 		}
-
-		else if(const ArraySubscriptExpr *Member = dyn_cast<ArraySubscriptExpr>(Expr->IgnoreImplicit())){
-			printMemberExprChain(Member->getBase(), names);
+		else if(const ArraySubscriptExpr *Member = dyn_cast<ArraySubscriptExpr>(Expr->IgnoreImplicit())) {
+			getMemberExprChainInternal(Member->getBase(), names, parts);
 			auto *Index = Member->getIdx()->IgnoreImpCasts();  
 
-			std::string IndexStr;  
-			llvm::raw_string_ostream Stream(IndexStr);  
-			Index->printPretty(Stream, nullptr, PrintingPolicy(Context->getLangOpts()));  
- 
-			auto array = names.back() + "[" + Stream.str() + "]"; 
-			names.pop_back();
-			names.push_back(array);
+			std::string temp;
+			if(const IntegerLiteral *IL = dyn_cast<IntegerLiteral>(Index)){
+				std::string IndexStr;
+				llvm::raw_string_ostream Stream(IndexStr);
+				Index->printPretty(Stream, nullptr, PrintingPolicy(Context->getLangOpts()));  
+				temp = Stream.str();
+
+				auto array = names.back() + "[" + temp + "]"; 
+				names.pop_back();
+				names.push_back(array);
+			}
+			else {
+				llvm::raw_string_ostream Stream(temp);
+				Index->printPretty(Stream, nullptr, PrintingPolicy(Context->getLangOpts()));
+
+				for(auto name: names) {
+					parts.back() += name + ".";
+				}
+				parts.back().back() = '[';
+				parts.back() += "\"";
+				parts.emplace_back("std::to_string(" + temp + ")");
+				parts.emplace_back("\"]");
+
+				auto array = names.back() + "[" + temp + "]"; 
+				names.pop_back();
+				names.push_back(array);
+			}
 		}
-		
 		else if (const DeclRefExpr *DeclRef = dyn_cast<DeclRefExpr>(Expr->IgnoreImplicit())){
-			names.push_back(DeclRef->getNameInfo().getName().getAsString());;
+			names.push_back(DeclRef->getNameInfo().getName().getAsString());
 		}
+	}
+
+	MemberExprChain getMemberExprChain(const Expr *Expr) {
+		std::string graphName = "";
+		std::string function = "";
+		std::vector<std::string> names = {};
+		std::vector<std::string> parts = {"\""};
+		getMemberExprChainInternal(Expr, names, parts);
+
+		static int num_temps = 0;
+		std::string str = "_adftoaeg_temp_" + std::to_string(num_temps++);
+		std::string setup = "char *" + str + " = (";
+		for(auto part: parts) {
+			setup += part + " + ";
+		}
+
+		graphName = names.front();
+		function = names.back();
+		names.erase(names.end());
+
+		// if "parts" still has it's default value there are no subscript expressions with variables present
+		// so a temporary variable is not needed
+		if(parts.size() == 1 && parts[0] == "\"") {
+			setup = "";
+			num_temps -= 1;
+			str = "\"";
+			for(int i = 0; i < names.size()-1; ++i) {
+				str += names[i] + ".";
+			}
+			str += names.back() + '\"';
+		}
+		else {
+			setup.erase(setup.end()-3, setup.end());
+			setup += "\").data();";
+		}
+
+		return MemberExprChain(graphName, function, parts, setup, str);
 	}
 
 	bool VisitCallExpr(const CallExpr *CE){
@@ -282,7 +385,6 @@ public:
 		if (CXXMethodDecl *MethodDecl = MemberCall->getMethodDecl()){
 			if (MethodDecl->getNameAsString() == "wait"){
 				const ValueDecl* memberDecl;
-				std::vector<std::string> names;
 				if (const Expr *Callee = MemberCall->getCallee()){
 					if (const MemberExpr *Member = dyn_cast<MemberExpr>(Callee->IgnoreImplicit())){
 						if(const DeclRefExpr *DeclCallee = dyn_cast<DeclRefExpr>(Member->getBase()->IgnoreImplicit())){
@@ -310,29 +412,23 @@ public:
 							}
 						}
 					
-						printMemberExprChain(Callee, names);
-						int vecSize = names.size();
+						MemberExprChain chain = getMemberExprChain(Callee);
 						SourceLocation StartLoc = MemberCall->getBeginLoc();
 						SourceLocation EndLoc = MemberCall->getEndLoc();
 
 						std::ostringstream ostr;
-						auto graphName  = names[0];
-						const std::string newAdfrGraphName = graphNames[graphName];
-						if (MemberCall->getNumArgs() > 0){
-							ostr << newAdfrGraphName << ".wait(\"";
-							for(int i = 0; i<vecSize - 2; i++){
-								ostr<<names[i] << ".";
-							}
-							ostr<<names[vecSize - 2]<<"\",\"";
+						const std::string newAdfrGraphName = graphNames[chain.graphName];
+						if (MemberCall->getNumArgs() > 0) {
+							ostr << newAdfrGraphName << ".wait(";
+							
+							ostr << chain.as_string << ",\"";
+
 							const Expr *ArgExpr = MemberCall->getArg(0);
 							ostr << GetArgument(ArgExpr)<< "\")";
 						}
 						else{
-							ostr << newAdfrGraphName << ".gmio_wait(\"";
-							for(int i = 0; i<vecSize - 2; i++){
-								ostr<<names[i] << ".";
-							}
-							ostr<<names[vecSize - 2]<<"\")";
+							ostr << newAdfrGraphName << ".gmio_wait(";
+							ostr << chain.as_string << ")";
 						}
 						Rewrite->ReplaceText(SourceRange(StartLoc, EndLoc), ostr.str());
 					}
@@ -388,30 +484,25 @@ public:
 					}
 				}
 				
-
 				Rewrite->ReplaceText(SourceRange(StartLoc, EndLoc), ostr.str());
 
 			}
 			else if ((MethodDecl->getNameAsString() == "gm2aie_nb") || (MethodDecl->getNameAsString() == "aie2gm_nb") ||
 			(MethodDecl->getNameAsString() == "gm2aie") || (MethodDecl->getNameAsString() == "aie2gm") ||
 			(MethodDecl->getNameAsString() == "read") || (MethodDecl->getNameAsString() == "update") || (MethodDecl->getNameAsString() == "setAddress")){
-				std::vector<std::string> names;
 
 				if (const Expr *Callee = MemberCall->getCallee()){
-					printMemberExprChain(Callee, names);
+					MemberExprChain chain = getMemberExprChain(Callee);
 					SourceLocation StartLoc = MemberCall->getBeginLoc();
 					SourceLocation EndLoc = MemberCall->getEndLoc();
 
 					std::ostringstream ostr;
-					int vecSize = names.size();
-					auto graphName  = names[0];
-					const std::string newAdfrGraphName = graphNames[graphName];
-					ostr << newAdfrGraphName << "." << names[vecSize-1] << "("<<"\"";
-					for(int i = 0; i<vecSize - 2; i++){
-						ostr<<names[i] << ".";
-					}
+					const std::string newAdfrGraphName = graphNames[chain.graphName];
+					ostr << newAdfrGraphName << "." << chain.function << "(" << chain.as_string;
+
 					if((MethodDecl->getNameAsString() == "setAddress")){
-						ostr<<names[vecSize - 2]<<"\",";
+						ostr << ",";
+
 						for (unsigned i = 0; i < MemberCall->getNumArgs(); ++i)
 						{
 							const Expr *ArgExpr = MemberCall->getArg(i);
@@ -426,15 +517,15 @@ public:
 					}
 					else if ((MemberCall->getNumArgs() == 1) && ((MethodDecl->getNameAsString() == "gm2aie_nb") || (MethodDecl->getNameAsString() == "aie2gm_nb") || 
 					(MethodDecl->getNameAsString() == "gm2aie") || (MethodDecl->getNameAsString() == "aie2gm"))){
-						ostr<<names[vecSize - 2]<<"\",\"";
+						ostr << ",\"";
+
 						const Expr *ArgExpr = MemberCall->getArg(0);
-						ostr << GetArgument(ArgExpr)<< "\")";
+						ostr << GetArgument(ArgExpr) << ")";
 					}
 					else{
-						ostr<<names[vecSize - 2]<<"\",reinterpret_cast<char*>(";
+						ostr << ",reinterpret_cast<char*>(";
 
-						for (unsigned i = 0; i < MemberCall->getNumArgs(); ++i)
-						{
+						for (unsigned i = 0; i < MemberCall->getNumArgs(); ++i) {
 							const Expr *ArgExpr = MemberCall->getArg(i);
 							ostr << GetArgument(ArgExpr);
 							if (i == MemberCall->getNumArgs() - 1 && (i == 0)){
@@ -451,7 +542,45 @@ public:
 							}
 						}
 					}
-					Rewrite->ReplaceText(SourceRange(StartLoc, EndLoc), ostr.str());
+
+					if(chain.setup.empty()) {
+						Rewrite->ReplaceText(SourceRange(StartLoc, EndLoc), ostr.str());
+					} else {
+						const DynTypedNode& Parent = Context->getParents(*MemberCall)[0];
+
+						int parentIndent = getIndentation(getLine(Context->getSourceManager(), Parent.getSourceRange().getBegin()));
+						std::string parentIndentStr = std::string(parentIndent, ' ');
+						int indent = getIndentation(getLine(Context->getSourceManager(), StartLoc));
+						std::string indentStr = std::string(indent, ' ');
+						std::string before = "", after = "";
+
+						if (const Stmt* ParentStmt = Parent.get<Stmt>()) {
+							if (isa<CompoundStmt>(ParentStmt)) {
+								// curly braces are already present, don't need to insert
+							}
+							else if (isa<ForStmt>(ParentStmt) ||
+									isa<WhileStmt>(ParentStmt) ||
+									isa<IfStmt>(ParentStmt) ||
+									isa<DoStmt>(ParentStmt) ||
+									isa<SwitchStmt>(ParentStmt)) {
+								before = "{\n" + indentStr;
+								after = "\n" + parentIndentStr + "}";
+							}
+							else {
+								// not in a context where curly braces are needed
+							}
+						}
+						
+						SourceLocation LineStart = StartLoc.getLocWithOffset(-Context->getSourceManager().getSpellingColumnNumber(StartLoc) + 1);
+						Rewrite->ReplaceText(SourceRange(LineStart, EndLoc), indentStr + ostr.str());
+						Rewrite->InsertTextBefore(LineStart, parentIndentStr + before + chain.setup + "\n");
+						
+						SourceLocation AfterSemicolon = Lexer::findLocationAfterToken(EndLoc, tok::semi, Context->getSourceManager(), Context->getLangOpts(), false);
+						if (AfterSemicolon.isInvalid()) {
+							AfterSemicolon = Lexer::getLocForEndOfToken(EndLoc, 0, Context->getSourceManager(), Context->getLangOpts());
+						}
+						Rewrite->InsertTextAfterToken(AfterSemicolon, after);
+					}
 
 					if((MethodDecl->getNameAsString() == "gm2aie_nb") || (MethodDecl->getNameAsString() == "gm2aie") ||
 					(MethodDecl->getNameAsString() == "aie2gm_nb") || (MethodDecl->getNameAsString() == "aie2gm") || (MethodDecl->getNameAsString() == "setAddress"))
@@ -466,7 +595,7 @@ public:
 								}
 							}
 						}
-						MemVars.insert({found, names[0]});
+						MemVars.insert({found, chain.graphName});
 					}
 				}
 			}
@@ -555,12 +684,84 @@ public:
     }    
 };
 
+class BracesInserter : public RecursiveASTVisitor<BracesInserter> {
+public:
+	BracesInserter(): TheRewriter(nullptr), Context(nullptr) {}
+	explicit BracesInserter(Rewriter *R, ASTContext *Context) : TheRewriter(R), Context(Context) {}
+
+	bool VisitIfStmt(IfStmt *IfStatement) {
+		processBlock(IfStatement->getThen(), IfStatement->getBeginLoc());
+
+		if (Stmt *ElseStatement = IfStatement->getElse()) {
+			if(!isa<IfStmt>(ElseStatement)) {
+				processBlock(ElseStatement, IfStatement->getElseLoc());
+			}
+		}
+		return true;
+	}
+
+	bool VisitWhileStmt(WhileStmt *WhileStatement) {
+		processBlock(WhileStatement->getBody(), WhileStatement->getBeginLoc());
+		return true;
+	}
+
+	bool VisitForStmt(ForStmt *ForStatement) {
+		processBlock(ForStatement->getBody(), ForStatement->getBeginLoc());
+		return true;
+	}
+
+private:
+	Rewriter *TheRewriter;
+	ASTContext *Context;
+
+	void processBlock(Stmt *Statement, SourceLocation ParentLoc) {
+		if (!Statement || isa<CompoundStmt>(Statement))
+			return;
+
+		SourceManager &SM = TheRewriter->getSourceMgr();
+		LangOptions LangOpts = TheRewriter->getLangOpts();
+
+		int ParentIndent = getIndentation(getLine(SM, ParentLoc));
+		
+		constexpr int INDENT_WIDTH = 4;
+		std::string ChildIndent(ParentIndent + INDENT_WIDTH - 1, ' ');
+
+		SourceLocation StmtStart = Statement->getBeginLoc();
+		SourceLocation StmtEnd = Statement->getEndLoc(); 
+
+		bool Invalid = false;
+		const char *StmtStartChar = SM.getCharacterData(StmtStart, &Invalid);
+		if (Invalid)
+			return;
+
+		const char *BufferStart = SM.getBufferData(SM.getFileID(StmtStart), &Invalid).data();
+		if (Invalid)
+			return;
+
+		const char *SearchPtr = StmtStartChar - 1;
+		while (SearchPtr --> BufferStart && isspace(*SearchPtr)) {}
+		++SearchPtr;
+
+		int WhitespaceLen = StmtStartChar - SearchPtr;
+		SourceLocation WhitespaceStart = StmtStart.getLocWithOffset(-WhitespaceLen);
+
+		TheRewriter->RemoveText(SourceRange(WhitespaceStart, StmtStart.getLocWithOffset(-1)));
+		TheRewriter->InsertText(WhitespaceStart, " {\n" + ChildIndent);
+
+		SourceLocation AfterSemicolon = Lexer::findLocationAfterToken(StmtEnd, tok::semi, SM, LangOpts, false);
+		if (AfterSemicolon.isInvalid()) {
+			AfterSemicolon = Lexer::getLocForEndOfToken(StmtEnd, 0, SM, LangOpts);
+		}
+		TheRewriter->InsertTextAfterToken(AfterSemicolon, "\n" + std::string(ParentIndent, ' ') + "}");
+	}
+};
+
 class MyASTConsumer : public ASTConsumer
 {
 public:
 
-	explicit MyASTConsumer(GlobalFunctionVisitor* Visitor)
-		: Visitor(Visitor), MallocMatcher(createMatcher()) {}
+	explicit MyASTConsumer(GlobalFunctionVisitor* Visitor, BracesInserter* StmntVisitor)
+		: Visitor(Visitor), StmntVisitor(StmntVisitor), MallocMatcher(createMatcher()) {}
 
 	static ast_matchers::StatementMatcher createMatcher() {
 		return ast_matchers::anyOf(
@@ -582,6 +783,8 @@ public:
 		{
 			FullSourceLoc FullLocation = Context.getFullLoc(Decl->getLocation());
 			if (FullLocation.isValid() && (SM.getFileCharacteristic(FullLocation) == clang::SrcMgr::C_User)){
+				// NOTE: Order matters here. 
+				// StmntVisitor->TraverseDecl(Decl);
 				Visitor->TraverseDecl(Decl);
 			}
 		}
@@ -597,7 +800,8 @@ private:
     } 
 	
 	ast_matchers::StatementMatcher MallocMatcher; 
-	GlobalFunctionVisitor* Visitor;
+	GlobalFunctionVisitor *Visitor;
+	BracesInserter *StmntVisitor;
 };
 
 class IncludeCallback : public clang::PPCallbacks
@@ -714,7 +918,7 @@ public:
 		}
 
 		std::cout<<"\n";
-		TheRewriter.InsertText(TheRewriter.getSourceMgr().getLocForStartOfFile(TheRewriter.getSourceMgr().getMainFileID()), "#include \"aiebaremetal.h\"\n");
+		TheRewriter.InsertText(TheRewriter.getSourceMgr().getLocForStartOfFile(TheRewriter.getSourceMgr().getMainFileID()), "#include <xaiengine.h>\n#include \"aiebaremetal.h\"\n#include <string>\n");
 		const RewriteBuffer *RewriteBuf = TheRewriter.getRewriteBufferFor(TheRewriter.getSourceMgr().getMainFileID());	
 
 		auto &CI = getCompilerInstance(); 
@@ -767,7 +971,8 @@ public:
 	std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI,
 												   StringRef file) override{
 		Visitor = GlobalFunctionVisitor(&TheRewriter, &CI.getASTContext());
-		return std::make_unique<MyASTConsumer>(&Visitor);
+		StmntVisitor = BracesInserter(&TheRewriter, &CI.getASTContext());
+		return std::make_unique<MyASTConsumer>(&Visitor, &StmntVisitor);
 	}
 
 private:
@@ -775,12 +980,11 @@ private:
 	Rewriter TheRewriter;
 	std::unique_ptr<clang::FileManager> FileMgr;
 	GlobalFunctionVisitor Visitor;
+	BracesInserter StmntVisitor;
 };
 
-int main(int argc, const char **argv)
-{
-
-	if (argc > 2){
+int main(int argc, const char **argv) {
+	if (argc > 2) {
 		if (strcmp(argv[1], "pass") == 0){
 			return 0;
 		}
@@ -796,6 +1000,5 @@ int main(int argc, const char **argv)
 
 	ClangTool Tool(OptionsParser.getCompilations(),
 				   OptionsParser.getSourcePathList());
-
 	return Tool.run(newFrontendActionFactory<MyFrontendAction>().get());
 }

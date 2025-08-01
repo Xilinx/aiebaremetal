@@ -11,18 +11,36 @@
 # WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 # License for the specific language governing permissions and limitations
 # under the License.
+
 cmake_minimum_required(VERSION 3.5)
 project(adftoaeg)
 
 
 set(CMAKE_BUILD_TYPE Debug)
-find_package(LLVM REQUIRED CONFIG)
-message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
-message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
+#set the llvm location where you installed
+set(LLVM_INSTALL_DIR /usr/local/)
+
+set(CMAKE_PREFIX_PATH "${LLVM_INSTALL_DIR}/bin/" ${CMAKE_PREFIX_PATH})
+find_program(LLVM_CONFIG llvm-config REQUIRED)
+
+message(STATUS "Found LLVM ${LLVM_CONFIG}")
+
+execute_process(
+  COMMAND ${LLVM_CONFIG} --includedir
+  OUTPUT_VARIABLE LLVM_INCLUDE_DIRS
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+
+execute_process(
+  COMMAND ${LLVM_CONFIG} --cxxflags
+  OUTPUT_VARIABLE LLVM_DEFINITIONS
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+)
 
 include_directories(${LLVM_INCLUDE_DIRS})
 add_definitions(${LLVM_DEFINITIONS})
 
+set(CMAKE_PREFIX_PATH "${LLVM_INSTALL_DIR}/lib/cmake/clang" ${CMAKE_PREFIX_PATH})
 find_package(Clang REQUIRED CONFIG)
 
 message(STATUS "Found Clang ${Clang_PACKAGE_VERSION}")
@@ -41,7 +59,5 @@ target_link_libraries(adftoaeg
     PRIVATE
     clangTooling
 )
-
-
 
 
