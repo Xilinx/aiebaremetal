@@ -16,7 +16,7 @@ If the repo is cloned without `--recursive` command, the user can use
 $ git submodule update --init --recursive
 ```
 
-to download the submodules.
+to download the submodules
 
 ## Repo Directory
 
