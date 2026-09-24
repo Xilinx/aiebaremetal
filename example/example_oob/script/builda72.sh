@@ -1,19 +1,6 @@
 #!/bin/bash
-# Copyright (C) 2025 Advanced Micro Devices, Inc.
-#
-# Licensed under the Apache License, Version 2.0 (the "License"). You may
-# not use this file except in compliance with the License. A copy of the
-# License is located at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
-# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
-# License for the specific language governing permissions and limitations
-# under the License.
-
-
+# Copyright (C) 2025 - 2026 Advanced Micro Devices, Inc.
+# SPDX-License-Identifier: Apache-2.0
 # Source the environment variables
 AIE_GEN=1
 if [ $# -gt 0 ]; then
@@ -38,7 +25,7 @@ export ARCH_72_DIR=$ARCH_DIR/psv_cortexa72_0/
   source $ARCH_DIR/env.sh
 )
 
-AIE=10
+_AIE_GEN1_=10
 AIEML=20
 if [ ${AIE_GEN} -ge 2 ]; then
 	BIF=vek280_boot_image.bif
@@ -49,7 +36,7 @@ else
 	BIF=vck190_boot_image.bif
 	BOOTBIN=Vck190BOOT.BIN
 	ELF=vck190.elf
-	__AIE_ARCH__=${AIE}
+	__AIE_ARCH__=${_AIE_GEN1_}
 fi
 
 #build the vek280/a72 app

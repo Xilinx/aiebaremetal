@@ -1,19 +1,22 @@
 #!/bin/bash
-# Copyright (C) 2025 Advanced Micro Devices, Inc.
-#
-# Licensed under the Apache License, Version 2.0 (the "License"). You may
-# not use this file except in compliance with the License. A copy of the
-# License is located at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
-# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
-# License for the specific language governing permissions and limitations
-# under the License.
-
+# Copyright (C) 2025 - 2026 Advanced Micro Devices, Inc.
+# SPDX-License-Identifier: Apache-2.0
 #source ./build.sh 2 -bootgen -rpu
+set -e
+CURRDIR=$PWD
+
+check_status() {
+    status=$1
+    cmd_desc=$2
+    
+    if [ $status -ne 0 ]; then
+        echo "Error: ${cmd_desc:-Command} failed with exit code $status" >&2
+        exit $status
+    fi
+    
+    return 0
+}
+
 AIE_GEN=1
 RPUFLAG=
 BOOTGEN=
@@ -32,5 +35,14 @@ fi
 
 echo ${AIE_GEN}
 #set this is is local env
-source ../../../script/settings.sh 1
-compile.sh --runtime_source_file ./src/graph.cpp --aie_version ${AIE_GEN} ${RPUFLAG} ${BOOTGEN}
+source $CURRDIR/../../../script/settings.sh 1
+
+if [ $AIE_GEN == 5 ]; then
+	$CURRDIR/../../../script/compile.sh --runtime_source_file ./src/graph.cpp --partition_option "--enable-partition=0:12:pr0" --aie_version ${AIE_GEN} ${RPUFLAG} ${BOOTGEN}
+	check_status $? "compile.sh with AIE_GEN=${AIE_GEN}, BOOTGEN=${BOOTGEN}, RPUFLAG=${RPUFLAG}"
+else
+	$CURRDIR/../../../script/compile.sh --runtime_source_file ./src/graph.cpp --aie_version ${AIE_GEN} ${RPUFLAG} ${BOOTGEN}
+	check_status $? "compile.sh with AIE_GEN=${AIE_GEN}, BOOTGEN=${BOOTGEN}, RPUFLAG=${RPUFLAG}"
+fi
+
+echo "Build completed successfully with AIE_GEN=${AIE_GEN}, BOOTGEN=${BOOTGEN}, RPUFLAG=${RPUFLAG}"

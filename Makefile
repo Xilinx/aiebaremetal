@@ -1,17 +1,5 @@
-# Copyright (C) 2025 Advanced Micro Devices, Inc.
-#
-# Licensed under the Apache License, Version 2.0 (the "License"). You may
-# not use this file except in compliance with the License. A copy of the
-# License is located at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
-# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
-# License for the specific language governing permissions and limitations
-# under the License.
-
+# Copyright (C) 2023 - 2026 Advanced Micro Devices, Inc.
+# SPDX-License-Identifier: Apache-2.0
 CC=
 AR=
 CP=cp
@@ -20,29 +8,42 @@ EXTRA_CFLAGS=
 EXTRA_ARCHIVE_FLAGS=rc
 LIB=
 BAREMETAL_SRCS_DIR=./src/
-INCLUDES=-I./include -I./include/common_layer/ -I./include/common_layer/abrothers/
+INCLUDES=-I./src/include -I./src/include/common_layer/ -I./src/include/common_layer/aegothers/ -I./thirdparty/ELFIO/ -I./thirdparty/ELFIO/elfio/ -I./thirdparty/cert/handshake/ -I./thirdparty/cert/api/
 BAREMETAL_CPP_SRCS=
 OTHER_LIB=
 DCONFIG_O_A72=
 GCONFIG_O_A72=
 GMIO_O_A72=
 RTP_O_A72=
+
 DCONFIG_O_R53=
 GCONFIG_O_R53=
 GMIO_O_R53=
 RTP_O_R53=
+
+DCONFIG_O_R52=
+GCONFIG_O_R52=
+GMIO_O_R52=
+RTP_O_R52=
+
 AIEMETASRC=
 AIEMETAOBJ := baremetal_metadata.o
 RELEASEDIR := ./build
 TEMP_DIR := $(RELEASEDIR)/temp/
 TARGETA72 := libaiebaremetala72.a
+TARGETA78 := libaiebaremetala78.a
 TARGETR53 := libaiebaremetalr53.a
+TARGETR52 := libaiebaremetalr52.a
 TARGET_RELEASE := $(RELEASEDIR)/libaiebaremetal_api.a
+DOCS_DIR = ./docs/tmp
+DOXYGEN_CONFIG_FILE = ./docs/aiebaremetal_documentation.dox
 
 SHELL[unexport] = "1"
 
 all: $(TARGETA72)
+a78: $(TARGETA78)
 rpu: $(TARGETR53)
+rpu_r52: $(TARGETR52)
 release: $(TARGET_RELEASE)
 
 #BAREMETAL_SRCS := $(filter-out $(BAREMETAL_SRCS_EXCLUDE), $(wildcard $(BAREMETAL_SRCS_DIR)/*.cc)) 
@@ -57,6 +58,12 @@ $(TARGETA72): $(AIEMETAOBJ) $(BAREMETAL_OBJS) |$(TEMP_DIR)
 	rm -f $(TEMP_DIR)/*.o
 	$(AR) --output $(TEMP_DIR) -x $(OTHER_LIB)
 	$(AR) $(EXTRA_ARCHIVE_FLAGS) ${RELEASEDIR}/$(TARGETA72) $(BAREMETAL_OBJS) $(TEMP_DIR)/*.o \
+		$(AIEMETAOBJ)
+
+$(TARGETA78): $(AIEMETAOBJ) $(BAREMETAL_OBJS) |$(TEMP_DIR)
+	rm -f $(TEMP_DIR)/*.o
+	$(AR) --output $(TEMP_DIR) -x $(OTHER_LIB)
+	$(AR) $(EXTRA_ARCHIVE_FLAGS) ${RELEASEDIR}/$(TARGETA78) $(BAREMETAL_OBJS) $(TEMP_DIR)/*.o \
 		$(AIEMETAOBJ)
 
 $(TARGET_RELEASE_AIELIB): $(AIEMETAOBJ) $(BAREMETAL_OBJS) |$(TEMP_DIR)
@@ -77,6 +84,17 @@ $(TARGETR53): $(AIEMETAOBJ) $(BAREMETAL_OBJS) |$(TEMP_DIR)
 	rm -f $(BAREMETAL_OBJS)
 	#rm $(TEMP_DIR)/*.o
 
+$(TARGETR52): $(AIEMETAOBJ) $(BAREMETAL_OBJS) |$(TEMP_DIR)
+	echo "Root Makefile: target r52"
+	rm -f $(TEMP_DIR)/*.o
+	$(AR) --output $(TEMP_DIR) -x $(OTHER_LIB)
+	$(AR) $(EXTRA_ARCHIVE_FLAGS) ${RELEASEDIR}/$(TARGETR52) $(BAREMETAL_OBJS) $(TEMP_DIR)/*.o \
+		$(AIEMETAOBJ)
+
+
+	rm -f $(BAREMETAL_OBJS)
+	#rm $(TEMP_DIR)/*.o
+
 $(BAREMETAL_SRCS_DIR)/%.o : $(BAREMETAL_SRCS_DIR)/%.cc |$(BAREMETAL_SRCS_DIR)
 	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
@@ -88,6 +106,14 @@ $(AIEMETAOBJ) : $(AIEMETASRC)
 
 $(TEMP_DIR):
 	@mkdir -p $(@D)
+
+doc-generate:
+	mkdir -p $(DOCS_DIR)
+	doxygen $(DOXYGEN_CONFIG_FILE)
+	cd $(DOCS_DIR)/latex; make; cd ..
+
+doc-clean:
+	rm -rf $(DOCS_DIR)
 
 clean:
 	rm ./build/*.a

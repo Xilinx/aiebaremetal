@@ -1,17 +1,5 @@
-# Copyright (C) 2025 Advanced Micro Devices, Inc.
-#
-# Licensed under the Apache License, Version 2.0 (the "License"). You may
-# not use this file except in compliance with the License. A copy of the
-# License is located at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
-# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
-# License for the specific language governing permissions and limitations
-# under the License.
-
+# Copyright (C) 2024 - 2026 Advanced Micro Devices, Inc.
+# SPDX-License-Identifier: Apache-2.0
 export ROOT_DIR=$ARCH_DIR/kernels/
 export XILINX_VITIS_AIETOOLS=$XILINX_VITIS/aietools
 export INCLUDE_PATH="-I $XILINX_VITIS_AIETOOLS/include -I /proj/xbuilds/SWIP/2023.1_0507_1903/installs/lin64/Vitis/2023.1/aietools/include/aie_api -I /proj/xbuilds/SWIP/2023.1_0507_1903/installs/lin64/Vitis/2023.1/aietools/include/drivers/aiengine -I $CARDANO_AIE_ARCH_MODEL_DIR/runtime_cxx/libcxx-lite/include -I $CARDANO_AIE_ARCH_MODEL_DIR/runtime_cxx/libs/libcxx-9.0.0/include-lite -I $CARDANO_AIE_ARCH_MODEL_DIR/runtime/include"

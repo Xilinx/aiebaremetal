@@ -1,29 +1,11 @@
-/**
-* Copyright (C) 2025 Advanced Micro Devices, Inc.
-*
-* Licensed under the Apache License, Version 2.0 (the "License"). You may
-* not use this file except in compliance with the License. A copy of the
-* License is located at
-*
-*     http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
-* WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
-* License for the specific language governing permissions and limitations
-* under the License.
-*/
+// Copyright (C) 2025 - 2026 Advanced Micro Devices, Inc.
+// SPDX-License-Identifier: Apache-2.0
 
-/* 
- * Kernel hist 
- */
-
+#include "dct.h"
 #include <adf.h>
 #include <stdio.h>
-#include "dct.h"
 
-void dct8x8(float *src, float *dst, int stride)
-{
+void dct8x8(float *src, float *dst, int stride) {
     float X07P = src[0 * stride] + src[7 * stride];
     float X16P = src[1 * stride] + src[6 * stride];
     float X25P = src[2 * stride] + src[5 * stride];
@@ -48,12 +30,9 @@ void dct8x8(float *src, float *dst, int stride)
     dst[3 * stride] = C_norm * (C_c * X07M + C_f * X61M - C_a * X25M + C_d * X43M);
     dst[5 * stride] = C_norm * (C_d * X07M + C_a * X61M + C_f * X25M - C_c * X43M);
     dst[7 * stride] = C_norm * (C_f * X07M + C_d * X61M + C_c * X25M + C_a * X43M);
-
-
 }
 
-void krnlDct_out(input_window_uint32 * in, output_window_float* out)
-{
+void krnlDct_out(input_window_uint32 *in, output_window_float *out) {
     // typedef union {   // float32<->int32 convert
     //     unsigned int i;
     //     float f;
@@ -63,27 +42,24 @@ void krnlDct_out(input_window_uint32 * in, output_window_float* out)
     float src[BLK_SIZE];
     float dst[BLK_SIZE];
 
-for(unsigned ii = 0; ii < SIZE/BLK_SIZE; ii++)
-{
-    for (unsigned i = 0; i < BLK_SIZE; i++)
-    { 
-        window_readincr(in, val);
-        src[i] = val;
-        printf("Input :%f\n", src[i]);
-        //dst[i] = val.f;
+    for (unsigned ii = 0; ii < SIZE / BLK_SIZE; ii++) {
+        for (unsigned i = 0; i < BLK_SIZE; i++) {
+            window_readincr(in, val);
+            src[i] = val;
+            printf("Input :%f\n", src[i]);
+            // dst[i] = val.f;
+        }
+
+        // for (unsigned i = 0; i < BLK_DIM; i++)
+        //     dct8x8(src + BLK_DIM*i, dst + BLK_DIM*i, 1);
+
+        for (unsigned i = 0; i < BLK_DIM; i++)
+            dct8x8(src + i, dst + i, BLK_DIM);
+
+        for (unsigned i = 0; i < BLK_SIZE; i++) {
+            // val.f = dst[i];
+            printf("Output: %f\n", dst[i]);
+            window_writeincr(out, dst[i]);
+        }
     }
-    
-    //for (unsigned i = 0; i < BLK_DIM; i++)
-    //    dct8x8(src + BLK_DIM*i, dst + BLK_DIM*i, 1);
-    
-    for (unsigned i = 0; i < BLK_DIM; i++)
-        dct8x8(src + i, dst + i, BLK_DIM);   
-    
-    for (unsigned i = 0; i < BLK_SIZE; i++)
-    {
-        //val.f = dst[i];
-        printf("Output: %f\n", dst[i]);
-        window_writeincr(out, dst[i]);
-    }
-}
 }

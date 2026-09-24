@@ -1,17 +1,5 @@
-# Copyright (C) 2025 Advanced Micro Devices, Inc.
-#
-# Licensed under the Apache License, Version 2.0 (the "License"). You may
-# not use this file except in compliance with the License. A copy of the
-# License is located at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
-# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
-# License for the specific language governing permissions and limitations
-# under the License.
-
+# Copyright (C) 2025 - 2026 Advanced Micro Devices, Inc.
+# SPDX-License-Identifier: Apache-2.0
 ####################################################################################
 #                            Makefile for this example
 ####################################################################################
@@ -25,11 +13,8 @@ ifeq ($(AIE_GEN), 1)
 	#DEVICE_FILE = xcvp2502-vsva5601-1LP-e-S S100
 else ifeq ($(AIE_GEN), 2)
 	DEVICE_FILE              = xcvc2802      # aie-ml
-  #DEVICE_FILE              = xc10AIE24x5   # aie-ml IPU
-  #DEVICE_FILE              = xc10AIE2P_ML  # aie2p
 else ifeq ($(AIE_GEN), 5)
-	#DEVICE_FILE              = xc10Turin     # aie2ps Turin
-	DEVICE_FILE              = xcve3858      # aie2ps Telluride T50
+	DEVICE_FILE              = xcve3858      # aie2ps
 endif
 
 $(info $(DEVICE_FILE) "  gen is " $(AIE_GEN))

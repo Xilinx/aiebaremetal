@@ -35,6 +35,7 @@
 #include "xil_printf.h"
 #endif
 
+//enable file receive
 int transfer_data() {
 	return 0;
 }
@@ -59,8 +60,10 @@ err_t recv_callback(void *arg, struct tcp_pcb *tpcb,
 		return ERR_OK;
 	}
 
+	xil_printf("Received data: %s\n", (char *)p->payload);
 	/* indicate that the packet has been received */
 	tcp_recved(tpcb, p->len);
+	
 
 	/* echo back the payload */
 	/* in this case, we assume that the payload is < TCP_SND_BUF */
@@ -91,7 +94,6 @@ err_t accept_callback(void *arg, struct tcp_pcb *newpcb, err_t err)
 
 	return ERR_OK;
 }
-
 
 int start_application()
 {

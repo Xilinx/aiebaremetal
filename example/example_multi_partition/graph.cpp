@@ -1,38 +1,23 @@
-/**
-* Copyright (C) 2025 Advanced Micro Devices, Inc.
-*
-* Licensed under the Apache License, Version 2.0 (the "License"). You may
-* not use this file except in compliance with the License. A copy of the
-* License is located at
-*
-*     http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
-* WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
-* License for the specific language governing permissions and limitations
-* under the License.
-*/
+// Copyright (C) 2025 - 2026 Advanced Micro Devices, Inc.
+// SPDX-License-Identifier: Apache-2.0
 
 #include "xil_printf.h"
 #include "xil_io.h"
 #include "xil_cache.h"
+
+#if __AIE_ARCH__ == 22
+#include "xiltimer.h"
+#else
 #include "xtime_l.h"
+#endif
 
 #include <fstream>
 #include <xaiengine.h>
 #include "aiebaremetal.h"
 
 
-#ifdef _RPU_
-//set rpu support
-uint8_t rpu = 1;
-#else
-uint8_t rpu = 0;
-#endif
-
-AbrGraph gr0("pr0_gradf", rpu);
-AbrGraph gr1("pr1_gradf", rpu);
+AbrGraph gr0("pr0_gradf");
+AbrGraph gr1("pr1_gradf");
 
 #define DATA_LENGTH 256
 

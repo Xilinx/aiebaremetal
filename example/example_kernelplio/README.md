@@ -1,3 +1,6 @@
+<!--- Copyright (C) 2025 - 2026 Advanced Micro Devices, Inc. --->
+<!--- SPDX-License-Identifier: Apache-2.0 --->
+
 # Test Kernel PLIO
 
 This test folder contains the scripts and source codes to compile a test image (for simulation or on hardware) using PLIO.
@@ -260,3 +263,4 @@ In this example, we compile `graph.cpp` twice using AIE compiler and ARM cross-c
 The first one generates `libadf.a` and the later one generates `main.elf`.
 This is because the AIE compiler only take care of the graph connection defined in `graph.h`, but the ARM cross-compiler also requires the graph definition to compile the host program.
 One can seperate the two condition by making `graph.cpp` empty (contains only simulation-related codes) and creating another `main.cpp` to `#include "graph.cpp"` for the host program.
+A example can be found on the https://......./chuntung/aiebaremetal/tree/plio_hw_test branch or commit https://........./chuntung/aiebaremetal/commit/586334052597ffef1b6136752da7080d718f4da5.

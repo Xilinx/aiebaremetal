@@ -1,20 +1,7 @@
-/**
-* Copyright (C) 2025 Advanced Micro Devices, Inc.
-*
-* Licensed under the Apache License, Version 2.0 (the "License"). You may
-* not use this file except in compliance with the License. A copy of the
-* License is located at
-*
-*     http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
-* WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
-* License for the specific language governing permissions and limitations
-* under the License.
-*/
-
+// Copyright (C) 2025 - 2026 Advanced Micro Devices, Inc.
+// SPDX-License-Identifier: Apache-2.0
 #include <fstream>
+#include <vector>
 #include <xaiengine.h>
 
 #include "aiebaremetal.h"
@@ -23,17 +10,35 @@
 myGraph gradf;
 BaremetalGraphSim gr("gradf");
 #include "app.h"
-extern "C" {
-	void ess_Write32(uint64 Addr, uint Data);
-	uint32 ess_Read32(uint64 addr);
-}
 #else
 BaremetalGraph gr("gradf");
 #endif
 
+int num_err_backtracked = 0;
 
-int main(int argc, char ** argv)
-{
-	gr.selftestexit();
-  return 0;
+void graph_error_handling_cb(std::vector<XAie_ErrorPayload> payloads, void *priv) {
+    num_err_backtracked += payloads.size();
+
+    for (XAie_ErrorPayload pl : payloads) {
+        printf("CB: [%d, %d]: Mod: %d Error: %d\n", pl.Loc.Col, pl.Loc.Row, static_cast<int>(pl.Module), pl.EventId);
+    }
+}
+
+int main(int argc, char **argv) {
+    setbuf(stdout, NULL); // Disable buffering
+    // trigger the ps_ix.so load and the elf load
+    gr.init();
+    gr.error_handling_cb_init((void *)graph_error_handling_cb, (void *)&gr);
+    gr.selftestexit();
+
+#if (defined(__AIESIM__) || defined(__ADF_FRONTEND__))
+    gr.BacktrackErrors();
+#endif
+    if (num_err_backtracked == 0) {
+        printf("Backtracking Errors failed\n");
+        return -1;
+    } else {
+        printf("Total errors backtracked: %d\n", num_err_backtracked);
+    }
+    return 0;
 }

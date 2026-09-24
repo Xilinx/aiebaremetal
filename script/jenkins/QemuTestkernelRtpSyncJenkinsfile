@@ -1,0 +1,230 @@
+// Copyright (C) 2026 Advanced Micro Devices, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+pipeline {
+    // Default Jenkins workspaces use jobname@N for parallel runs; '@' breaks Vivado 2025.x
+    // Versal PLM BSP (mb-ar MRI scripts). Use a custom path without '@'.
+    agent {
+        node {
+            label ''
+            customWorkspace "${env.JENKINS_HOME}/workspace/${env.JOB_NAME.replaceAll('/', '_').replaceAll('@', '_')}_${env.BUILD_NUMBER}"
+        }
+    }
+
+    environment {
+        GITHUB_TOKEN_AUTH = credentials('jenkins-build-bot')
+        // Map Jenkins native PR variables to script expectations.
+        GITHUB_PR_NUMBER = "${env.CHANGE_ID ?: ''}"
+        GITHUB_PR_URL = "${env.CHANGE_URL ?: ''}"
+        GITHUB_PR_SOURCE_BRANCH = "${env.CHANGE_BRANCH ?: env.BRANCH_NAME}"
+        GITHUB_PR_TARGET_BRANCH = "${env.CHANGE_TARGET ?: 'main'}"
+    }
+
+    // Only run on PRs targeting master, main, or 2025.2 branches
+    stages {
+        stage('Check Build Conditions') {
+            when {
+                anyOf {
+                    // Run on PRs targeting master
+                    allOf {
+                        changeRequest()
+                        changeRequest target: 'master'
+                    }
+                    // Run on PRs targeting main
+                    allOf {
+                        changeRequest()
+                        changeRequest target: 'main'
+                    }
+                    // Run on PRs targeting 2025.2
+                    allOf {
+                        changeRequest()
+                        changeRequest target: '2025.2'
+                    }
+                }
+            }
+            steps {
+                echo "✓ Build conditions met: PR targeting master, main, or 2025.2"
+            }
+        }
+
+        stage('Environment Check') {
+            when {
+                anyOf {
+                    allOf {
+                        changeRequest()
+                        changeRequest target: 'master'
+                    }
+                    allOf {
+                        changeRequest()
+                        changeRequest target: 'main'
+                    }
+                    allOf {
+                        changeRequest()
+                        changeRequest target: '2025.2'
+                    }
+                }
+            }
+            steps {
+                sh 'echo "Checking environment..."'
+                sh 'gcc --version'
+                sh 'echo "Current branch is ${BRANCH_NAME}"'
+                sh '''
+                    echo "=== Pull Request Environment Variables ==="
+                    echo "CHANGE_ID: ${CHANGE_ID:-not set}"
+                    echo "CHANGE_URL: ${CHANGE_URL:-not set}"
+                    echo "CHANGE_BRANCH: ${CHANGE_BRANCH:-not set}"
+                    echo "CHANGE_TARGET: ${CHANGE_TARGET:-not set}"
+                    echo "GITHUB_PR_NUMBER: ${GITHUB_PR_NUMBER:-not set}"
+                    echo "GITHUB_PR_URL: ${GITHUB_PR_URL:-not set}"
+                    echo "GITHUB_PR_SOURCE_BRANCH: ${GITHUB_PR_SOURCE_BRANCH:-not set}"
+                    echo "GITHUB_PR_TARGET_BRANCH: ${GITHUB_PR_TARGET_BRANCH:-not set}"
+                '''
+            }
+        }
+
+        stage('Build') {
+            when {
+                anyOf {
+                    allOf {
+                        changeRequest()
+                        changeRequest target: 'master'
+                    }
+                    allOf {
+                        changeRequest()
+                        changeRequest target: 'main'
+                    }
+                    allOf {
+                        changeRequest()
+                        changeRequest target: '2025.2'
+                    }
+                }
+            }
+            steps {
+                echo 'Building...'
+                sh 'git submodule update --init --recursive'
+                sh 'echo "Build complete."'
+            }
+        }
+
+        stage('Test') {
+            when {
+                anyOf {
+                    allOf {
+                        changeRequest()
+                        changeRequest target: 'master'
+                    }
+                    allOf {
+                        changeRequest()
+                        changeRequest target: 'main'
+                    }
+                    allOf {
+                        changeRequest()
+                        changeRequest target: '2025.2'
+                    }
+                }
+            }
+            // Verbose build + emulator logs by default. Set environment { JENKINS_QEMU_QUIET = '1' } if needed.
+            steps {
+                // Build ~30–45 min + QEMU run; allow 90 min so stage does not abort before test completes.
+                // retry(2): one retry on transient "cannot find current thread in CpsStepContext".
+                timeout(time: 90, unit: 'MINUTES') {
+                    retry(2) {
+                        echo 'Testing (QEMU): source Vitis then run_qemu_testkernel_rtp_sync.sh (that path sets PATH for qemu)'
+                        sh 'bash -c "source /proj/xbuilds/2025.2_daily_latest/installs/lin64/2025.2/Vitis/settings64.sh || true; ./script/run_qemu_testkernel_rtp_sync.sh"'
+                    }
+                }
+            }
+        }
+
+        stage('Cleanup') {
+            when {
+                anyOf {
+                    allOf {
+                        changeRequest()
+                        changeRequest target: 'master'
+                    }
+                    allOf {
+                        changeRequest()
+                        changeRequest target: 'main'
+                    }
+                    allOf {
+                        changeRequest()
+                        changeRequest target: '2025.2'
+                    }
+                }
+            }
+            steps {
+                script {
+                    try {
+                        echo 'Cleaning up temporary directories...'
+                        sh '''
+                            [ -d "aie-baremetal" ] && rm -rf aie-baremetal && echo "Removed aie-baremetal/"
+                            [ -f "sim_output.txt" ] && rm -f sim_output.txt && echo "Removed sim_output.txt"
+                            echo "Cleanup complete."
+                        '''
+                    } catch (Exception e) {
+                        echo "Cleanup warning: ${e.message}"
+                    }
+                }
+            }
+        }
+
+        stage('Report Status') {
+            when {
+                anyOf {
+                    allOf {
+                        changeRequest()
+                        changeRequest target: 'master'
+                    }
+                    allOf {
+                        changeRequest()
+                        changeRequest target: 'main'
+                    }
+                    allOf {
+                        changeRequest()
+                        changeRequest target: '2025.2'
+                    }
+                }
+            }
+            steps {
+                script {
+                    def buildResult = currentBuild.result ?: 'SUCCESS'
+                    if (buildResult == 'SUCCESS') {
+                        updateStatus('SUCCESS', 'testkernel_rtp_sync QEMU passed')
+                    } else {
+                        updateStatus('FAILURE', 'testkernel_rtp_sync QEMU failed')
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            echo 'Pipeline completed.'
+            cleanWs(deleteDirs: true, notFailBuild: true)
+        }
+        failure {
+            script {
+                // Ensure failure status is reported even if Report Status stage was skipped
+                try {
+                    updateStatus('FAILURE', 'Build Failed!')
+                } catch (Exception e) {
+                    echo "Status update failed: ${e.message}"
+                }
+            }
+        }
+    }
+}
+
+def updateStatus(String state, String message) {
+    try {
+        step([$class: 'GitHubCommitStatusSetter',
+              contextSource: [$class: 'ManuallyEnteredCommitContextSource', context: 'AEGAPI_Testkernel_rtp_sync'],
+              statusResultSource: [$class: 'ConditionalStatusResultSource', results: [[$class: 'AnyBuildResult', message: message, state: state]]]
+        ])
+    } catch (Exception e) {
+        echo "Warning: Failed to update GitHub status: ${e.message}"
+        echo "This likely means the GitHub App needs 'Commit statuses: Read and write' permission"
+    }
+}

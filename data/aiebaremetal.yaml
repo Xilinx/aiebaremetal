@@ -1,0 +1,24 @@
+# Copyright (C) 2025 Advanced Micro Devices, Inc.
+#SPDX-License-Identifier: MIT
+%YAML 1.2
+---
+title: Bindings for AIE Baremetal runtime library
+
+maintainers:
+  - Hua Jiang <hua.jiang@amd.com>
+
+type: library
+
+description: |-
+    aiebaremetal library provides APIs for running graph based application on AI Engine.
+supported_processors:
+    - psv_cortexa72
+    - psv_cortexr5
+    - cortexa78
+    - cortexr52
+supported_os:
+    - standalone
+depends:
+    aienginev2: {}
+
+...

@@ -1,19 +1,6 @@
 #!/bin/bash
-# Copyright (C) 2025 Advanced Micro Devices, Inc.
-#
-# Licensed under the Apache License, Version 2.0 (the "License"). You may
-# not use this file except in compliance with the License. A copy of the
-# License is located at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
-# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
-# License for the specific language governing permissions and limitations
-# under the License.
-
-
+# Copyright (C) 2025 - 2026 Advanced Micro Devices, Inc.
+# SPDX-License-Identifier: Apache-2.0
 # Source the environment variables
 AIE_GEN=1
 if [ $# -gt 0 ]; then
@@ -24,11 +11,13 @@ set --
 
 echo ${AIE_GEN}
 
-HW_GEN=$(python3 vercheck.py)
+HW_GEN=$(python3 vercheck.py 2>/dev/null) || true
 
-if [ ${AIE_GEN} != ${HW_GEN}  ]; then
-	echo "HW gen is ${HW_GEN} but request to build AIE_GEN ${AIE_GEN}, info mismatch"
-	return
+if [[ -z "${HW_GEN}" ]]; then
+	echo "WARNING: vercheck.py did not produce hw_gen (need ../Work/ps/c_rts/aie_control_config.json from a successful aiecompiler run)." >&2
+elif [[ "${AIE_GEN}" != "${HW_GEN}" ]]; then
+	echo "HW gen is ${HW_GEN} but request to build AIE_GEN ${AIE_GEN}, info mismatch" >&2
+	return 1
 fi
 
 export ARCH_DIR=`pwd`/../../../thirdparty/arch/ps/
@@ -58,9 +47,10 @@ export PFM_NAME="pfm_baremetal"
 generate-platform.sh -name $PFM_NAME -hw ../pl_kernels/new.xsa -domain psv_cortexa72_0:standalone -domain ai_engine:aie_runtime
 
 #build the a72 app for vck190/vek280
-source /proj/petalinux/2023.2/petalinux-v2023.2_daily_latest/tool/petalinux-v2023.2-final/settings.sh
+source /proj/petalinux/2024.2/petalinux-v2024.2_daily_latest/tool/petalinux-v2024.2-final/settings.sh
+# source /proj/petalinux/2026.1/petalinux-v2026.1_daily_latest/tool/petalinux-v2026.1-final/settings.sh
 export SW_DOMAIN=./$PFM_NAME/export/$PFM_NAME/sw/$PFM_NAME/standalone_domain
-aarch64-none-elf-gcc -mcpu=cortex-a72 -Wl,-T -Wl,$ARCH_72_DIR/lscript.ld -I../../../thirdparty/aielib/aie-rt/driver/internal/ -I../../../include/ -I$XILINX_VITIS/aietools/include/ -I$SW_DOMAIN/bspinclude/include -L$SW_DOMAIN/bsplib/lib -L../../build/ -o ./${ELF} ../src/graph.cpp -Wl,--start-group,-laiebaremetala72,-lxil,-lgcc,-lc,-lstdc++,--end-group
+aarch64-none-elf-gcc -mcpu=cortex-a72 -Wl,-T -Wl,$ARCH_72_DIR/lscript.ld -I../../../thirdparty/aielib/aie-rt/driver/internal/ -I../../../src/include/ -I$XILINX_VITIS/aietools/include/ -I$SW_DOMAIN/bspinclude/include -L$SW_DOMAIN/bsplib/lib -L../../build/ -o ./${ELF} ../src/graph.cpp -Wl,--start-group,-laiebaremetala72,-lxil,-lgcc,-lc,-lstdc++,--end-group
 
 #generate the boot.bin
 #FIX ME SSIT device AIE_GEN is 7 8 but it is AIE 1

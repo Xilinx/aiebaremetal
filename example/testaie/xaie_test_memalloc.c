@@ -1,19 +1,5 @@
-/**
-* Copyright (C) 2025 Advanced Micro Devices, Inc.
-*
-* Licensed under the Apache License, Version 2.0 (the "License"). You may
-* not use this file except in compliance with the License. A copy of the
-* License is located at
-*
-*     http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
-* WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
-* License for the specific language governing permissions and limitations
-* under the License.
-*/
-
+// Copyright (C) 2025 - 2026 Advanced Micro Devices, Inc.
+// SPDX-License-Identifier: Apache-2.0
 #include "xaiemem.h"
 #include "xaie_test_all.h"
 #include <iostream>
@@ -39,18 +25,18 @@ static int xaie_test_memsync(XAie_MemInst *MemInst)
 	memset(MemInst->VAddr, 0, MemInst->Size);
 	XAie_MemSyncForDev(MemInst);
 
-	for (int i = 0; i < MemInst->Size; i++) {
+	for (u64 i = 0; i < MemInst->Size; i++) {
 		((u_int8_t *)MemInst->VAddr)[i] = rand() % 127;
 	}
 	XAie_MemSyncForCPU(MemInst);
-	for (int i = 0; i < MemInst->Size; i++) {
+	for (u64 i = 0; i < MemInst->Size; i++) {
 		if (((u_int8_t *)MemInst->VAddr)[i]) {
-			aielog("MemSync failed byte %d: 0x%x", i, ((u_int8_t *)MemInst->VAddr)[i]);
+			aielog("MemSync failed byte %ld: 0x%x", i, ((u_int8_t *)MemInst->VAddr)[i]);
 			return -1;
 		}
 	}
 
-	for (int i = 0; i < MemInst->Size; i++) {
+	for (u64 i = 0; i < MemInst->Size; i++) {
 		buf[i] = rand() % 127;
 	}
 	memcpy(MemInst->VAddr, buf, MemInst->Size);
@@ -113,7 +99,7 @@ int xaie_test_memalloc(XAie_DevInst *DevInst)
 			return -1;
 		}
 		if (Free != 0xc0000000) {
-			aielog("Free size: 0x%llx != 0xc0000000. TEST FAILED.", Free);
+			aielog("Free size: 0x%lx != 0xc0000000. TEST FAILED.", Free);
 			return -1;
 		}
 		aielog("TEST PASS ITERATION: %d", i);
@@ -145,7 +131,7 @@ static int xaie_test_memsync_vaddr(XAieMem &mem, void *addr, uint64_t size)
 	if (ret)
 		goto ret;
 
-	for (int i = 0; i < size; i++) {
+	for (uint64_t i = 0; i < size; i++) {
 		((u_int8_t *)addr)[i] = rand() % 127;
 	}
 	ret = mem.sync_for_cpu(addr, size);
@@ -154,15 +140,15 @@ static int xaie_test_memsync_vaddr(XAieMem &mem, void *addr, uint64_t size)
 		goto ret;
 	}
 
-	for (int i = 0; i < size; i++) {
+	for (uint64_t i = 0; i < size; i++) {
 		if (((u_int8_t *)addr)[i]) {
-			aielog("MemSync failed byte %d: 0x%x", i, ((u_int8_t *)addr)[i]);
-			aielog("Addr: 0x%llx, Size: %llu\n", addr, size);
+			aielog("MemSync failed byte %ld: 0x%x", i, ((u_int8_t *)addr)[i]);
+			aielog("Addr: 0x%p, Size: %lu\n", addr, size);
 			goto ret;
 		}
 	}
 
-	for (int i = 0; i < size; i++) {
+	for (uint64_t i = 0; i < size; i++) {
 		buf[i] = rand() % 127;
 	}
 	memcpy(addr, buf, size);
@@ -237,24 +223,24 @@ int xaie_test_xaiemem(XAie_DevInst *DevInst)
 			}
 
 			if (!(size[j] < 256)) {
-				ret = xaie_test_memsync_vaddr(mem, addr[j] + 128, size[j] - 128);
+				ret = xaie_test_memsync_vaddr(mem, (char *)addr[j] + 128, size[j] - 128);
 				if (ret) {
 					aielog("Test failed: %d\n", ret);
 					return -1;
 				}
-				ret = xaie_test_memsync_vaddr(mem, addr[j], 128);
-				if (ret) {
-					aielog("Test failed: %d\n", ret);
-					return -1;
-				}
-
-				ret = xaie_test_memsync_vaddr(mem, addr[j] + size[j] - 8, 8);
+				ret = xaie_test_memsync_vaddr(mem, (char *)addr[j], 128);
 				if (ret) {
 					aielog("Test failed: %d\n", ret);
 					return -1;
 				}
 
-				ret = xaie_test_memsync_vaddr(mem, addr[j] - 128, size[j]);
+				ret = xaie_test_memsync_vaddr(mem, (char *)addr[j] + size[j] - 8, 8);
+				if (ret) {
+					aielog("Test failed: %d\n", ret);
+					return -1;
+				}
+
+				ret = xaie_test_memsync_vaddr(mem, (char *)addr[j] - 128, size[j]);
 				if (!ret) {
 					aielog("This test should have failed: %d\n", ret);
 					return -1;
@@ -294,7 +280,7 @@ int xaie_test_xaiemem(XAie_DevInst *DevInst)
 			return -1;
 		}
 		if (Free != 0xc0000000) {
-			aielog("Free size: 0x%llx != 0xc0000000. TEST FAILED.", Free);
+			aielog("Free size: 0x%lx != 0xc0000000. TEST FAILED.", Free);
 			return -1;
 		}
 		aielog("TEST PASS ITERATION: %d", i);

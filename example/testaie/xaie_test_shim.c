@@ -43,7 +43,7 @@ int test_aie_shim(XAie_DevInst *DevInst)
 	}
 
 	const uint32_t aie_data_addr = 0x400;
-	u64 phy = 0,phy_out = 0, phy_size = 0;
+	u64 phy = 0,phy_out = 0;
 	u32 mlen = 32;
 	//Prepare DDR data
 	//XAie_MemInst *in = XAie_MemAllocate(DevInst, mlen * sizeof(u32), XAIE_MEM_CACHEABLE);
@@ -57,7 +57,7 @@ int test_aie_shim(XAie_DevInst *DevInst)
 	mem.get_dev_addr(reinterpret_cast<void *>(vmem_out), &phy_out);
 	//XAie_MemSyncForCPU(in);
 	//XAie_MemSyncForCPU(out);
-	for(int i = 0; i < mlen; i++) {
+	for(u32 i = 0; i < mlen; i++) {
 		vmem[i] = i * 2;
 		vmem_out[i] = 0;
 	}
@@ -169,7 +169,7 @@ int test_aie_shim(XAie_DevInst *DevInst)
 	printf("bd creive done after \n");
 	u32 data2[256];
 	XAie_DataMemBlockRead(DevInst, aie_t1,  aie_data_addr, data2, mlen*sizeof(uint32_t));
-	for (int i = 0; i < mlen; i++) {
+	for (u32 i = 0; i < mlen; i++) {
 		printf(" %d ", data2[i]);
 		if (i % 16 == 0) printf("\n");
 		if (vmem[i] != data2[i]) {
@@ -229,7 +229,7 @@ int test_aie_shim(XAie_DevInst *DevInst)
 	//XAie_MemSyncForCPU(out);
 	mem.sync_for_cpu((void *)vmem_out, mlen * sizeof(u32));
 
-	for(int i = 0; i < recv_len; i++) {
+	for(u32 i = 0; i < recv_len; i++) {
 		printf(" %d ", vmem_out[i]);
 		if (i % 16 == 0) printf("\n");
 	}

@@ -1,6 +1,9 @@
+<!--- Copyright (C) 2025 - 2026 Advanced Micro Devices, Inc. --->
+<!--- SPDX-License-Identifier: Apache-2.0 --->
+
 # Build and Test
 
-1. git clone --recursive <aiebaremetal repo>
+1. git clone --recursive <aiebaremetal_repo_url>
 
 2. cd aiebaremetal
 

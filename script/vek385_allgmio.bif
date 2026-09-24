@@ -1,0 +1,42 @@
+/* Copyright (C) 2025 - 2026 Advanced Micro Devices, Inc. */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+new_bif:
+{
+image
+{
+	{
+		type=bootimage
+		file=./arch/platform/pdi/vek385/vek385_boot.pdi
+	}
+}
+
+image
+{
+	{
+		type=bootimage
+		file=./arch/platform/pdi/vek385/vek385_pld.pdi
+	}
+}
+
+image
+{
+	name=aie_image, id=0x18800000
+	{ type=cdo
+		/* The following commented lines show the CDOs used to create a merged CDO 'aie.cdo.merged.bin'. For debugging purpose,
+		    uncomment these CDOs and comment the line that adds 'aie.cdo.merged.bin' */
+		file = ./Work/ps/cdo/aie_cdo_reset.bin
+		file = ./Work/ps/cdo/aie_cdo_clock_gating.bin
+		file = ./Work/ps/cdo/aie_cdo_error_handling.bin
+		file = ./Work/ps/cdo/aie_cdo_elfs.bin
+		file = ./Work/ps/cdo/aie_cdo_init.bin
+		/*file=aie.merged.cdo.bin*/
+	}
+}
+image
+{
+        name=default_subsys, id=0x1c000000
+        { core=a78-0, file=./vek385.elf }
+}
+
+}

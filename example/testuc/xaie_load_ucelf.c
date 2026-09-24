@@ -92,18 +92,6 @@ int test_aie_load_uc_elf(XAie_DevInst *DevInst)
 	if (status1 == status2 && status2 !=0) {
 		return -1;
 	}
-	//this is a highlevel api to tigger UC run
-	//while (XAie_CoreWaitForDone(DevInst, Loc_Core, 0) == XAIE_CORE_STATUS_TIMEOUT) {
-	//	std::cout << "XAie_CoreWaitForDone" << std::endl;
-	//}
-	//
-	/*// this wait can trigger UC run and get log out and the UC memory change can get detected.
-	uint32_t RegVal;
-	while(XAie_Read32(DevInst, addr, & RegVal) != 1230) {
-		std::cout << "XAie_SimIO_Read32" << std::endl;
-		usleep(1);
-	}
-	*/
   /* there is a issue in aiesimulator, the issue is that , after load and wake up UC
 		 the UC will never run util, keep do XAie_Read32, we do not know whether one XAie_Read32
 		 will tigger one UC instruction run or others, but we should do a lot XAie_Read32 to
@@ -112,16 +100,12 @@ int test_aie_load_uc_elf(XAie_DevInst *DevInst)
 		 format, while(1) {XAie_Read32}, we can use usleep here, but not sleep, because tht will
 		 means wait a very long time util UC log get out
 	 */
-	uint32_t count = 0;
 	while(smvar2 != MAGIC_DATA) {
 		XAie_Read32(DevInst, addr, &smvar2);
 		core_status = 0;
 		core_status_control = 0;
 		XAie_Read32(DevInst, core_status_addr, &core_status);
 		XAie_Read32(DevInst, core_status_control, &core_status_control);
-		//std::cout << "svar2 = " << smvar2 << std::endl;
-		//printf("uc write value %x in %x sharebase = %x core_status = %x status_control = %x \n", \
-				smvar2, addr,  shared_mem_base_addr, core_status, core_status_control);
 		usleep(1);
 	}
 

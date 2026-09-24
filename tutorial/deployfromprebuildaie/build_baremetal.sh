@@ -1,0 +1,1 @@
+../deploydemo/build_baremetal.sh

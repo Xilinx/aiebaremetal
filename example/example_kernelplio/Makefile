@@ -1,34 +1,21 @@
-# Copyright (C) 2025 Advanced Micro Devices, Inc.
-#
-# Licensed under the Apache License, Version 2.0 (the "License"). You may
-# not use this file except in compliance with the License. A copy of the
-# License is located at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
-# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
-# License for the specific language governing permissions and limitations
-# under the License.
-
+# Copyright (C) 2025 - 2026 Advanced Micro Devices, Inc.
+# SPDX-License-Identifier: Apache-2.0
 ####################################################################################
 #                            Makefile for this example
 ####################################################################################
 
 TEST_BENCH               = src/graph.cpp
 
-DEVICE_FILE              = xcvc1902      # aie
+XILINX_VITIS_AIETOOLS  ?= $(XILINX_VITIS)/aietools
+
+DEVICE_FILE              = xcvc1902-vsva2197-2MP-e-S
 
 ifeq ($(AIE_GEN), 1)
-	DEVICE_FILE              = xcvc1902      # aie
+	DEVICE_FILE              = xcvc1902-vsva2197-2MP-e-S
 else ifeq ($(AIE_GEN), 2)
-	DEVICE_FILE              = xcvc2802      # aie-ml
-  #DEVICE_FILE              = xc10AIE24x5   # aie-ml IPU
-  #DEVICE_FILE              = xc10AIE2P_ML  # aie2p
+	DEVICE_FILE              = xcve2802-vsvh1760-2MP-e-S
 else ifeq ($(AIE_GEN), 5)
-	#DEVICE_FILE              = xc10Turin     # aie2ps Turin
-	DEVICE_FILE              = xcve3858      # aie2ps Telluride T50
+	DEVICE_FILE              = xc2ve3858-ssva2112-2MP-e-S
 endif
 
 $(info $(DEVICE_FILE) "  gen is " $(AIE_GEN))
@@ -42,11 +29,15 @@ OUT_FILE                 = aiesimulator_output/data/output.txt
 
 all: clean compile sim check_op 
 
-compile:
-	aiecompiler $(TEST_BENCH) --part=$(DEVICE_FILE) $(COMPILE_OPTS) --workdir=$(WORK_DIR) --include=../../thirdparty/aielib/aie-rt/driver/include/ --include=./src --include=../../include/ --include=$(XILINX_VITIS_AIETOOLS)/include/aie_api
+.PHONY: check_vitis_for_aie
+check_vitis_for_aie:
+	@test -n "$(strip $(XILINX_VITIS))" || (echo 'ERROR: XILINX_VITIS is not set. Source ../../script/settings.sh or Vitis settings64.sh).' >&2; exit 1)
 
-compile-d:
-	aiecompiler-debug $(TEST_BENCH) --part=$(DEVICE_FILE) $(COMPILE_OPTS) --workdir=$(WORK_DIR) --include=./src --include=$(XILINX_VITIS_AIETOOLS)/include/aie_api --include=../../thirdparty/aielib/aie-rt/driver/include/
+compile: check_vitis_for_aie
+	aiecompiler $(TEST_BENCH) --part=$(DEVICE_FILE) $(COMPILE_OPTS) --workdir=$(WORK_DIR) --include=../../thirdparty/aielib/aie-rt/driver/include/ --include=./src --include=../../src/include/ --include=$(XILINX_VITIS_AIETOOLS)/include/aie_api --include=$(XILINX_VITIS_AIETOOLS)/include/drivers/aiengine
+
+compile-d: check_vitis_for_aie
+	aiecompiler-debug $(TEST_BENCH) --part=$(DEVICE_FILE) $(COMPILE_OPTS) --workdir=$(WORK_DIR) --include=./src --include=$(XILINX_VITIS_AIETOOLS)/include/aie_api --include=$(XILINX_VITIS_AIETOOLS)/include/drivers/aiengine --include=../../thirdparty/aielib/aie-rt/driver/include/
 
 sim:
 	aiesimulator $(SIM_OPTS) --pkg-dir=./$(WORK_DIR)
@@ -54,8 +45,8 @@ sim:
 check_op:
 	diff -s $(REF_FILE) $(OUT_FILE)
 
-compilex86:
-	aiecompiler $(TEST_BENCH) --part=$(DEVICE_FILE) $(COMPILE_OPTS) --target=x86sim --workdir=$(WORK_DIR) --include=./src --include=$(XILINX_VITIS_AIETOOLS)/include/aie_api 
+compilex86: check_vitis_for_aie
+	aiecompiler $(TEST_BENCH) --part=$(DEVICE_FILE) $(COMPILE_OPTS) --target=x86sim --workdir=$(WORK_DIR) --include=./src --include=$(XILINX_VITIS_AIETOOLS)/include/aie_api --include=$(XILINX_VITIS_AIETOOLS)/include/drivers/aiengine
 
 simx86:
 	x86simulator $(SIM_OPTS) --pkg-dir=./$(WORK_DIR)

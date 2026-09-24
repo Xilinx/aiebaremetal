@@ -1,16 +1,36 @@
-# Copyright (C) 2025 Advanced Micro Devices, Inc.
-#
-# Licensed under the Apache License, Version 2.0 (the "License"). You may
-# not use this file except in compliance with the License. A copy of the
-# License is located at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
-# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
-# License for the specific language governing permissions and limitations
-# under the License.
+#!/usr/bin/env bash
+# Copyright (C) 2025 - 2026 Advanced Micro Devices, Inc.
+# SPDX-License-Identifier: Apache-2.0
+#   -new_api    Build New (class-based) API host (host_new_api.cpp -> host_new_api.o)
 
-source /proj/petalinux/2023.2/petalinux-v2023.2_daily_latest/tool/petalinux-v2023.2-final/settings.sh
-aarch64-none-elf-gcc -I../../include -mcpu=cortex-a72 -g -c -std=c++17 -o graph.o ./graph.cpp
+BUILDMAIN_ARGS=("$@")
+set --
+PETALINUX_SETTINGS="/proj/petalinux/2023.2/petalinux-v2023.2_daily_latest/tool/petalinux-v2023.2-final/settings.sh"
+if [[ -f "$PETALINUX_SETTINGS" ]]; then
+    source "$PETALINUX_SETTINGS"
+fi
+set -- "${BUILDMAIN_ARGS[@]}"
+if ! command -v aarch64-none-elf-gcc &>/dev/null; then
+    echo "Error: aarch64-none-elf-gcc not found. Source Petalinux or Vitis settings, or set PATH to your ARM toolchain." >&2
+    exit 1
+fi
+
+new_api=false
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -new_api)
+            new_api=true
+            shift
+            ;;
+        *)
+            echo "Unknown option: $1" >&2
+            exit 1
+            ;;
+    esac
+done
+
+if [[ "$new_api" == true ]]; then
+    aarch64-none-elf-gcc -I./ -I./dependency/aie -I./dependency/psv_cortexa72_0/include -I./ -mcpu=cortex-a72 -g -c -std=c++17 -DAEG_INHERITANCE_BASED_API -o host_new_api.o ./host_new_api.cpp
+else
+    aarch64-none-elf-gcc -I./ -I./dependency/psv_cortexa72_0/include -mcpu=cortex-a72 -g -c -std=c++17 -o host.o ./host.cpp
+fi

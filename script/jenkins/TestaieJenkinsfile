@@ -1,0 +1,192 @@
+// Copyright (C) 2025 - 2026 Advanced Micro Devices, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+pipeline {
+    agent any 
+    
+    environment {
+        GITHUB_TOKEN_AUTH = credentials('jenkins-build-bot')
+        // Map Jenkins native PR variables to script expectations.
+        GITHUB_PR_NUMBER = "${env.CHANGE_ID ?: ''}"
+        GITHUB_PR_URL = "${env.CHANGE_URL ?: ''}"
+        GITHUB_PR_SOURCE_BRANCH = "${env.CHANGE_BRANCH ?: env.BRANCH_NAME}"
+        GITHUB_PR_TARGET_BRANCH = "${env.CHANGE_TARGET ?: 'main'}"
+    }
+    
+    // Only run on PRs targeting master or 2025.2 branches
+    stages {
+        stage('Check Build Conditions') {
+            when {
+                anyOf {
+                    // Run on PRs targeting master
+                    allOf {
+                        changeRequest()
+                        changeRequest target: 'master'
+                    }
+                    // Run on PRs targeting 2025.2.
+                    allOf {
+                        changeRequest()
+                        changeRequest target: '2025.2'
+                    }
+                }
+            }
+            steps {
+                echo "✓ Build conditions met: PR targeting master or 2025.2"
+            }
+        }
+
+        stage('Environment Check') {
+            when {
+                anyOf {
+                    allOf {
+                        changeRequest()
+                        changeRequest target: 'master'
+                    }
+                    allOf {
+                        changeRequest()
+                        changeRequest target: '2025.2'
+                    }
+                }
+            }
+            steps {
+                sh 'echo "Checking environment.."'
+                sh 'gcc --version' 
+                sh 'echo "Current branch is ${BRANCH_NAME}"'
+                sh '''
+                    echo "=== Pull Request Environment Variables ==="
+                    echo "CHANGE_ID: ${CHANGE_ID:-not set}"
+                    echo "CHANGE_URL: ${CHANGE_URL:-not set}"
+                    echo "CHANGE_BRANCH: ${CHANGE_BRANCH:-not set}"
+                    echo "CHANGE_TARGET: ${CHANGE_TARGET:-not set}"
+                    echo "GITHUB_PR_NUMBER: ${GITHUB_PR_NUMBER:-not set}"
+                    echo "GITHUB_PR_URL: ${GITHUB_PR_URL:-not set}"
+                    echo "GITHUB_PR_SOURCE_BRANCH: ${GITHUB_PR_SOURCE_BRANCH:-not set}"
+                    echo "GITHUB_PR_TARGET_BRANCH: ${GITHUB_PR_TARGET_BRANCH:-not set}"
+                '''
+            }
+        }
+
+        stage('Build') {
+            when {
+                anyOf {
+                    allOf {
+                        changeRequest()
+                        changeRequest target: 'master'
+                    }
+                    allOf {
+                        changeRequest()
+                        changeRequest target: '2025.2'
+                    }
+                }
+            }
+            steps {
+                echo 'Building...'
+                sh 'git submodule update --init --recursive'
+                sh 'bash -x ./script/Jenkins_testaie.sh'
+                sh 'echo "Simulating build process..."' 
+            }
+        }
+
+        stage('Test') {
+            when {
+                anyOf {
+                    allOf {
+                        changeRequest()
+                        changeRequest target: 'master'
+                    }
+                    allOf {
+                        changeRequest()
+                        changeRequest target: '2025.2'
+                    }
+                }
+            }
+            steps {
+                echo 'Testing...'
+                sh 'echo "Simulating unit tests..."'
+            }
+        }
+        
+        stage('Cleanup') {
+            when {
+                anyOf {
+                    allOf {
+                        changeRequest()
+                        changeRequest target: 'master'
+                    }
+                    allOf {
+                        changeRequest()
+                        changeRequest target: '2025.2'
+                    }
+                }
+            }
+            steps {
+                script {
+                    try {
+                        echo 'Cleaning up temporary directories...'
+                        sh '''
+                            [ -d "aie-baremetal_taie" ] && rm -rf aie-baremetal_taie && echo "Removed aie-baremetal_taie/"
+                            [ -f "sim_output.txt" ] && rm -f sim_output.txt && echo "Removed sim_output.txt"
+                            echo "Cleanup complete."
+                        '''
+                    } catch (Exception e) {
+                        echo "Cleanup warning: ${e.message}"
+                    }
+                }
+            }
+        }
+        
+        stage('Report Status') {
+            when {
+                anyOf {
+                    allOf {
+                        changeRequest()
+                        changeRequest target: 'master'
+                    }
+                    allOf {
+                        changeRequest()
+                        changeRequest target: '2025.2'
+                    }
+                }
+            }
+            steps {
+                script {
+                    def buildResult = currentBuild.result ?: 'SUCCESS'
+                    if (buildResult == 'SUCCESS') {
+                        updateStatus('SUCCESS', 'Build & Test Passed!')
+                    } else {
+                        updateStatus('FAILURE', 'Build & Test Failed!')
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            echo 'Pipeline completed.'
+            cleanWs(deleteDirs: true, notFailBuild: true)
+        }
+        failure {
+            script {
+                // Ensure failure status is reported even if Report Status stage was skipped
+                try {
+                    updateStatus('FAILURE', 'Build Failed!')
+                } catch (Exception e) {
+                    echo "Status update failed: ${e.message}"
+                }
+            }
+        }
+    }
+}
+
+def updateStatus(String state, String message) {
+    try {
+        step([$class: 'GitHubCommitStatusSetter', 
+              contextSource: [$class: 'ManuallyEnteredCommitContextSource', context: 'AEGAPI_Testaie'], 
+              statusResultSource: [$class: 'ConditionalStatusResultSource', results: [[$class: 'AnyBuildResult', message: message, state: state]]]
+        ])
+    } catch (Exception e) {
+        echo "Warning: Failed to update GitHub status: ${e.message}"
+        echo "This likely means the GitHub App needs 'Commit statuses: Read and write' permission"
+    }
+}

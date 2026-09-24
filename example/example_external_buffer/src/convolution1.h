@@ -1,28 +1,10 @@
-/**
-* Copyright (C) 2025 Advanced Micro Devices, Inc.
-*
-* Licensed under the Apache License, Version 2.0 (the "License"). You may
-* not use this file except in compliance with the License. A copy of the
-* License is located at
-*
-*     http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
-* WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
-* License for the specific language governing permissions and limitations
-* under the License.
-*/
-
+// Copyright (C) 2025 - 2026 Advanced Micro Devices, Inc.
+// SPDX-License-Identifier: Apache-2.0
 #ifndef CONVOLUTION_1_MODULE_H
 #define CONVOLUTION_1_MODULE_H
 
-
 #include "adf.h"
 
-//void square(adf::input_buffer<int32> & __restrict A, adf::output_buffer<int32> & __restrict B);
-//void square(input_window_int32* in, output_window_int32* out);
-void conv1(adf::input_buffer<int32>& __restrict data1,
-    adf::input_buffer<int32>& __restrict data2,
-    adf::output_buffer<int32>& __restrict out);
+void conv1(adf::input_buffer<int32> &__restrict data1, adf::input_buffer<int32> &__restrict data2,
+           adf::output_buffer<int32> &__restrict out);
 #endif

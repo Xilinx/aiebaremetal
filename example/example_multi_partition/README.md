@@ -1,4 +1,7 @@
-# Compiling AIE engine graphs for independent partitions in Baremetal 
+<!--- Copyright (C) 2025 - 2026 Advanced Micro Devices, Inc. --->
+<!--- SPDX-License-Identifier: Apache-2.0 --->
+
+# Compiling AIE engine graphs for independent partitions in Baremetal
 
 This test case is designed to demonstrate the flow for compiling AI Engine Graphs for AI Engine partitions in vck190. The AI Engine graphs are located in different partitions of the device, verified by aiesimulator independently, but integrated by v++ linker and packager into device.
 
@@ -14,6 +17,7 @@ source build.sh 1
 source runsim.sh 1
 cd ..
 ```
+
 ### Compile the second graph under test_partition2
 
 ```bash
@@ -22,28 +26,26 @@ source build.sh 1
 source runsim.sh 1
 cd ..
 ```
-### Merge the generated json files
+
+### Merge the graphs together
 
 ```bash
 v++ -l --platform /proj/xbuilds/2024.2_weekly_latest/internal_platforms/xilinx_vck190_base_202420_1/xilinx_vck190_base_202420_1.xpfm test_partition1/libadf.a test_partition2/libadf.a --save-temps
 
 v++ -p -s --platform /proj/xbuilds/2024.2_weekly_latest/internal_platforms/xilinx_vck190_base_202420_1/xilinx_vck190_base_202420_1.xpfm a.xsa test_partition1/libadf.a test_partition2/libadf.a
-
-
-
 ```
 
-This will generate the merged json file under folder _x/package with name aie_control_config_mod.json.
-
-### Compile the application with merged json
+### Compile the application
 
 ```bash
 source build.sh 1
 ```
+
 ### Create a BIF file to generate BOOT.BIN
 
 Create a BIF file to include all the CDOs from both graphs and the ELF. For eg. BIF file can look like below
 
+```txt
 all:
 {
     image
@@ -75,6 +77,7 @@ all:
         { core=a72-0, file=./vck190.elf }
     }
 }
+```
 
 ### Generate BOOT.BIN and test on VCK190 HW
 

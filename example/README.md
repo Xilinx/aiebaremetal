@@ -1,3 +1,6 @@
+<!--- Copyright (C) 2025 - 2026 Advanced Micro Devices, Inc. --->
+<!--- SPDX-License-Identifier: Apache-2.0 --->
+
 # AI Engine (AIE) Bare-metal
 
 This repo supports AIE baremetal runtime, including the library and tests.
@@ -7,7 +10,7 @@ This repo supports AIE baremetal runtime, including the library and tests.
 The repos contains submodules and should be clone recursively:
 
 ```bash
-$ git clone <aiebaremetal repo> --recursive
+$ git clone <aiebaremetal_repo_url> --recursive
 ```
 
 If the repo is cloned without `--recursive` command, the user can use
@@ -23,7 +26,9 @@ to download the submodules.
 ```
 ├── Makefile
 ├── README.md
+├── example_auto_radar_2dfft
 ├── example_external_buffer
+├── example_external_buffer_pingpongbuffer
 ├── example_GMIO
 ├── example_kernelplio
 ├── example_lwip_echo
@@ -37,7 +42,7 @@ to download the submodules.
 ├── testkernel_rtp
 ├── testkernel_rtp_sync
 ├── testuc
-└── testut          
+└── testut
 ```
 
 Test folders with `*` are described below:
@@ -176,8 +181,8 @@ compile.sh --runtime_source_file ./graph.cpp --aie_version 1 -bootgen -rpu
 
 * VCK190 APU & RPU:
 
-*B-revB01,S80-prod*
-*B-revB02,S80-prod*
+*B-revB01,prod*
+*B-revB02,prod*
 
 * VEK280 APU:
 
@@ -206,3 +211,149 @@ Output took 462214 clock cycles.
 Output took 2.31 ms.
 ```
 
+## example compile
+
+the ethernet example 
+
+```
+source ../script/envaie2pst50.sh 1
+make testlwip_echo
+```
+
+### vek385 practice on boardfarm on APU
+
+#### 1. Run the fist vek385 console
+
+##### 1.1. Connect into a vek385 board
+
+```
+/proj/systest/bin/systest vek385-12
+```
+
+##### 1.2. Launch the boot.bin that include the AIE cdos
+
+```
+xsdb
+connect
+dev prog /home/huaj/vek385/vek385.BIN
+```
+
+#### 2. Run the second vek385 console
+
+```
+ssh huaj@crimini2
+telnet 10.10.71.1 4001
+```
+
+#### 3. back to the first console
+
+##### 3.1 Run a vnc xsdb
+
+```
+source /build/ssw_vcu/yashl/palmyra_VNC/Boot_plamyra/.xsdbrc
+after 1000
+disconnect
+connect
+```
+
+###### 3.2 Reset apu and run an app
+
+```
+apu0_core0_rst
+dow -force /home/huaj/vek385/vek385.elf
+con
+```
+
+##### 3.3 Back to the first console
+
+check the output
+
+
+### vek385 practice on boardfarm on RPU
+
+#### 1. Run the fist vek385 console
+
+##### 1.1. Connect into a vek385 board
+
+```
+/proj/systest/bin/systest vek385-12
+```
+
+##### 1.2. Launch the boot.bin that include the AIE cdos
+
+```
+xsdb
+connect
+dev prog /home/huaj/vek385/rpufromrpumapxsa/rpuvek385.bin
+```
+
+#### 2. Run the second vek385 console
+
+```
+ssh huaj@crimini2
+telnet 10.10.71.1 4001
+```
+
+#### 3. back to the first console
+
+##### 3.a Run Vitis generate default elf( vector and boot.s on TCM, need disable tcm protection)
+
+##### 3.1 Run a vnc xsdb
+
+```
+cp /path/to/aiebaremetal/script/rpuramproten.tcl /home/username/
+```
+
+```
+targets -set -nocase -filter {name =~ "Versal Gen 2*"}
+source /home/username/rpuramproten.tcl
+targets -set -filter {name =~ "Cortex-R52*0" && parent =~ "RPU Cluster #0*"}
+dow -force /home/huaj/vek385/vek385.elf
+con
+```
+
+##### 3.b Run Aiebaremetal generate default elf( vector and boot.s on DDR)
+
+##### 3.1 Run a vnc xsdb
+
+```
+cp /path/to/aiebaremetal/script/rpuramproten.tcl /home/username/
+```
+
+```
+targets -set -nocase -filter {name =~ "Versal Gen 2*"}
+rst -proc
+dow -force /home/huaj/vek385/rpufromrpumapxsa/app_component.elf
+con
+```
+
+##### 3.3 Back to the first console
+
+check the output
+
+## Debug
+
+### RPU Debug
+
+#### 1. Using xsdb default 
+
+```
+stop
+bt
+```
+
+after stop bt will show the call stack
+
+#### 2. Using enhanced script
+
+```
+cp ./scrpt/r52traceback.tcl /path/to/publicnetwork/r52traceback.tcl
+```
+
+in target box xsdb
+```
+source /path/to/publicnetwork/r52traceback.tcl
+bt /path/to/<rpu-app-elf.elf> 30
+```
+
+the said the command will show the call stack

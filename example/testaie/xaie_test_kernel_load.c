@@ -1,19 +1,5 @@
-/**
-* Copyright (C) 2025 Advanced Micro Devices, Inc.
-*
-* Licensed under the Apache License, Version 2.0 (the "License"). You may
-* not use this file except in compliance with the License. A copy of the
-* License is located at
-*
-*     http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
-* WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
-* License for the specific language governing permissions and limitations
-* under the License.
-*/
-
+// Copyright (C) 2025 - 2026 Advanced Micro Devices, Inc.
+// SPDX-License-Identifier: Apache-2.0
 #include "xaie_test_all.h"
 #include "log/klogr.h"
 #include "xaiemem.h"
@@ -23,15 +9,14 @@ extern "C" {
 int test_aie_kernel_load_route(XAie_DevInst *DevInst) {
 	gdb_point(0);
 	uint32_t CORE_IP_MEM =  0x4000;
-        uint32_t CORE_OP_MEM = 0x8000;
+	//uint32_t CORE_OP_MEM = 0x8000;
 	XAieMem mem(DevInst);
 	if (DevInst->DevProp.DevGen == XAIE_DEV_GEN_AIE) {
 		//printf("test_aie_kernel_load currently only support aie1 \n");
-        	CORE_OP_MEM = 0x5000;
+		//CORE_OP_MEM = 0x5000;
 		//return 0;
 	}
 	XAie_LocType core_loc = XAie_TileLoc(4,3);
-	AieRC RC = XAIE_OK;
 	XAie_RoutingInstance* routingInstance;
 
 	XAie_CoreReset(DevInst, core_loc);
@@ -65,17 +50,16 @@ int test_aie_kernel_load_route(XAie_DevInst *DevInst) {
 
 	mem.get_dev_addr(vmem_in, &phy);
 	mem.get_dev_addr(vmem_out, &phy_out);
-	for (int i = 0 ;i < mlen; i++) {
+	for (u32 i = 0 ;i < mlen; i++) {
 		vmem_in[i] = i;
 		vmem_out[i] = 0;
 	}
 	mem.sync_for_dev((void *)vmem_in, mlen);
-	const u32 recv_len = 256;
 	std::cout << "test_aie_kernel_load" << std::endl;
 	//XAie_CoreEnable(DevInst,  core_loc);
   XAie_MoveData(routingInstance,  XAie_TileLoc(2,0) /* Source*/,
-		((void*)(phy)), mlen*sizeof(uint32_t),
-	  (void*)(CORE_IP_MEM), core_loc /* destination*/);
+		((void*)(phy)), mlen*sizeof(uint32_t), reinterpret_cast<void *>(CORE_IP_MEM),
+		core_loc /* destination*/);
 
   XAie_Run(routingInstance, 1);
 	XAie_CoreWaitForDone(DevInst, core_loc, 1000000);
@@ -148,7 +132,7 @@ int test_aie_kernel_load_simple(XAie_DevInst *DevInst) {
 	return 0;
 }
 int test_aie_kernel_load(XAie_DevInst *DevInst) {
-	test_aie_kernel_load_route(DevInst);
+	return test_aie_kernel_load_route(DevInst);
 	//test_aie_kernel_load_simple(DevInst);
 }
 }

@@ -1,0 +1,53 @@
+/* Copyright (C) 2025 - 2026 Advanced Micro Devices, Inc. */
+/* SPDX-License-Identifier: Apache-2.0 */
+
+all:
+{
+    image
+    {
+        { type=bootimage, file=../../thirdparty/arch/platform/pdi/vck190/allgmiorpu.pdi }
+    }
+    image
+    {
+	name=aie_dev_part, id=0x18800000
+	{
+		type=cdo
+		file= "_x/package/libadf_n0/sw/aie.cdo.device.partition.reset.bin"
+		file= "_x/package/libadf_n1/sw/aie.cdo.device.partition.reset.bin"
+	}
+    }
+    image
+    {
+        name=aie_image, id=0x18800000
+        { type=cdo
+          /* The following commented lines show the CDOs used to create a merged CDO 'aie.cdo.merged.bin'. For debugging purpose,
+             uncomment these CDOs and comment the line that adds 'aie.cdo.merged.bin' */
+		file = ./_x/package/libadf_n0/sw/aie.cdo.reset.bin
+		file = ./_x/package/libadf_n0/sw/aie.cdo.clock.gating.bin
+		file = ./_x/package/libadf_n0/sw/aie.cdo.error.handling.bin
+		file = ./_x/package/libadf_n0/sw/aie.cdo.elfs.bin
+		file = ./_x/package/libadf_n0/sw/aie.cdo.init.bin
+
+		/*file = ./_x/package/libadf_n0/sw/aie.cdo.enable.bin*/
+		/*file = ./_x/package/libadf_n0/sw/aie.cdo.mem.clear.bin*/
+		/*file = ./_x/package/libadf_n0/sw/aie.cdo.debug.bin*/
+		/*file = ./_x/package/libadf_n0/sw/aie.cdo.device.partition.reset.bin*/
+
+		file = ./_x/package/libadf_n1/sw/aie.cdo.reset.bin
+		file = ./_x/package/libadf_n1/sw/aie.cdo.clock.gating.bin
+		file = ./_x/package/libadf_n1/sw/aie.cdo.error.handling.bin
+		file = ./_x/package/libadf_n1/sw/aie.cdo.elfs.bin
+		file = ./_x/package/libadf_n1/sw/aie.cdo.init.bin
+
+		/*file = ./_x/package/libadf_n1/sw/aie.cdo.enable.bin*/
+		/*file = ./_x/package/libadf_n1/sw/aie.cdo.mem.clear.bin*/
+		/*file = ./_x/package/libadf_n1/sw/aie.cdo.debug.bin*/
+		/*file = ./_x/package/libadf_n1/sw/aie.cdo.device.partition.reset.bin*/
+        }
+    }
+    image
+    {
+        name=default_subsys, id=0x1c000000
+        { core=a72-0, file=./vck190.elf }
+    }
+}
