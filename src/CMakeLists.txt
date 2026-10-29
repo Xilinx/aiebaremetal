@@ -25,22 +25,31 @@ file(GLOB BAREMETAL_SRCS_CPP
 set(SOURCES ${BAREMETAL_SRCS_CC} ${BAREMETAL_SRCS_CPP} ) 
  
 
-file(GLOB  HEADERS  "${CMAKE_CURRENT_SOURCE_DIR}/include/aeg_baremetal_api.h"  )
+file(GLOB  HEADERS
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/aeg_baremetal_api.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/aeg_baremetal_api_pl.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/aeg_log.h"
+)
 find_package(common)
 
 
-file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/include/aeg_baremetal_api.h DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/)
+file(COPY
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/aeg_baremetal_api.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/aeg_baremetal_api_pl.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/aeg_log.h
+    DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/)
 
-include_directories(  
-    "${CMAKE_CURRENT_SOURCE_DIR}"  
-    "${CMAKE_CURRENT_SOURCE_DIR}/include"  
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/common_layer"  
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/common_layer/aegothers"   
+include_directories(
+    "${CMAKE_CURRENT_SOURCE_DIR}/../thirdparty/aielib/aie-rt/driver/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../thirdparty/aielib/aie-rt/driver/src"
+    "${CMAKE_CURRENT_SOURCE_DIR}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/common_layer"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/common_layer/aegothers"
 )
 
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../build")  
-  
-# Create the "release" library (libaiebaremetal.a in Makefile) 
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../build")
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../build")
 
 add_library(aiebaremetal STATIC ${SOURCES})  
 set_target_properties(aiebaremetal PROPERTIES OUTPUT_NAME "aiebaremetal")  
@@ -61,5 +70,13 @@ if(("${CMAKE_SYSTEM_PROCESSOR}" STREQUAL "psv_cortexr5")
 
 endif()
 
-install(TARGETS aiebaremetal LIBRARY DESTINATION ${CMAKE_LIBRARY_PATH} ARCHIVE DESTINATION ${CMAKE_LIBRARY_PATH})
-install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/aeg_baremetal_api.h DESTINATION ${CMAKE_INCLUDE_PATH})
+if(CMAKE_LIBRARY_PATH)
+    install(TARGETS aiebaremetal LIBRARY DESTINATION ${CMAKE_LIBRARY_PATH} ARCHIVE DESTINATION ${CMAKE_LIBRARY_PATH})
+endif()
+if(CMAKE_INCLUDE_PATH)
+    install(FILES
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/aeg_baremetal_api.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/aeg_baremetal_api_pl.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/aeg_log.h
+        DESTINATION ${CMAKE_INCLUDE_PATH})
+endif()

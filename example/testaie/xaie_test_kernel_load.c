@@ -10,7 +10,7 @@ int test_aie_kernel_load_route(XAie_DevInst *DevInst) {
 	gdb_point(0);
 	uint32_t CORE_IP_MEM =  0x4000;
 	//uint32_t CORE_OP_MEM = 0x8000;
-	XAieMem mem(DevInst);
+	xaiemem::XAieMem mem(DevInst);
 	if (DevInst->DevProp.DevGen == XAIE_DEV_GEN_AIE) {
 		//printf("test_aie_kernel_load currently only support aie1 \n");
 		//CORE_OP_MEM = 0x5000;
@@ -22,8 +22,8 @@ int test_aie_kernel_load_route(XAie_DevInst *DevInst) {
 	XAie_CoreReset(DevInst, core_loc);
 	XAie_CoreUnreset(DevInst, core_loc);
 	//configure the core disable event, the kernel 'done' instruction can/will trigger 67U event in core moduel
-  //driver need to set this event to make sure event will trigger core disable 
-  //if not do this waitcore done will never success	
+  //driver need to set this event to make sure event will trigger core disable
+  //if not do this waitcore done will never success
 	XAie_CoreConfigureDone(DevInst, core_loc);
 
 	//test code
@@ -57,9 +57,11 @@ int test_aie_kernel_load_route(XAie_DevInst *DevInst) {
 	mem.sync_for_dev((void *)vmem_in, mlen);
 	std::cout << "test_aie_kernel_load" << std::endl;
 	//XAie_CoreEnable(DevInst,  core_loc);
-  XAie_MoveData(routingInstance,  XAie_TileLoc(2,0) /* Source*/,
-		((void*)(phy)), mlen*sizeof(uint32_t), reinterpret_cast<void *>(CORE_IP_MEM),
-		core_loc /* destination*/);
+	/* TODO: Move to XAie_MoveDataExternal2Aie/XAie_MoveDataAie2External When they are
+	 * available in main branch. */
+	//XAie_MoveData(routingInstance,  XAie_TileLoc(2,0) /* Source*/,
+	//	((void*)(phy)), mlen*sizeof(uint32_t), reinterpret_cast<void *>(CORE_IP_MEM),
+	//	core_loc /* destination*/);
 
   XAie_Run(routingInstance, 1);
 	XAie_CoreWaitForDone(DevInst, core_loc, 1000000);
@@ -101,8 +103,8 @@ int test_aie_kernel_load_simple(XAie_DevInst *DevInst) {
 	XAie_CoreReset(DevInst, XAie_TileLoc(1,1));
 	XAie_CoreUnreset(DevInst, XAie_TileLoc(1,1));
 	//configure the core disable event, the kernel 'done' instruction can/will trigger 67U event in core moduel
-  //driver need to set this event to make sure event will trigger core disable 
-  //if not do this waitcore done will never success	
+  //driver need to set this event to make sure event will trigger core disable
+  //if not do this waitcore done will never success
 	XAie_CoreConfigureDone(DevInst, XAie_TileLoc(1, 1));
 	const char* ldpath = "../data/aiekernel";
 	if(XAie_LoadElf(DevInst, XAie_TileLoc(1, 1), ldpath, XAIE_ENABLE)!=XAIE_OK)

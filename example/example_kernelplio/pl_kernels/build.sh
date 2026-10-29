@@ -3,8 +3,12 @@
 # SPDX-License-Identifier: Apache-2.0
 # Source the environment variables
 AIE_GEN=1
+TARGET="${PL_TARGET:-hw}"
 if [ $# -gt 0 ]; then
 	AIE_GEN=$1
+fi
+if [ $# -gt 1 ] && [ "$2" = "hw_emu" ]; then
+	TARGET=hw_emu
 fi
 
 if [ "$AIE_GEN" == "5" ]; then
@@ -33,6 +37,7 @@ else
   source ./env2025.sh
   # source ./env2026.sh
 fi
+export PLATFORM
 v++ -c --platform $PLATFORM --save-temps -g -k s2mm s2mm.cpp -o s2mm.xo
 v++ -c --platform $PLATFORM --save-temps -g -k mm2s mm2s.cpp -o mm2s.xo
-v++ -l --platform $PLATFORM  s2mm.xo mm2s.xo ../libadf.a -t hw --save-temps -g --config system.cfg -o new.xsa
+v++ -l --platform $PLATFORM  s2mm.xo mm2s.xo ../libadf.a -t $TARGET --save-temps -g --config system.cfg -o new.xsa

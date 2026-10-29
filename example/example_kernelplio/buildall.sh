@@ -20,6 +20,34 @@ abort_buildall() {
 
 AIE_GEN=1
 FORCEBUILDLIB=1
+new_api=false
+hw_emu=false
+
+# Parse args:
+#   <1|2|5>     positional AIE generation (default: 1)
+#   -new_api    build host elf from src/graph_new_api.cpp (typed AEG API)
+#               instead of the legacy src/graph.cpp.
+#   qemu        build PL kernels with -t hw_emu (generates launch_hw_emu.sh)
+while [[ $# -gt 0 ]]; do
+	case "$1" in
+		-new_api)
+			new_api=true
+			shift
+			;;
+		qemu)
+			hw_emu=true
+			shift
+			;;
+		*)
+			if [[ $1 =~ ^[0-9]+$ ]]; then
+				AIE_GEN=$1
+				shift
+			else
+				fail "Unknown option: $1"
+			fi
+			;;
+	esac
+done
 
 source "${EXAMPLE_KERNELPLIO_DIR}/../../script/settings.sh" 1
 
@@ -28,8 +56,10 @@ if [[ -z "${XILINX_VITIS:-}" ]]; then
 fi
 export XILINX_VITIS_AIETOOLS="${XILINX_VITIS}/aietools"
 
-if [ $# -gt 0 ]; then
-	AIE_GEN=$1
+export PL_TARGET="hw"
+if [[ "$hw_emu" == true ]]; then
+	export PL_TARGET="hw_emu"
+	echo "hw_emu mode: PL kernels will be built with -t hw_emu (generates launch_hw_emu.sh)"
 fi
 
 if ! (
@@ -67,11 +97,16 @@ fi
 make build/libaiebaremetal.so "AIE_KERNEL_LOC=${EXAMPLE_KERNELPLIO_DIR}" "AIE_GEN=$AIE_GEN" -j32 || abort_buildall "make build/libaiebaremetal.so failed"
 popd
 
+NEW_API_FLAG=""
+if [[ "$new_api" == true ]]; then
+	NEW_API_FLAG="-new_api"
+fi
+
 pushd "${EXAMPLE_KERNELPLIO_DIR}/script" || fail "cannot cd to ${EXAMPLE_KERNELPLIO_DIR}/script"
 if [ "$AIE_GEN" == "5" ]; then
-	source ./builda78.sh "$AIE_GEN" || abort_buildall "builda78.sh failed"
+	source ./builda78.sh "$AIE_GEN" $NEW_API_FLAG || abort_buildall "builda78.sh failed"
 else
-	source ./builda72.sh "$AIE_GEN" || abort_buildall "builda72.sh failed"
+	source ./builda72.sh "$AIE_GEN" $NEW_API_FLAG || abort_buildall "builda72.sh failed"
 fi
 
 popd

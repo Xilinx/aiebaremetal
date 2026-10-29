@@ -1,0 +1,18 @@
+# Copyright (C) 2025 - 2026 Advanced Micro Devices, Inc.
+# SPDX-License-Identifier: Apache-2.0
+sample:
+  description: AIE-RT sample demonstrating AMD AI Engine Runtime integration
+    with Zephyr
+  name: AIE Runtime Test
+common:
+  tags: aie-rt
+  integration_platforms:
+    - native_sim
+  harness: console
+  harness_config:
+    type: one_line
+    regex:
+      - "Hello from AIE-RT test"
+tests:
+  sample.aie-rt.test:
+    tags: aie-rt

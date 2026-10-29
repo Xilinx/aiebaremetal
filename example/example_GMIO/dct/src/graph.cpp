@@ -3,19 +3,13 @@
 
 #include <fstream>
 #include <xaiengine.h>
-#include "../../../../include/aiebaremetal.h"
-#if defined(__AIESIM__) || defined(__ADF_FRONTEND__)
+#include "aiebaremetal.h"
+#include "aeg_platform.h"
+#if defined(__ADF_FRONTEND__)
 #include "graph.h"
 Dct gradf;
-BaremetalGraphSim gr("gradf");
-#else
-#include "xil_cache.h"
-#include "xil_io.h"
-#include "xil_printf.h"
-#include "xparameters.h"
-#include "xtime_l.h"
-BaremetalGraph gr("gradf");
 #endif
+AbrGraph gr("gradf");
 
 #define NBYTES_DATA 4
 
@@ -64,16 +58,13 @@ void DCT8(float *dst, float *src, int ostride, int istride) {
 }
 
 int main(int argc, char **argv) {
-#if defined(__AIESIM__) || defined(__ADF_FRONTEND__)
-    gradf.init();
-#else
+#if defined(AEG_HARDWARE)
     Xil_DCacheDisable();
     Xil_ICacheDisable();
+#endif
 
     XTime tStart, tEnd;
-
     XTime_GetTime(&tStart);
-#endif
 
     gr.init();
 

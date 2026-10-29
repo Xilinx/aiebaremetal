@@ -1,4 +1,6 @@
 #!/bin/bash
+# Copyright (C) 2025 - 2026 Advanced Micro Devices, Inc.
+# SPDX-License-Identifier: Apache-2.0
 
 ################################################################################
 # Script Name: calculate_code_size.sh
@@ -26,7 +28,7 @@ usage() {
     echo "Examples:"
     echo "  $0 myfile.o"
     echo "  $0 /path/to/build/object.o"
-    echo "  $0 build/CMakeFiles/utests.dir/src/cert_elf_loader.cc.o"
+    echo "  $0 build/CMakeFiles/utests_external.dir/src/cert_elf_loader.cc.o"
     exit 1
 }
 

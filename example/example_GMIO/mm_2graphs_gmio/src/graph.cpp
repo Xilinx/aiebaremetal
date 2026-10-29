@@ -3,6 +3,7 @@
 
 #include "../../../../src/include/aiebaremetal.h"
 
+#include "aeg_platform.h"
 #include <fstream>
 #include <xaiengine.h>
 // #ifndef __BAREMETAL_HW__
@@ -13,16 +14,6 @@ Mm<1> mm2;
 BaremetalGraphSim gr1("mm1");
 BaremetalGraphSim gr2("mm2");
 #else
-// #include "platform.h"
-#include "xil_cache.h"
-#include "xil_io.h"
-#include "xil_printf.h"
-#include "xparameters.h"
-#if __AIE_ARCH__ == 22
-#include "xiltimer.h"
-#else
-#include "xtime_l.h"
-#endif
 BaremetalGraph gr1("mm1");
 BaremetalGraph gr2("mm2");
 #endif
@@ -49,18 +40,15 @@ int main(int argc, char **argv) {
 #if defined(__AIESIM__) || defined(__ADF_FRONTEND__)
     mm1.init();
     mm2.init();
-#else
+#endif
     // FIXME, should handle the sync in runtime api
+#if defined(AEG_HARDWARE)
     Xil_DCacheDisable();
     Xil_ICacheDisable();
-
-    // get time
-    XTime tStart, tEnd;
-
-    // init_platform();
-
-    XTime_GetTime(&tStart);
 #endif
+
+    XTime tStart, tEnd;
+    XTime_GetTime(&tStart);
 
     gr1.init();
     gr2.init();

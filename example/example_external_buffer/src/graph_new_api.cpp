@@ -1,28 +1,12 @@
 // Copyright (C) 2026 Advanced Micro Devices, Inc.
 
-#if defined(__AEG_METADATA_ONLY__)
-#include "graph.h"
-myGraph EG;
-int main(int argc, char **argv) {
-    EG.init();
-    return 0;
-}
-#else
-#if (defined(__AIESIM__) || defined(__ADF_FRONTEND__))
+#if defined(__AEG_METADATA_ONLY__) || defined(__ADF_FRONTEND__)
 #include "graph.h"
 myGraph EG;
 #else
-#include "xil_cache.h"
-#include "xil_io.h"
-#include "xil_printf.h"
-#if __AIE_ARCH__ == 22
-#include "xiltimer.h"
-#else
-#include "xtime_l.h"
-#endif
-#endif
-
 #include "aiebaremetal.h"
+#include "aeg_platform.h"
+
 #include "config.h"
 #include <fstream>
 #include <xaiengine.h>
@@ -49,14 +33,11 @@ const int OutSize = NITERATIONS * OutSizePerIteration;
 
 int main(int argc, char **argv) {
 
-#if (defined(__AIESIM__) || defined(__ADF_FRONTEND__))
-    EG.init();
-#else
-#ifdef _RPU_
-    // RPU need to disable data cache, without cache diable app will stuck
+#if defined(AEG_HARDWARE) && defined(_RPU_)
     Xil_DCacheDisable();
 #endif
-#endif
+
+    gr.init();
 
     int32_t *input_data = (int32_t *)gr.malloc(InSize * sizeof(int32_t));
     int32_t *weights1_data =
@@ -144,8 +125,6 @@ int main(int argc, char **argv) {
 
     for (uint32_t i = 0; i < OutSize; i++)
         output_data[i] = 99999;
-
-    gr.init();
 
     for (int kiter = 0; kiter < NITERATIONS; kiter++) {
         cout << "Iteration: " << kiter << endl;
@@ -253,4 +232,4 @@ int main(int argc, char **argv) {
 
     return 0;
 }
-#endif /* !__AEG_METADATA_ONLY__ */
+#endif /* !__AEG_METADATA_ONLY__ && !__ADF_FRONTEND__ */

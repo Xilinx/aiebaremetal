@@ -4,6 +4,8 @@
 #ifndef _HOST_QUEUE_H_
 #define _HOST_QUEUE_H_
 
+#include <cstdint>
+
 #define HSA_PKT_SUCCESS (0)
 /*
  * 32-bit return code in completion of HSA pkt back to host.
@@ -11,7 +13,7 @@
  * will check them on all devices/platforms.
  * HSA specific error code will be on high 28 bits.
  */
-enum hsa_cmd_state { // ert_cmd_state essentially
+enum hsa_cmd_state : std::uint32_t { // ert_cmd_state essentially
     HSA_CMD_STATE_NEW = 1,
     HSA_CMD_STATE_QUEUED = 2,
     HSA_CMD_STATE_RUNNING = 3,
@@ -35,7 +37,7 @@ enum hsa_cmd_state { // ert_cmd_state essentially
 #define HSA_PKT_TIMEOUT HSA_ERR(self_id * 100 + 6)
 #define HSA_MAX_LEVEL1_INDIRECT_ENTRIES (6)
 
-enum host_queue_packet_opcode {
+enum host_queue_packet_opcode : std::uint16_t {
     HOST_QUEUE_PACKET_EXEC_BUF = 1,
     HOST_QUEUE_PACKET_TEST = 2,
     HOST_QUEUE_PACKET_EXIT = 3,
@@ -73,7 +75,7 @@ struct host_queue_header {
     uint64_t data_address;
 };
 
-enum host_queue_packet_type {
+enum host_queue_packet_type : std::uint16_t {
     HOST_QUEUE_PACKET_TYPE_VENDOR_SPECIFIC = 0,
     HOST_QUEUE_PACKET_TYPE_INVALID = 1,
 };

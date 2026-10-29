@@ -1,28 +1,13 @@
 // Copyright (C) 2026 Advanced Micro Devices, Inc.
 // SPDX-License-Identifier: Apache-2.0
-#if defined(__AEG_METADATA_ONLY__)
-#include "graph.h"
-mygraph EG;
-int main(int argc, char **argv) {
-    EG.init();
-    return 0;
-}
-#else
-#if (defined(__AIESIM__) || defined(__ADF_FRONTEND__))
-#include "graph.h"
-mygraph EG;
-#else
-#include "xil_cache.h"
-#include "xil_io.h"
-#include "xil_printf.h"
-#if __AIE_ARCH__ == 22
-#include "xiltimer.h"
-#else
-#include "xtime_l.h"
-#endif
-#endif
 
+#if defined(__AEG_METADATA_ONLY__) || defined(__ADF_FRONTEND__)
+#include "graph.h"
+mygraph EG;
+#else
 #include "aiebaremetal.h"
+#include "aeg_platform.h"
+
 #include <fstream>
 #include <xaiengine.h>
 
@@ -30,7 +15,7 @@ mygraph EG;
 AEGGraph<aeg::EG> gr;
 
 int main() {
-#if (defined(__AIESIM__) || defined(__ADF_FRONTEND__))
+#if defined(__ADF_FRONTEND__)
     EG.init();
 #else
 #ifdef _RPU_
@@ -105,4 +90,4 @@ int main() {
         return 1;
     }
 }
-#endif /* !__AEG_METADATA_ONLY__ */
+#endif /* !__AEG_METADATA_ONLY__ && !__ADF_FRONTEND__ */

@@ -1,3 +1,5 @@
+// Copyright (C) 2025 - 2026 Advanced Micro Devices, Inc.
+// SPDX-License-Identifier: Apache-2.0
 #ifndef STUB_XAIEFAL_MOCK_HPP
 #define STUB_XAIEFAL_MOCK_HPP
 
@@ -11,13 +13,12 @@ extern "C" {
 
 static inline int StubXaieRc_ErrorCode(void)
 {
-    return -1; // any non-zero error code
+    return -1;
 }
 
-// Minimal xaiefal C++ stub layer used by profiling tests
 namespace xaiefal
 {
-    // Base resource type
+
     class XAieRsc
     {
     public:
@@ -29,25 +30,24 @@ namespace xaiefal
         {}
         virtual ~XAieRsc() = default;
 
-        virtual int reserve()
+        virtual int reserve() noexcept
         {
             ++m_reserveCalls;
             return m_reserveResult;
         }
 
-        virtual int release()
+        virtual int release() noexcept
         {
             ++m_releaseCalls;
             return m_releaseResult;
         }
 
-        // Default getRscId implementation
-        virtual int getRscId(XAie_LocType& loc, XAie_ModuleType& module, uint32_t& id)
+        virtual int getRscId(XAie_LocType& loc, XAie_ModuleType& module, uint32_t& id) noexcept
         {
             (void)loc;
             (void)module;
             id = 0;
-            return 0; // XAIE_OK
+            return 0;
         }
 
         void setReserveResult(int v) { m_reserveResult = v; }
@@ -63,7 +63,6 @@ namespace xaiefal
         int m_releaseCalls;
     };
 
-    // Single-tile resource
     class XAieSingleTileRsc : public XAieRsc
     {
     public:
@@ -74,7 +73,7 @@ namespace xaiefal
         {}
         ~XAieSingleTileRsc() override = default;
 
-        int getRscId(XAie_LocType &loc, XAie_ModuleType &module, uint32_t &id) override
+        int getRscId(XAie_LocType &loc, XAie_ModuleType &module, uint32_t &id) noexcept override
         {
             (void)loc;
             (void)module;
@@ -97,14 +96,13 @@ namespace xaiefal
         int m_getRscIdCalls;
     };
 
-    // Perf-counter resource
     class XAiePerfCounter : public XAieSingleTileRsc
     {
     public:
         XAiePerfCounter() : m_instanceIndex(s_instanceCounter++) {}
         ~XAiePerfCounter() override = default;
 
-        int getRscId(XAie_LocType& loc, XAie_ModuleType& module, uint32_t& id) override;
+        int getRscId(XAie_LocType& loc, XAie_ModuleType& module, uint32_t& id) noexcept override;
 
         static void resetInstanceCounter() { s_instanceCounter = 0; }
 
@@ -113,7 +111,6 @@ namespace xaiefal
         static int s_instanceCounter;
     };
 
-    // Stream port select resource
     class XAieStreamPortSelect : public XAieSingleTileRsc
     {
     public:
@@ -121,7 +118,6 @@ namespace xaiefal
         ~XAieStreamPortSelect() override = default;
     };
 
-    // Program-counter event resource
     class XAiePCEvent : public XAieSingleTileRsc
     {
     public:
@@ -129,7 +125,6 @@ namespace xaiefal
         ~XAiePCEvent() override = default;
     };
 
-    // Broadcast resource
     class XAieBroadcast : public XAieRsc
     {
     public:
@@ -138,12 +133,12 @@ namespace xaiefal
               m_getBcCalls(0)
         {
             m_tileLocs.clear();
-            m_startMod = static_cast<XAie_ModuleType>(2);  // XAIE_PL_MOD
-            m_endMod = static_cast<XAie_ModuleType>(2);  // XAIE_PL_MOD
+            m_startMod = static_cast<XAie_ModuleType>(2);
+            m_endMod = static_cast<XAie_ModuleType>(2);
         }
         ~XAieBroadcast() override = default;
 
-        int getBc()
+        int getBc() noexcept
         {
             ++m_getBcCalls;
             return m_bc;
@@ -151,7 +146,7 @@ namespace xaiefal
 
         void getChannel(std::vector<XAie_LocType>& tileLocs,
                        XAie_ModuleType& startMod,
-                       XAie_ModuleType& endMod) const
+                       XAie_ModuleType& endMod) const noexcept
         {
             tileLocs = m_tileLocs;
             startMod = m_startMod;
@@ -174,44 +169,41 @@ namespace xaiefal
         XAie_ModuleType m_endMod;
     };
 
-    // Tile PL wrapper
     class XAieTilePl
     {
     public:
-        std::shared_ptr<XAieRsc> perfCounter()
+        std::shared_ptr<XAieRsc> perfCounter() noexcept
         {
             return std::make_shared<XAiePerfCounter>();
         }
     };
 
-    // Tile wrapper
     class XAieTile
     {
     public:
-        XAieTilePl pl() { return XAieTilePl(); }
+        XAieTilePl pl() noexcept { return XAieTilePl(); }
 
-        std::shared_ptr<XAieRsc> sswitchPort()
+        std::shared_ptr<XAieRsc> sswitchPort() noexcept
         {
             return std::make_shared<XAieSingleTileRsc>();
         }
     };
 
-    // Device wrapper
     class XAieDev
     {
     public:
         XAieDev() = default;
         explicit XAieDev(void* pDevInst) { (void)pDevInst; }
 
-        XAieTile tile(int /*col*/, int /*row*/)
+        XAieTile tile(int , int ) noexcept
         {
             return XAieTile();
         }
 
         std::shared_ptr<XAieRsc> broadcast(
-            const std::vector<XAie_LocType>& /*locs*/,
-            XAie_ModuleType /*startMod*/,
-            XAie_ModuleType /*endMod*/)
+            const std::vector<XAie_LocType>& ,
+            XAie_ModuleType ,
+            XAie_ModuleType ) noexcept
         {
             return std::make_shared<XAieBroadcast>();
         }
@@ -219,9 +211,6 @@ namespace xaiefal
 
 }
 
-// ---- Global helpers for tests to manipulate stub behavior ----
-
-// Broadcast helpers
 static inline std::shared_ptr<xaiefal::XAieBroadcast> StubXaie_CreateBroadcast()
 {
     return std::make_shared<xaiefal::XAieBroadcast>();
@@ -244,7 +233,6 @@ static inline int StubXaieBroadcast_GetReserveCallCount(std::shared_ptr<xaiefal:
     return r->getReserveCallCount();
 }
 
-// Single-tile helpers
 static inline std::shared_ptr<xaiefal::XAieSingleTileRsc> StubXaie_CreateSingleTile()
 {
     return std::make_shared<xaiefal::XAieSingleTileRsc>();
@@ -273,7 +261,6 @@ static inline int StubXaieSingleTile_GetGetRscIdCallCount(std::shared_ptr<xaiefa
     return r->getGetRscIdCallCount();
 }
 
-// Generic resource helpers
 static inline std::shared_ptr<xaiefal::XAieRsc> StubXaie_CreateGenericRsc()
 {
     return std::make_shared<xaiefal::XAieRsc>();
@@ -290,4 +277,4 @@ static inline int StubXaieRsc_GetReleaseCallCount(std::shared_ptr<xaiefal::XAieR
     return r->getReleaseCallCount();
 }
 
-#endif // STUB_XAIEFAL_MOCK_HPP
+#endif

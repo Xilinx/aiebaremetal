@@ -14,19 +14,15 @@
  * under the License.-->
  */
 
-#pragma once
+#ifndef AEG_RUNTIME_API_H
+#define AEG_RUNTIME_API_H
 
 #include "aeg_aie_control_api.h"
 #include "aeg_api_config.h"
 #include "aeg_api_message.h"
-
+#include <xaiengine.h>
 #include <queue>
 #include <vector>
-
-extern "C" {
-#include "xaiengine/xaiegbl.h"
-}
-
 namespace abr {
 
 class config_manager {
@@ -38,40 +34,56 @@ class config_manager {
     static bool s_bInitialized;
     static size_t s_num_reserved_rows;
     static bool s_broadcast_enable_core;
+
+  private:
+    config_manager() = delete;
+    ~config_manager() = delete;
+    config_manager(const config_manager &) = delete;
+    config_manager &operator=(const config_manager &) = delete;
+    config_manager(config_manager &&) = delete;
+    config_manager &operator=(config_manager &&) = delete;
 };
 
 class graph_api {
   public:
-    graph_api(const graph_config *pConfig);
-    virtual ~graph_api() {}
+    explicit graph_api(const graph_config *pConfig);
+    graph_api(const graph_api &) = delete;
+    graph_api &operator=(const graph_api &) = delete;
+    graph_api(graph_api &&) = delete;
+    graph_api &operator=(graph_api &&) = delete;
+    virtual ~graph_api() = default;
 
     err_code configure();
     err_code run();
-    err_code run(int testIter);
+    err_code run(int32_t testIter);
     err_code wait();
-    err_code wait(unsigned long long cycleTimeout);
+    err_code wait(uint64_t cycleTimeout);
     err_code resume();
     err_code end();
-    err_code end(unsigned long long cycleTimeout);
-    err_code update(const shared_buffer_config *pSharedBufferConfig, const void *pValue, size_t numBytes);
+    err_code end(uint64_t cycleTimeout);
+    err_code update(const shared_buffer_config *pSharedBufferConfig, const void *pValue, size_t numBytes) const;
     err_code update(const rtp_config *pRTPConfig, const void *pValue, size_t numBytes);
-    err_code read(const rtp_config *pRTPConfig, void *pValue, size_t numBytes);
+    err_code read(const rtp_config *pRTPConfig, void *pValue, size_t numBytes) const;
 
   private:
     const graph_config *pGraphConfig;
     bool isConfigured;
     bool isRunning;
-    unsigned long long startTime;
+    uint64_t startTime;
 
     std::vector<XAie_LocType> coreTiles;
     std::vector<XAie_LocType> iterMemTiles;
-    std::vector<int> asyncNotFirstTimePorts; // For AIE2, maintain a list of portIds already configured for asyn RTP
+    std::vector<int32_t> asyncNotFirstTimePorts; // For AIE2, maintain a list of portIds already configured for asyn RTP
 };
 
 class gmio_api {
   public:
-    gmio_api(const gmio_config *pConfig);
-    virtual ~gmio_api() {}
+    explicit gmio_api(const gmio_config *pConfig);
+    gmio_api(const gmio_api &) = delete;
+    gmio_api &operator=(const gmio_api &) = delete;
+    gmio_api(gmio_api &&) = delete;
+    gmio_api &operator=(gmio_api &&) = delete;
+    virtual ~gmio_api() = default;
 
     err_code configure();
 #if !defined(__AIESIM__) && defined(__NOT_BARE_METAL__)
@@ -80,16 +92,14 @@ class gmio_api {
     err_code enqueueBD(uint64_t address, size_t size);
 #endif
     err_code wait(bool syncmode = true);
-    err_code enqueueTask(std::vector<dma_api::buffer_descriptor> bdParams, uint32_t repeatCount,
-                         bool enableTaskCompleteToken);
 
   private:
     /// GMIO shim DMA physical configuration compiled by the AIE compiler
     const gmio_config *pGMIOConfig;
 
     /// C_RTS Shim DMA to where this GMIO object is mapped
-    XAie_DmaDesc shimDmaInst;
-    XAie_LocType gmioTileLoc;
+    XAie_DmaDesc shimDmaInst = {};
+    XAie_LocType gmioTileLoc = {};
 
     bool isConfigured;
     uint8_t dmaStartQMaxSize;
@@ -102,5 +112,5 @@ err_code checkRTPConfigForUpdate(const rtp_config *pRTPConfig, const graph_confi
 err_code checkRTPConfigForRead(const rtp_config *pRTPConfig, const graph_config *pGraphConfig, size_t numBytes);
 err_code checkSharedBufferConfigForUpdate(const shared_buffer_config *pSharedBufferConfig,
                                           const graph_config *pGraphConfig, size_t numBytes);
-
 } // namespace abr
+#endif // AEG_RUNTIME_API_H

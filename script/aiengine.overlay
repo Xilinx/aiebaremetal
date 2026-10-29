@@ -1,0 +1,34 @@
+/*
+ * dts file for AMD Versal Gen 2
+ *
+ * Copyright (C) 2025 - 2026 Advanced Micro Devices, Inc.
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Michal Simek <michal.simek@amd.com>
+ */
+
+/ {
+	aliases {
+		aie0 = &aiengine0;
+	};
+	amba: axi {
+		aiengine0: aiengine@40000000 {
+			compatible = "xlnx,aiengine";
+			#address-cells = <2>;
+			#size-cells = <2>;
+			reg = <0x0 0x40000000 0x0 0x40000000>;
+			num-cols = <16>;
+			num-rows = <0x7>;
+			mem-rows = <0x2>;
+			mem-row-start = <0x1>;
+			shim-rows = <0x1>;
+			shim-row-start = <0x0>;
+			core-rows = <0x4>;
+			core-row-start = <0x3>;
+			aie-gen = <0x5>;
+			col-shift = <0x19>;
+			row-shift = <0x14>;
+			status = "okay";
+		};
+	};
+};

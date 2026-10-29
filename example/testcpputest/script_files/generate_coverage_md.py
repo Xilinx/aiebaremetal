@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Copyright (C) 2025 - 2026 Advanced Micro Devices, Inc.
+# SPDX-License-Identifier: Apache-2.0
 """
 Generate API_COVERAGE.md from lcov coverage_report.txt
 """

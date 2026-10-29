@@ -11,7 +11,7 @@ using namespace adf;
         adf::location<adf::kernel>(KERNEL) = tile(COL, ROW);                                                           \
         runtime<ratio>(KERNEL) = 0.9;                                                                                  \
     }
-#if (__AIE_ARCH__ == _AIE_GEN1_)
+#if (__AIE_ARCH__ == ARCH_AIE)
 #define STREAM_CONNECT(OUT, IN) adf::connect<cascade>(OUT, IN);
 #else
 #define STREAM_CONNECT(OUT, IN)
@@ -75,7 +75,7 @@ struct myGraph : public adf::graph {
             out_name << "gmioout" << r;
             in[r] = input_gmio::create(in_name.str(), 64, 1);
             out[r] = output_gmio::create(out_name.str(), 64, 1);
-#if (__AIE_ARCH__ == _AIE_GEN1_)
+#if (__AIE_ARCH__ == ARCH_AIE)
             if ((r & 0x1) == 0) { // even
                 ConnectSystolicArray_Row_LToR(r, 1, &g_kernel[r][0], in[r], out[r], "./src/kernels/one_input_aie.cc",
                                               "./src/kernels/two_inputs_aie.cc", "./src/kernels/one_output_aie.cc");

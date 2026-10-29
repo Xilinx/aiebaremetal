@@ -15,15 +15,15 @@
  * -->
  */
 
-#pragma once
+#ifndef FAL_UTIL_H
+#define FAL_UTIL_H
 
-extern "C" {
 #include <xaiengine.h>
-}
 
+#include <cstdint>
 #include <memory>
 #include <xaiefal/xaiefal.hpp>
-
+namespace fal {
 class fal_util {
   public:
     /// returns true if initialization successful, false otherwise
@@ -33,10 +33,12 @@ class fal_util {
     /// returns resource id on success, -1 otherwise.
     /// NOTE: 1. This API should not be used for cross module resource allocation.
     /// 	  2. API returns -1 if the resource is already reserved using same object.
-    static int request(std::shared_ptr<xaiefal::XAieRsc> pResource);
+    static int32_t request(std::shared_ptr<xaiefal::XAieRsc> pResource);
 
     /// returns true if release successful, false otherwise
     static bool release(std::shared_ptr<xaiefal::XAieRsc> pResource);
 
     static std::shared_ptr<xaiefal::XAieDev> s_pXAieDev;
 };
+} // namespace fal
+#endif // FAL_UTIL_H

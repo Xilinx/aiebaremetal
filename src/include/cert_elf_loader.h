@@ -1,12 +1,11 @@
 // Copyright (C) 2025 - 2026 Advanced Micro Devices, Inc.
 // SPDX-License-Identifier: Apache-2.0
-#pragma once
+
+#ifndef CERT_ELF_LOADER_H
+#define CERT_ELF_LOADER_H
 
 #include <cstring>
-#include <iostream>
-#include <iterator>
 #include <map>
-#include <numeric>
 #include <sstream>
 #include <streambuf>
 #include <string>
@@ -14,9 +13,11 @@
 
 #include "undefelf.h"
 #include <elfio/elfio.hpp>
-using namespace ELFIO;
+#include "aeg_log.h"
+namespace cert_elfloader {
 
-enum class Kind {
+
+enum class Kind : int32_t {
     UC_DMA_REMOTE_PTR_SYMBOL_KIND = 1,
     SHIM_DMA_BASE_ADDR_SYMBOL_KIND = 2,
     SCALAR_32BIT_KIND = 3,
@@ -27,32 +28,28 @@ enum class Kind {
     UNKNOWN_SYMBOL_KIND = 10
 };
 
-static inline void hexdump(const void *data, const ssize_t size) {
-    int i;
-    uint8_t *buf = (uint8_t *)data;
-
-    for (i = 0; i < size; i++) {
-        if (!(i % 16)) {
-            printf("\n%08x: ", i);
+inline void hexdump(const void *data, const ssize_t size) {
+    for (ssize_t i = 0; i < size; i++) {
+        if ((i % 16) == 0) {
+            AEG_LOG("\n%08x: ", static_cast<uint32_t>(i));
         }
-        printf("%02x ", buf[i]);
+        AEG_LOG("%02x ", static_cast<uint32_t>(static_cast<const uint8_t *>(data)[i]));
     }
-    printf("\n");
+    AEG_LOG("\n");
 }
 
 struct ctrl_page {
-    const void *text_buf;
+    const char *text_buf;
     size_t text_size;
-    const void *data_buf;
+    const char *data_buf;
     size_t data_size;
 };
 
 struct ctrl_pad {
-    const void *data_buf;
+    const char *data_buf;
     size_t data_size;
-    ctrl_pad() : data_buf(0), data_size(0) {}
-    ctrl_pad(const void *data_buf, size_t data_size) : data_buf(data_buf), data_size(data_size) {}
-    ~ctrl_pad() {}
+    ctrl_pad() : data_buf(nullptr), data_size(0U) {}
+    ctrl_pad(const char *data_buf, size_t data_size) : data_buf(data_buf), data_size(data_size) {}
 };
 
 struct col_code {
@@ -71,7 +68,7 @@ struct patch {
 struct rela_patch {
     ELFIO::Elf64_Addr offset;
     ELFIO::Elf_Word symbol;
-    unsigned int type;
+    unsigned type; // must match ELFIO get_entry(unsigned&) signature
     ELFIO::Elf_Sxword addend;
 };
 
@@ -79,10 +76,10 @@ struct dynsym_patch {
     std::string sym_name;
     ELFIO::Elf64_Addr value;
     ELFIO::Elf_Xword size;
-    unsigned char bind;
-    unsigned char type;
+    uint8_t bind;
+    uint8_t type;
     ELFIO::Elf_Half section_index;
-    unsigned char other;
+    uint8_t other;
 };
 
 struct ccode {
@@ -92,35 +89,43 @@ struct ccode {
     std::vector<struct dynsym_patch> dynsym;
     std::vector<std::string_view> dynstr;
     std::map<std::string_view, uint64_t> symbol_map;
+
+    ccode() = default;
+    ccode(const ccode &) = default;
+    ccode(ccode &&) noexcept = default;
+    ccode &operator=(const ccode &) & = default;
+    ccode &operator=(ccode &&) & noexcept = default;
 };
 
 class cert_elf_loader {
   public:
     struct ccode ccode;
+    ELFIO::elfio elf;
+    std::stringstream file_sstream;
+    std::istream *file_stream = nullptr;
 
     cert_elf_loader();
-    cert_elf_loader(char *ctrl_elf, unsigned int ctrl_elf_len, std::map<std::string_view, uint64_t> &symbol);
+    cert_elf_loader(const char *ctrl_elf, uint32_t ctrl_elf_len, const std::map<std::string_view, uint64_t> &symbol);
 
+    cert_elf_loader(const cert_elf_loader&) = delete;
+    cert_elf_loader& operator=(const cert_elf_loader&) = delete;
     ~cert_elf_loader();
-    int begin(const char *filename);
-    int begin(const void *elf_ptr, const size_t elf_size);
-    void close_elf();
-    int parse();
+    int32_t begin(const char *filename);
+    int32_t begin(const void *elf_ptr, const size_t elf_size);
+    void close_elf() const;
+    int32_t parse();
 
- protected:
-	bool is_ctrltext(std::string_view *name, int *col, int *page);
-	bool is_ctrldata(std::string_view *name, int *col, int *page);
-	bool is_pad(std::string_view *name, int *col);
-	void patch_scalar_32(uint32_t *ptr, uint64_t patch);
-	void aie4_patch_57(uint32_t *bd_data_ptr, uint64_t offset_val);
-
+   protected:
+    bool is_ctrltext(const std::string_view *name, int32_t *col, int32_t *page) const;
+    bool is_ctrldata(const std::string_view *name, int32_t *col, int32_t *page) const;
+    bool is_pad(const std::string_view *name, int32_t *col) const;
+        void patch_scalar_32(uint32_t *ptr, uint64_t patch) const;
+        void aie4_patch_57(uint32_t *bd_data_ptr, uint64_t offset_val) const;
   private:
-    elfio elf;
-    std::stringstream file_sstream;
-    std::istream *file_stream;
-
-    int _elf_begin();
-    void aie2ps_patch_57(uint32_t *bd_data_ptr, uint64_t patch);
-    void aie2ps_patch_ctrl_57(uint32_t *bd_data_ptr, uint64_t patch);
-    void aie4_patch_ctrl_57(uint32_t *bd_data_ptr, uint64_t patch);
+    int32_t elf_begin() const;
+    void aie2ps_patch_57(uint32_t *bd_data_ptr, uint64_t patch) const;
+    void aie2ps_patch_ctrl_57(uint32_t *bd_data_ptr, uint64_t patch) const;
+    void aie4_patch_ctrl_57(uint32_t *bd_data_ptr, uint64_t patch) const;
 };
+} // namespace cert_elfloader
+#endif // CERT_ELF_LOADER_H

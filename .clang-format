@@ -5,3 +5,6 @@ BasedOnStyle: LLVM
 IndentWidth: 4
 ColumnLimit: 120
 TabWidth: 4
+
+SortIncludes: Never
+IncludeBlocks: Preserve

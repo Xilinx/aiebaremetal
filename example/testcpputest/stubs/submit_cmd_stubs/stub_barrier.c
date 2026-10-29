@@ -1,3 +1,5 @@
+// Copyright (C) 2025 - 2026 Advanced Micro Devices, Inc.
+// SPDX-License-Identifier: Apache-2.0
 #include "stub_barrier.h"
 
 static uint32_t g_wmb_count = 0;

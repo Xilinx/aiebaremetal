@@ -1,0 +1,30 @@
+# Copyright (C) 2025 - 2026 Advanced Micro Devices, Inc.
+# SPDX-License-Identifier: Apache-2.0
+
+CC?=aarch64-none-elf-gcc
+AR?=aarch64-none-elf-ar
+
+ARCH_DIR?=../../../../../thirdparty/arch/ps/
+KERNEL_DIR?=$(ARCH_DIR)/kernels/
+ARCH_72_DIR?=$(ARCH_DIR)/psv_cortexa72_0/
+C_FILES:=$(wildcard *.cpp)
+O_FILES:=$(C_FILES:%.cpp=%.o)
+INCLUDE_DIR:=	-I../../../../../thirdparty/xtf/hw/export/hw/sw/hw/mybsp/bspinclude/include	\
+		-I../../../../../thirdparty/embeddedsw/ThirdParty/sw_services/lwip220/src/lwip-2.2.0/contrib/ports/xilinx/include/ \
+		-I../../../../../thirdparty/embeddedsw/ThirdParty/sw_services/lwip220/src/lwip-2.2.0/src/include	\
+		-I../../../../../thirdparty/embeddedsw/XilinxProcessorIPLib/drivers/ttcps/src/	\
+		-I../../../../../thirdparty/xtf/app/src/ \
+		-I../../../../../include/common/net/ \
+		-I../../../../../include
+APP?=./example_lwip_echo.elf
+
+.PHONY: all
+all: $(APP)
+	
+.PHONY:	$(APP)
+$(APP):
+	$(CC) -mcpu=cortex-a72 -Wl,-T -Wl,$(ARCH_72_DIR)/lscript.ld $(DEFINES) $(INCLUDE_DIR) -L$(ARCH_72_DIR)/lib/ -L../../../../build/ -o $(APP) $(C_FILES) -lxtflwipall -Wl,--start-group,-laiebaremetala72,-lxil,-lgcc,-lc,-lstdc++,--end-group
+
+.PHONY:
+clean:
+	rm -rf *.o *.a *.elf

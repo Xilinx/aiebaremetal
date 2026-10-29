@@ -19,8 +19,8 @@ Changes made: Added updateBDAddress() api to support external buffer.
  * under the License.
  * -->
  */
-
-#pragma once
+#ifndef AEG_AIE_CONTROL_API_H
+#define AEG_AIE_CONTROL_API_H
 
 #include "aeg_api_message.h"
 
@@ -84,18 +84,18 @@ class dma_api {
     /// @param column AIE array column
     /// @param row AIE array row relative to tileType
     /// @param dir 0 (XAie_DmaDirection::DMA_S2MM), 1 (XAie_DmaDirection::DMA_MM2S)
-    static err_code configureBdWaitQueueEnqueueTask(int tileType, uint8_t column, uint8_t row, int dir, uint8_t channel,
+    static err_code configureBdWaitQueueEnqueueTask(int32_t tileType, uint8_t column, uint8_t row, int32_t dir, uint8_t channel,
                                                     uint32_t repeatCount, bool enableTaskCompleteToken,
                                                     std::vector<uint8_t> bdIds,
                                                     std::vector<dma_api::buffer_descriptor> bdParams);
 
-    static err_code configureBD(int tileType, uint8_t column, uint8_t row, uint8_t bdId,
+    static err_code configureBD(int32_t tileType, uint8_t column, uint8_t row, uint8_t bdId,
                                 const dma_api::buffer_descriptor &bdParam);
-    static err_code enqueueTask(int tileType, uint8_t column, uint8_t row, int dir, uint8_t channel,
+    static err_code enqueueTask(int32_t tileType, uint8_t column, uint8_t row, int32_t dir, uint8_t channel,
                                 uint32_t repeatCount, bool enableTaskCompleteToken, uint8_t startBdId);
-    static err_code waitDMAChannelTaskQueue(int tileType, uint8_t column, uint8_t row, int dir, uint8_t channel);
-    static err_code waitDMAChannelDone(int tileType, uint8_t column, uint8_t row, int dir, uint8_t channel);
-    static err_code updateBDAddress(int tileType, uint8_t column, uint8_t row, uint8_t bdId, uint64_t address);
+    static err_code waitDMAChannelTaskQueue(int32_t tileType, uint8_t column, uint8_t row, int32_t dir, uint8_t channel);
+    static err_code waitDMAChannelDone(int32_t tileType, uint8_t column, uint8_t row, int32_t dir, uint8_t channel);
+    static err_code updateBDAddress(int32_t tileType, uint8_t column, uint8_t row, uint8_t bdId, uint64_t address);
     // static err_code updateBDAddressLin(XAie_MemInst* memInst , uint8_t column, uint8_t row, uint8_t bdId, uint64_t
     // offset);
 };
@@ -105,8 +105,9 @@ class lock_api {
     /// @param tileType 0 (abr::tile_type::aie_tile), 1 (abr::tile_type::shim_tile), 2 (abr::tile_type::memory_tile)
     /// @param column AIE array column
     /// @param row AIE array row relative to tileType
-    static err_code initializeLock(int tileType, uint8_t column, uint8_t row, unsigned short lockId, int8_t initVal);
-    static err_code acquireLock(int tileType, uint8_t column, uint8_t row, unsigned short lockId, int8_t acqVal);
-    static err_code releaseLock(int tileType, uint8_t column, uint8_t row, unsigned short lockId, int8_t relVal);
+    static err_code initializeLock(int32_t tileType, uint8_t column, uint8_t row, uint16_t lockId, int8_t initVal);
+    static err_code acquireLock(int32_t tileType, uint8_t column, uint8_t row, uint16_t lockId, int8_t acqVal);
+    static err_code releaseLock(int32_t tileType, uint8_t column, uint8_t row, uint16_t lockId, int8_t relVal);
 };
 } // namespace abr
+#endif // AEG_AIE_CONTROL_API_H

@@ -120,7 +120,7 @@ case "$AIE_GEN" in
 			exit 1
 		fi
 		echo "VERSAL_ARTIFACTS_DIR=$VERSAL_ARTIFACTS_DIR"
-		EDF_LINUX_DISK_IMAGE_DIR="${EDF_LINUX_DISK_IMAGE_DIR:-/proj/yocto/edf/2026.1/stable/Yocto_edf_2026.1_latest/artifacts/amd-cortexa78-mali-common_edf-linux-disk-image}"
+		EDF_LINUX_DISK_IMAGE_DIR="${EDF_LINUX_DISK_IMAGE_DIR:-/proj/yocto/edf/2026.1/stable/Yocto_edf_2026.1_latest/artifacts/amd-cortexa78-mali-common_edf-platform-disk-image/}"
 		if [ ! -d "$EDF_LINUX_DISK_IMAGE_DIR" ]; then
 			echo "Error: EDF_LINUX_DISK_IMAGE_DIR does not exist: $EDF_LINUX_DISK_IMAGE_DIR" >&2
 			exit 1
@@ -128,7 +128,7 @@ case "$AIE_GEN" in
 		echo "EDF_LINUX_DISK_IMAGE_DIR=$EDF_LINUX_DISK_IMAGE_DIR"
 		BOOT_VERSAL_QEMUBOOT_CONF="${BOOT_VERSAL_QEMUBOOT_CONF:-BOOT-versal-2ve-2vm-vek385-revb-multidomain.qemuboot.conf}"
 		echo "BOOT_VERSAL_QEMUBOOT_CONF=$BOOT_VERSAL_QEMUBOOT_CONF"
-		EDF_LINUX_DISK_IMAGE_QEMUBOOT_CONF="${EDF_LINUX_DISK_IMAGE_QEMUBOOT_CONF:-edf-linux-disk-image-amd-cortexa78-mali-common.rootfs.qemuboot.conf}"
+		EDF_LINUX_DISK_IMAGE_QEMUBOOT_CONF="${EDF_LINUX_DISK_IMAGE_QEMUBOOT_CONF:-edf-platform-disk-image-amd-cortexa78-mali-common.rootfs.qemuboot.conf}"
 		echo "EDF_LINUX_DISK_IMAGE_QEMUBOOT_CONF=$EDF_LINUX_DISK_IMAGE_QEMUBOOT_CONF"
 		BOOT_VERSAL_BIN="${BOOT_VERSAL_BIN:-BOOT-versal-2ve-2vm-vek385-revb-multidomain.bin}"
 		;;
@@ -172,28 +172,28 @@ if [ "$SYNC_RUNQEMU_ARTIFACTS" -ne 0 ]; then
 fi
 
 #placeholder for different method of bootmode. NOP for now
-#BUILD_BOOTGEN=0
-#if [ "$BUILD_BOOTGEN" -ne 0 ]; then
-#	rm -rf $RUNQEMU_DIR/boot.bin-extracted-bm
-#	cp $RUNQEMU_DIR/boot.bin-extracted $RUNQEMU_DIR/boot.bin-extracted-bm -r
-#	cp bootgen-aiebaremetal.bif $RUNQEMU_DIR/boot.bin-extracted-bm/
-#
-#	pushd "$RUNQEMU_DIR"
-#
-#	pushd boot.bin-extracted-bm
-#	cp $ELF ./vek385.elf
-#	cp /mnt/1tb/scratch/mini-office/git/aiebaremetal/qemu-sim-vek385/example/testaie/kernel/aie.merged.cdo.bin ./
-#	bootgen -image bootgen-aiebaremetal.bif -arch versal_2ve_2vm -dump bh -w -o boot.bin -log
-#	popd #boot.bin-extracted-bm
-#
-#	#cp boot.bin-extracted-bm/boot.bin BOOT-versal-2ve-2vm-vek385-revb-multidomain.bin
-#	cp boot.bin-extracted-bm/boot.bin BOOT-versal-2ve-2vm-vek385-revb-multidomain.bin
-#	dd if=boot.bin-extracted-bm/boot.bin of=qemu-ospi.bin conv=notrunc
-#
-#	popd #RUNQEMU_DIR
-#fi
+BUILD_BOOTGEN=1
+if [ "$BUILD_BOOTGEN" -ne 0 ]; then
+	rm -rf $RUNQEMU_DIR/boot.bin-extracted-bm
+	cp $RUNQEMU_DIR/boot.bin-extracted $RUNQEMU_DIR/boot.bin-extracted-bm -r
+	cp $SCRIPTS_DIR/vek385_runqemu.bif $RUNQEMU_DIR/boot.bin-extracted-bm/
 
-if [ -z "$UPDATE_BOOT_BIN" ]; then UPDATE_BOOT_BIN=1; fi
+	pushd "$RUNQEMU_DIR"
+
+	pushd boot.bin-extracted-bm
+	cp $ELF ./vek385.elf
+	cp $BAREMETAL_TEST_DIR/aie.merged.cdo.bin ./
+	bootgen -image vek385_runqemu.bif -arch versal_2ve_2vm -dump bh -w -o boot.bin -log
+	popd #boot.bin-extracted-bm
+
+	#cp boot.bin-extracted-bm/boot.bin BOOT-versal-2ve-2vm-vek385-revb-multidomain.bin
+	cp boot.bin-extracted-bm/boot.bin $BOOT_VERSAL_BIN
+	dd if=boot.bin-extracted-bm/boot.bin of=qemu-ospi.bin conv=notrunc
+
+	popd #RUNQEMU_DIR
+fi
+
+if [ -z "$UPDATE_BOOT_BIN" ]; then UPDATE_BOOT_BIN=0; fi
 echo "UPDATE_BOOT_BIN=$UPDATE_BOOT_BIN"
 if [ "$UPDATE_BOOT_BIN" -ne 0 ]; then
 	pushd "$RUNQEMU_DIR"
@@ -207,10 +207,32 @@ if [ "$UPDATE_BOOT_BIN" -ne 0 ]; then
 	popd #RUNQEMU_DIR
 fi
 
+setup_xsim_env() {
+	XSIM_MACHINE_PATH_SCRIPT=$SCRIPTS_DIR/xsim_machine_path.sh
+	export XSIM_MACHINE_PATH_SCRIPT
+	rm -f "$XSIM_MACHINE_PATH_SCRIPT"
+	touch "$XSIM_MACHINE_PATH_SCRIPT"
+	chmod a+x "$XSIM_MACHINE_PATH_SCRIPT"
+	echo "#!/usr/bin/bash" > "$XSIM_MACHINE_PATH_SCRIPT"
+	echo "" >> "$XSIM_MACHINE_PATH_SCRIPT"
+	echo "export MACHINE_PATH=$TMPDIR_aiebaremetal" >> "$XSIM_MACHINE_PATH_SCRIPT"
+}
+
 if [ -z "$RUN_QEMU" ]; then RUN_QEMU=1; fi
 echo "RUN_QEMU=$RUN_QEMU"
 if [ "$RUN_QEMU" -ne 0 ]; then
 	pushd "$RUNQEMU_DIR"
+	TMPDIR_aiebaremetal=$(mktemp -d --suffix=-aiebaremetal)
+	setup_xsim_env
+	COSIM_DTB="qemu-hw-devicetrees/multiarch/board-versal2-psxc-cosim-vitis-vek385.dtb"
+	if [ ! -f "$COSIM_DTB" ]; then
+		echo "Error: COSIM_DTB does not exist: $COSIM_DTB" >&2
+		exit 1
+	fi
+	DTB="qemu-hw-devicetrees/multiarch/board-versal2-psxc-vek385-revB.dtb"
+	sed -i "s|dtb = $DTB|dtb = $COSIM_DTB|" combined.qemuboot.conf
+	echo "Switching to cosim DTB: $COSIM_DTB"
+	echo "Created temporary directory for aiebaremetal QEMU run: $TMPDIR_aiebaremetal"
 	echo "Running QEMU with combined.qemuboot.conf..."
 	echo "Default serial3 is selected for this terminal"
 	echo "To connect to serial4, cd into $RUNQEMU_DIR"
@@ -218,6 +240,7 @@ if [ "$RUN_QEMU" -ne 0 ]; then
 	echo "Ctrl + a then x to exit QEMU"
 	echo "Press any key to start..."
 	read -n 1 -s -r
-	runqemu combined.qemuboot.conf nographic slirp
+	runqemu combined.qemuboot.conf nographic slirp qemuparams="-machine-path $TMPDIR_aiebaremetal"
+	rm -rf "$TMPDIR_aiebaremetal"
 	popd #RUNQEMU_DIR
 fi

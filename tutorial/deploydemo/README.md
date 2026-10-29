@@ -2,12 +2,28 @@
 <!--- SPDX-License-Identifier: Apache-2.0 --->
 
 # Testing Bare-metal application with BSP
+
+## Vitis environment
+
+Source the Vitis you are testing **before** running any tutorial script. The
+scripts read `XILINX_VITIS` (and `$XILINX_VITIS/data/embeddedsw`) from the
+environment and do not pin 2026.1, 2026.2, or HEAD. Mixing a newer
+`aiemetacpp.py` with a pinned older `embeddedsw` produces undefined
+`_binary_build_*` symbols at link time.
+
+```bash
+source /path/to/Vitis/settings64.sh
+```
+
+Optional: set `HW_XSA` if `gensdtbsp.sh` cannot find `vek280_base/hw/hw.xsa`
+next to that Vitis install.
+
 ## Build dependency files
 
 ### Build AIE app JSON files and CDO
 
 ```bash
-source /proj/xbuilds/HEAD_daily_latest/installs/lin64/HEAD/Vitis/settings64.sh
+source /path/to/Vitis/settings64.sh
 pushd dependency/aie
 make compile
 popd
@@ -93,7 +109,7 @@ The graph class and port members are generated from the ADF graph metadata and c
 ### 3.1 Build AIE Routing/Kernel and generate `generated_graphs.h`
 
 ```bash
-source /proj/xbuilds/HEAD_daily_latest/installs/lin64/HEAD/Vitis/settings64.sh
+source /path/to/Vitis/settings64.sh
 pushd dependency/aie
 make compile
 popd
@@ -108,6 +124,17 @@ pushd dependency
 source ./genmetacpp.sh
 source ./genbootbin.sh
 popd
+
+### Build the BSP locally (for testing) using scripts
+
+This is an SDT-based BSP generation flow. In the `dependency` folder, [sdt.tcl](./dependency/sdt.tcl) uses `sdtgen` with a fixed XSA to create the `sdt` directory.
+The [gensdtbsp.sh](./dependency/gensdtbsp.sh) script then uses that generated `sdt` directory to build the bare-metal BSP.
+
+```bash
+pushd dependency
+source ./gensdtbsp.sh
+popd
+```
 
 # Optional: view generated_graphs.h
 vim generated_graphs.h
@@ -152,7 +179,7 @@ However, if you want to build the bare-metal application with a locally built `a
 ### A. Environment setup
    A.1 Vitis environment setup
 
-    source /proj/xbuilds/HEAD_daily_latest/installs/lin64/HEAD/Vitis/settings64.sh
+    source /path/to/Vitis/settings64.sh
 
    A.2 Check environment library/header files. The folder includes embedded and AI Engine libraries and headers.
 
@@ -204,8 +231,12 @@ official release
   ```
   vim ./host.cpp
   # add new logic
-  source ./buildmain.sh
+  source ./buildmain.sh -local
   ```
+
+  `-local` compiles the host against the repo headers under `src/include`, which is what
+  `libaiebaremetal_api.a` was built from. Without it the host is compiled against the BSP
+  headers and will not link against that library.
 
   c. Build the app ELF
 

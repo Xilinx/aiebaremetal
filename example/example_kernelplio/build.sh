@@ -23,7 +23,7 @@ fi
 echo "${AIE_GEN}"
 (
 	cd "${EXAMPLE_KERNELPLIO_DIR}" || exit 1
-	bash -c "source ../../script/envaie2pst50.sh; make compile CFLAGS='-rdynamic' AIE_GEN=${AIE_GEN} -j32"
+	bash -c "source ../../script/envaie2pst50.sh; make compile CFLAGS='-rdynamic' AIE_GEN=${AIE_GEN}"
 ) || fail "make compile failed"
 
 pushd "${EXAMPLE_KERNELPLIO_DIR}" || fail "cannot cd to ${EXAMPLE_KERNELPLIO_DIR}"

@@ -172,7 +172,7 @@ class VelocityFFT : public graph {
             location<adf::parameter>((fftGraph_64.FFTwinproc.fft_buf1[0])) =
                 address(inst2 + 1 + placement_ctrl, 0, 0xe000);
             location<buffer>((*fftGraph_64.getKernels()).in[i]) = {address(inst2 + 1 + placement_ctrl, 0, 0x2000),
-                                                                   address(inst2 + 1 + placement_ctrl, 0, 0xe000)};
+                                                                   address(inst2 + 1 + placement_ctrl, 0, 0x8000)};
             // location<graph>(*this) = area_group({{aie_tile, inst2+1 + placement_ctrl, 0, inst2+1 + placement_ctrl,
             // 0}});
         }

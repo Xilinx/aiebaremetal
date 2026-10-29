@@ -831,6 +831,7 @@ def generate_graph_class(json_file, output_file):
             used_port_names = {pm[0] for pm in port_members}
             rtp_graph_level = {}   # array_key -> {'indices': set(), 'full_names': {}}
             rtp_kernels = {}       # kernel_name -> { port_base -> {'indices': set(), 'full_names': {}} }
+            rtp_kernel_arrays = {} # base_kernel_name -> {'kernel_indices': set(), 'port_info': { port_base -> {'indices': set(), 'full_names': {(k_idx, p_idx): name}} }}
 
             if rtpdata and not check_empty_string(rtpdata):
                 for rtp_name, rtp_config in rtpdata.items():
@@ -845,13 +846,32 @@ def generate_graph_class(json_file, output_file):
                             base_name = array_match.group(1)
                             index = int(array_match.group(2))
                             if len(segments) > 2:
-                                kernel_name = segments[1]
-                                if kernel_name not in rtp_kernels:
-                                    rtp_kernels[kernel_name] = {}
-                                if base_name not in rtp_kernels[kernel_name]:
-                                    rtp_kernels[kernel_name][base_name] = {'indices': set(), 'full_names': {}}
-                                rtp_kernels[kernel_name][base_name]['indices'].add(index)
-                                rtp_kernels[kernel_name][base_name]['full_names'][index] = rtp_port_name
+                                kernel_seg = segments[1]
+                                kernel_array_match = re.match(r'^(\w+)\[(\d+)\]$', kernel_seg)
+                                if kernel_array_match:
+                                    base_kernel_name = kernel_array_match.group(1)
+                                    kernel_idx = int(kernel_array_match.group(2))
+                                    if base_kernel_name not in rtp_kernel_arrays:
+                                        rtp_kernel_arrays[base_kernel_name] = {
+                                            'kernel_indices': set(),
+                                            'port_info': {}
+                                        }
+                                    rtp_kernel_arrays[base_kernel_name]['kernel_indices'].add(kernel_idx)
+                                    if base_name not in rtp_kernel_arrays[base_kernel_name]['port_info']:
+                                        rtp_kernel_arrays[base_kernel_name]['port_info'][base_name] = {
+                                            'indices': set(),
+                                            'full_names': {}
+                                        }
+                                    rtp_kernel_arrays[base_kernel_name]['port_info'][base_name]['indices'].add(index)
+                                    rtp_kernel_arrays[base_kernel_name]['port_info'][base_name]['full_names'][(kernel_idx, index)] = rtp_port_name
+                                else:
+                                    kernel_name = kernel_seg
+                                    if kernel_name not in rtp_kernels:
+                                        rtp_kernels[kernel_name] = {}
+                                    if base_name not in rtp_kernels[kernel_name]:
+                                        rtp_kernels[kernel_name][base_name] = {'indices': set(), 'full_names': {}}
+                                    rtp_kernels[kernel_name][base_name]['indices'].add(index)
+                                    rtp_kernels[kernel_name][base_name]['full_names'][index] = rtp_port_name
                             else:
                                 array_key = base_name
                                 if array_key in port_arrays or array_key in used_port_names:
@@ -983,6 +1003,16 @@ def generate_graph_class(json_file, output_file):
                     array_size = max(indices) + 1 if indices else 0
                     out_file.write(f"        aeg::detail::RTP {port_base}[{array_size}];\n")
                 out_file.write(f"    }} {kernel_name};\n")
+
+            for base_kernel_name in sorted(rtp_kernel_arrays.keys()):
+                karray_info = rtp_kernel_arrays[base_kernel_name]
+                out_file.write(f"    struct {base_kernel_name}_t {{\n")
+                for port_base, port_info in sorted(karray_info['port_info'].items()):
+                    indices = sorted(port_info['indices'])
+                    array_size = max(indices) + 1 if indices else 0
+                    out_file.write(f"        aeg::detail::RTP {port_base}[{array_size}];\n")
+                kernel_array_size = max(karray_info['kernel_indices']) + 1 if karray_info['kernel_indices'] else 0
+                out_file.write(f"    }} {base_kernel_name}[{kernel_array_size}];\n")
             
             out_file.write(f"    {class_name}(const std::string& graphName = \"{graph_base_name}\") \n")
             out_file.write(f"        : AbrGraph(graphName)")
@@ -994,7 +1024,7 @@ def generate_graph_class(json_file, output_file):
                 else:
                     out_file.write(f",\n          {port_member_name}(\"{port_full_name}\",\n            {_graph_ptr}\n            )")
             
-            has_body = bool(port_array_inits) or bool(rtp_graph_inits) or bool(rtp_kernels) or bool(external_buffer_ports)
+            has_body = bool(port_array_inits) or bool(rtp_graph_inits) or bool(rtp_kernels) or bool(rtp_kernel_arrays) or bool(external_buffer_ports)
             
             if has_body:
                 out_file.write(" {\n")
@@ -1003,7 +1033,13 @@ def generate_graph_class(json_file, output_file):
                 for base_name, array_size, full_names, port_type in port_array_inits:
                     for idx in range(array_size):
                         full_name = full_names.get(idx, f"{graph_base_name}.{base_name}[{idx}]")
-                        if port_type in ['gmio', 'external_buffer', 'rtp', 'shared_buffer']:
+                        # GMIO/PLIO copy and move assignment are deleted; bind()
+                        # fills in a default-constructed array element.
+                        if port_type == 'gmio':
+                            out_file.write(f"        {base_name}[{idx}].bind(\"{full_name}\",\n            {_gp}\n            , nullptr);\n")
+                        elif port_type == 'plio':
+                            out_file.write(f"        {base_name}[{idx}].bind(\"{full_name}\",\n            {_gp});\n")
+                        elif port_type in ['external_buffer', 'rtp', 'shared_buffer']:
                             out_file.write(f"        {base_name}[{idx}] = aeg::detail::{port_arrays[base_name]['type']}(\"{full_name}\",\n            {_gp}\n            , nullptr);\n")
                         else:
                             out_file.write(f"        {base_name}[{idx}] = aeg::detail::{port_arrays[base_name]['type']}(\"{full_name}\",\n            {_gp}\n            );\n")
@@ -1021,6 +1057,14 @@ def generate_graph_class(json_file, output_file):
                         for idx in range(array_size):
                             full_name = full_names.get(idx, f"{graph_base_name}.{kernel_name}.{port_base}[{idx}]")
                             out_file.write(f"        {kernel_name}.{port_base}[{idx}] = aeg::detail::RTP(\"{full_name}\",\n            {_gp}\n            , nullptr);\n")
+
+                for base_kernel_name in sorted(rtp_kernel_arrays.keys()):
+                    karray_info = rtp_kernel_arrays[base_kernel_name]
+                    for k_idx in sorted(karray_info['kernel_indices']):
+                        for port_base, port_info in sorted(karray_info['port_info'].items()):
+                            for p_idx in sorted(port_info['indices']):
+                                full_name = port_info['full_names'].get((k_idx, p_idx), f"{graph_base_name}.{base_kernel_name}[{k_idx}].{port_base}[{p_idx}]")
+                                out_file.write(f"        {base_kernel_name}[{k_idx}].{port_base}[{p_idx}] = aeg::detail::RTP(\"{full_name}\",\n            {_gp}\n            , nullptr);\n")
                 
                 for eb_member_name, eb_info in external_buffer_ports.items():
                     eb_name = eb_info['eb_name']
@@ -1049,7 +1093,7 @@ def write_binary_as_c_arrays(output_file, input_files):
     with open(output_file, 'w') as out_file:
         for file_path in input_files:
             var_name = os.path.basename(file_path).replace('.', '_')
-            c_array = bin_to_c_array(file_path, f"_binary_build_{var_name}_start")
+            c_array = bin_to_c_array(file_path, f"binary_build_{var_name}_start")
             out_file.write(c_array)
             out_file.write("\n")
 
@@ -1081,14 +1125,14 @@ input_files = [
 # Convert the binary files to C arrays and write them to the output file
 # Perform the replacements to adjust the variable names and sizes
 replacements = {
-    '_binary_build_driverconfig_bin_start_len': '_binary_build_driverconfig_bin_size',
-    '_binary_build_aiecompilerconfig_bin_start_len': '_binary_build_aiecompilerconfig_bin_size',
-    '_binary_build_graphconfig_bin_start_len': '_binary_build_graphconfig_bin_size',
-    '_binary_build_gmiosconfig_bin_start_len': '_binary_build_gmiosconfig_bin_size',
-    '_binary_build_pliosconfig_bin_start_len': '_binary_build_pliosconfig_bin_size',
-    '_binary_build_rtpsconfig_bin_start_len': '_binary_build_rtpsconfig_bin_size',
-    '_binary_build_externalbuffersconfig_bin_start_len': '_binary_build_externalbuffersconfig_bin_size',
-    '_binary_build_sharedbuffersconfig_bin_start_len': '_binary_build_sharedbuffersconfig_bin_size'
+    'binary_build_driverconfig_bin_start_len': 'binary_build_driverconfig_bin_size',
+    'binary_build_aiecompilerconfig_bin_start_len': 'binary_build_aiecompilerconfig_bin_size',
+    'binary_build_graphconfig_bin_start_len': 'binary_build_graphconfig_bin_size',
+    'binary_build_gmiosconfig_bin_start_len': 'binary_build_gmiosconfig_bin_size',
+    'binary_build_pliosconfig_bin_start_len': 'binary_build_pliosconfig_bin_size',
+    'binary_build_rtpsconfig_bin_start_len': 'binary_build_rtpsconfig_bin_size',
+    'binary_build_externalbuffersconfig_bin_start_len': 'binary_build_externalbuffersconfig_bin_size',
+    'binary_build_sharedbuffersconfig_bin_start_len': 'binary_build_sharedbuffersconfig_bin_size'
 }
 
 def merge_json_files(control_json, partition_json):

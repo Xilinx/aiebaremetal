@@ -1,3 +1,5 @@
+// Copyright (C) 2025 - 2026 Advanced Micro Devices, Inc.
+// SPDX-License-Identifier: Apache-2.0
 #ifndef STUB_XAIEFAL_XAIEFAL_HPP
 #define STUB_XAIEFAL_XAIEFAL_HPP
 

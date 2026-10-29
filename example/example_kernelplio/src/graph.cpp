@@ -1,30 +1,21 @@
 // Copyright (C) 2025 - 2026 Advanced Micro Devices, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-#include "aiebaremetal.h"
 #include "common.h"
 #include <fstream>
 #include <xaiengine.h>
 #include "log/klogr.h"
-#if defined(__AIESIM__) || defined(__ADF_FRONTEND__)
+#include "aiebaremetal.h"
+#include "aeg_platform.h"
+#if defined(__ADF_FRONTEND__)
 #include "graph.h"
 myGraph gradf2;
 BaremetalGraphSim gr("gradf2");
 #else
-#include "xil_cache.h"
-#include "xil_io.h"
-#include "xil_printf.h"
-#include "xparameters.h"
-
-#if __AIE_ARCH__ != 22
-#include "xtime_l.h"
-#else
-#include "xiltimer.h"
-#endif
 BaremetalGraph gr("gradf2");
 #endif
 
-#if defined(__AIESIM__) || defined(__ADF_FRONTEND__)
+#if defined(__ADF_FRONTEND__)
 void adf_run() {
     int32_t *inputArray = (int32_t *)GMIO::malloc(256 * sizeof(int32_t));
     int32_t *outputArray = (int32_t *)GMIO::malloc(256 * sizeof(int32_t));
@@ -59,7 +50,7 @@ void adf_run() {
 #define SIZE_OFFSET 0x1C
 #define MEM_OFFSET 0x10
 void start_pl(uint32_t *in, uint32_t *out, int len) {
-#if not defined(__AIESIM__) && not defined(__ADF_FRONTEND__)
+#if defined(AEG_HARDWARE)
 
     int i;
     int errCount = 0;
@@ -84,7 +75,7 @@ void start_pl(uint32_t *in, uint32_t *out, int len) {
 }
 
 void wait_s2mm() {
-#if not defined(__AIESIM__) && not defined(__ADF_FRONTEND__)
+#if defined(AEG_HARDWARE)
     while (1) {
         uint32_t v = Xil_In32(S2MM_BASE + CTRL_OFFSET);
         if (v & 6) {
@@ -96,19 +87,13 @@ void wait_s2mm() {
 }
 
 int main(int argc, char **argv) {
-#if defined(__AIESIM__) || defined(__ADF_FRONTEND__)
-    std::cout << "gradf2.a  =" << gradf2.a << std::endl;
-    gradf2.init();
-    // adf_run();
-    // return 0;
-#else
+#if defined(AEG_HARDWARE)
     // FIXME, should handle the sync in runtime api
     Xil_DCacheDisable();
     Xil_ICacheDisable();
+#endif
     // get time
     XTime tStart, tEnd;
-    // init_platform();
-#endif
     uint32_t indata[SQUARE_BUF_LEN], outdata[SQUARE_BUF_LEN];
     for (int i = 0; i < SQUARE_BUF_LEN; i++) {
         indata[i] = i;
@@ -130,18 +115,30 @@ int main(int argc, char **argv) {
     char *log = gr.dumpcorelog(3, 2);
     printf("kernel log is %s\n", log);
 
-#if not defined(__AIESIM__) && not defined(__ADF_FRONTEND__)
+    bool passed = true;
+
+#if defined(AEG_HARDWARE)
     for (int i = 0; i < SQUARE_BUF_LEN; i++) {
-        printf("outdata[%d] is %d\n", i, outdata[i]);
+        uint32_t expected = (uint32_t)(i * i);
+        if (outdata[i] != expected) {
+            printf("MISMATCH at [%d]: got %u, expected %u\n", i, outdata[i], expected);
+            passed = false;
+        }
     }
-    std::cout << "\n" << "Test Passed 4\n";
+#else
+    if (handle0 == -1) {
+        printf("profiling handle not acquired\n");
+    }
 #endif
 
-    gr.end();
     if (handle0 != -1) {
         long long cycle_count0 = gr.read_profiling(handle0);
         gr.stop_profiling(handle0);
         printf("cycle_count0 = %lld\n", cycle_count0);
     }
-    return 0;
+
+    gr.end();
+
+    std::cout << "\n" << (passed ? "Test Passed" : "Test Failed") << "\n";
+    return passed ? 0 : -1;
 }

@@ -27,10 +27,10 @@
 //#else
 extern "C" {
 /************************** Constant Definitions *****************************/
-int test_aie_shim(XAie_DevInst *DevInst) 
+int test_aie_shim(XAie_DevInst *DevInst)
 {
 	gdb_point(0);
-	XAieMem mem(DevInst);
+	xaiemem::XAieMem mem(DevInst);
 
 	int driverStatus;
 	//enhancement not fix any bug
@@ -80,7 +80,7 @@ int test_aie_shim(XAie_DevInst *DevInst)
 	 * SHIM->DDR 2,3, in practice, SHIM->DDR 3 seems not work
 	 * below we use 3 for DDR to SHMie_EnableShimDmaToAieStrmPort
 	 * XAie_EnableShimDmaToAieStrmPort do the MUX setting
-	 * The PORT/CHANNEL related Mux is the slave port 
+	 * The PORT/CHANNEL related Mux is the slave port
 	 * The internal connected port can be different when doing DMA
 	 */
 	RC = XAie_StrmConnCctEnable(DevInst, shim, SOUTH, 3,  WEST, 0);
@@ -131,7 +131,7 @@ int test_aie_shim(XAie_DevInst *DevInst)
 	RC |= XAie_DmaChannelPushBdToQueue(DevInst, shim, 0, DMA_MM2S, 0);
 	RC |= XAie_DmaChannelEnable(DevInst,shim, 0, DMA_MM2S);
 	if (RC != XAIE_OK) {printf("RC FAILED\n");return -1;}
-	//wait the send transfer, but not do receive 
+	//wait the send transfer, but not do receive
 	u32 shim_snd_count = 2, aie1_count = 2;
 	int	round = 2;
 	while(shim_snd_count && (round-- >= 0)) {

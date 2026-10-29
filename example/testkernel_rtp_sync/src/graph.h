@@ -7,7 +7,7 @@ using namespace adf;
 struct myGraph : public adf::graph {
   public:
     adf::kernel sq;
-    adf::port<adf::direction::in> trigger;
+    adf::port<adf::direction::in> rtp_in;
 #ifdef ENABLE_PLIO
     adf::kernel sq2;
     adf::input_plio pin;
@@ -29,7 +29,7 @@ struct myGraph : public adf::graph {
         adf::connect<window<128>>(in.out[0], sq.in[0]);
         adf::connect<window<128>>(sq.out[0], out.in[0]);
         // async(sq.in[1]);
-        adf::connect<adf::parameter>(trigger, sq.in[1]);
+        adf::connect<adf::parameter>(rtp_in, sq.in[1]);
 
 #ifdef ENABLE_PLIO
         pin = input_plio::create("plioin1", plio_64_bits, "data/input.txt", 500);

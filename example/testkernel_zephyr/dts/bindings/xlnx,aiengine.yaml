@@ -1,0 +1,44 @@
+# Copyright (C) 2025 - 2026 Advanced Micro Devices, Inc.
+# SPDX-License-Identifier: Apache-2.0
+description: "Xilinx AI Engine (AIE) is a high-performance, programmable architecture designed for accelerating machine learning workloads. It provides a flexible and efficient platform for deploying AI models, enabling developers to optimize performance and power efficiency for a wide range of applications, including computer vision, natural language processing, and more."
+
+compatible: "xlnx,aiengine"
+
+include: base.yaml
+
+properties:
+  reg:
+    required: true
+
+  num-cols:
+    type: int
+
+  num-rows:
+    type: int
+
+  mem-rows:
+    type: int
+
+  mem-row-start:
+    type: int
+
+  shim-rows:
+    type: int
+
+  shim-row-start:
+    type: int
+
+  core-rows:
+    type: int
+
+  core-row-start:
+    type: int
+
+  aie-gen:
+    type: int
+
+  col-shift:
+    type: int
+
+  row-shift:
+    type: int

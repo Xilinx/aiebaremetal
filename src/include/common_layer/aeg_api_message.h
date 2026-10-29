@@ -14,13 +14,16 @@
  * under the License.-->
  */
 
-#pragma once
+#ifndef AEG_API_MESSAGE_H
+#define AEG_API_MESSAGE_H
 
-#include "errno.h"
-#include <string>
+#include <cerrno>
+#include <cstdint>
+#include <string_view>
+#include "aeg_log.h"
 
 namespace abr {
-enum class err_code : int {
+enum class err_code : std::int32_t {
     ok = 0,
     user_error = EINVAL,
     internal_error = ENOTSUP,
@@ -28,9 +31,32 @@ enum class err_code : int {
     resource_unavailable = EAGAIN
 };
 }
+namespace aeg_api_message {
+abr::err_code errorMsg(abr::err_code code, std::string_view msg);
 
-abr::err_code errorMsg(abr::err_code code, std::string msg);
+void debugMsg(std::string_view msg);
 
-void debugMsg(std::string msg);
+void infoMsg(std::string_view msg);
 
-void infoMsg(std::string msg);
+template <typename... Args>
+inline void discardArgs(const Args &...) noexcept {}
+
+template <typename First, typename... Rest>
+inline void debugMsg(const char *fmt, First first, Rest... rest) {
+    AEG_LOG(fmt, first, rest...);
+    discardArgs(fmt, first, rest...);
+}
+
+template <typename First, typename... Rest>
+inline void infoMsg(const char *fmt, First first, Rest... rest) {
+    AEG_LOG(fmt, first, rest...);
+    discardArgs(fmt, first, rest...);
+}
+
+template <typename First, typename... Rest>
+inline abr::err_code errorMsg(abr::err_code code, const char *fmt, First first, Rest... rest) {
+    discardArgs(fmt, first, rest...);
+    return code;
+}
+} // namespace aeg_api_message
+#endif /* AEG_API_MESSAGE_H */

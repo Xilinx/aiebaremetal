@@ -14,6 +14,8 @@ if [ -z "$XILINX_VITIS" ] || ! which aiecompiler > /dev/null 2>&1 || ! which v++
     source envaie2pst50.sh
 fi
 
+source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/aieldshim.sh"
+
 check_status() {
     status=$1
     cmd_desc=$2
@@ -24,6 +26,17 @@ check_status() {
     fi
     
     return 0
+}
+
+if [[ -z "${local_python:-}" ]]; then
+    if [[ -x /usr/bin/python3 ]]; then
+        local_python=/usr/bin/python3
+    else
+        local_python="$(command -v python3)"
+    fi
+fi
+local_python() {
+    env -u PYTHONHOME -u PYTHONPATH "$local_python" "$@"
 }
 
 # Initialize variables
@@ -41,17 +54,17 @@ XTFLWIPALL=./build/libxtflwipall.a
 
 
 runtime_source_file=""
+runtime_additional_source_files=""
 kernel_folder=`pwd`
 default_json_dir=$kernel_folder/Work/ps/c_rts/
 control_json=$default_json_dir/aie_control_config.json
 partition_json=$default_json_dir/aie_partition.json
 aie_version="1"
-compiler_options_aie="--disable-multirate-analysis"
+compiler_options_aie="--disable-multirate-analysis --broadcast-enable-core=false"
 compiler_options_vpp="disable-multirate=true"
 #                 --include=$BAREMETAL_DIR/thirdparty/arch/ps/psv_cortexa72_0/include/\
 include_options="--include=./ --include=$XILINX_VITIS_AIETOOLS/include/aie_api \
-
-                 --include=$BAREMETAL_DIR/thirdparty/aielib/aie-rt/driver/internal/ \
+                 --include=$XILINX_VITIS_AIETOOLS/include/drivers/aiengine \
                  --include $BAREMETAL_DIR/src/include --include $BAREMETAL_DIR/src/include/common_layer/ \
                  --include $BAREMETAL_DIR/src/include/common_layer/aegothers"
 
@@ -69,16 +82,18 @@ workfolder=
 rpu=false
 lwip_enalbe=false
 palmyra=false
+platform=baremetal
 compiler="aiecompiler"
 allgmio=true
 PALMYRAAIECOMPILERMOPTION=
 PALMYRAHOSTOPTION=
 new_api=false
 aeg_debug=false
+fusa_libc=false
 
 # Print usage
 usage() {
-    echo "Usage: $0 [--runtime_source_file <path>] [--aie_version <version [1, 2]]> [--kernel_folder <path>] [--compiler_options <compiler optionss and include paths>] [-new_api] [-aeg_debug] [-bootgen] [-rpu]"
+    echo "Usage: $0 [--runtime_source_file <path>] [--aie_version <version [1, 2]]> [--kernel_folder <path>] [--compiler_options <compiler optionss and include paths>] [-new_api] [-aeg_debug] [-bootgen] [-rpu] [-fusa]"
     exit 1
 }
 
@@ -95,6 +110,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --runtime_source_file)
             runtime_source_file="$2"
+            shift 2
+            ;;
+        --runtime_additional_source_files)
+            runtime_additional_source_files="$runtime_additional_source_files $2"
             shift 2
             ;;
         --control_json)
@@ -184,9 +203,17 @@ while [[ $# -gt 0 ]]; do
             preproc_options="$preproc_options -DAEG_DEBUG"
             shift
             ;;
+            -fusa|--fusa)
+            fusa_libc=true
+            shift
+            ;;
             -lwip)
             lwip_enalbe=true
             LWIPLIB=-lxtflwipall
+            shift
+            ;;
+            -linux)
+            platform=linux
             shift
             ;;
             --compiler)
@@ -209,9 +236,33 @@ fi
 compiler_options_aie+=${PALMYRAAIECOMPILERMOPTION}
 host_compiler_options_aie+=${PALMYRAHOSTOPTION}
 
+if [ $platform == "linux" ]; then
+    AARCH64_COMPILER_PREFIX="aarch64-linux-gnu-"
+    preproc_options="$preproc_options -D__AIELINUX__"
+else
+    AARCH64_COMPILER_PREFIX="aarch64-none-elf-"
+fi
+
+# Baremetal host app optimization. Default is unset (implicit -O0, upstream
+# behavior); a caller can override via HOST_OPT_AIE (e.g. the resnet18 example
+# sets -Os for baremetal-vs-Zephyr parity).
+host_compiler_options_aie+=" ${HOST_OPT_AIE:-} "
+
 MAKE_EXTRA_CPPFLAGS=
+EXTRA_CPPFLAGS_VAL=
+if [ $platform == "linux" ]; then
+    EXTRA_CPPFLAGS_VAL="-D__AIELINUX__"
+fi
 if [ "$aeg_debug" = true ]; then
-    MAKE_EXTRA_CPPFLAGS="EXTRA_CPPFLAGS=-DAEG_DEBUG"
+    EXTRA_CPPFLAGS_VAL="$EXTRA_CPPFLAGS_VAL -DAEG_DEBUG"
+fi
+if [ -n "$EXTRA_CPPFLAGS_VAL" ]; then
+    MAKE_EXTRA_CPPFLAGS="EXTRA_CPPFLAGS=$EXTRA_CPPFLAGS_VAL"
+fi
+# -fusa: compile aie-rt with -DXAIE_FEATURE_FUSA_LIBC (GCC, no armclang/real
+# FuSa library). See driver/src/global/xaie_feature_config.h.
+if [ "$fusa_libc" = true ]; then
+    MAKE_EXTRA_CPPFLAGS="$MAKE_EXTRA_CPPFLAGS XAIE_FUSA_FLAG=-DXAIE_FEATURE_FUSA_LIBC"
 fi
 
 if [[ -n "$control_json" ]]; then
@@ -241,7 +292,7 @@ if [ $aie_version == 5 ]; then
   PLATFORM=/proj/xbuilds/2025.2_daily_latest/internal_platforms/vek385_base/vek385_base.xpfm
 
 elif [ $aie_version == 2 ]; then
-  PLATFORM=/proj/xbuilds/2025.2_daily_latest/internal_platforms/xilinx_vek280_base_202520_1/xilinx_vek280_base_202520_1.xpfm
+  PLATFORM="${PLATFORM:-/proj/xbuilds/2026.2_daily_latest/internal_platforms/xilinx_vek280_base_202620_1/xilinx_vek280_base_202620_1.xpfm}"
 
 else
   PLATFORM=/proj/xbuilds/2025.2_daily_latest/internal_platforms/xilinx_vck190_base_202520_1/xilinx_vck190_base_202520_1.xpfm
@@ -325,6 +376,12 @@ runtime_source_file=`pwd`/$filename
 popd 
 
 pushd .
+runtime_additional_source_files="$(for file in $runtime_additional_source_files; do
+    realpath "$file"
+done)"
+popd
+
+pushd .
 cd $sysrootinclude
 sysrootinclude=`pwd`
 popd
@@ -351,9 +408,10 @@ sysrootlinker=`pwd`/$linker_file
 popd 
 
 echo "Before"
-echo ${aie_version}
-echo ${runtime_source_file}
-echo ${kernel_folder}
+echo "aie_version: ${aie_version}"
+echo "runtime_source_file: ${runtime_source_file}"
+echo "runtime_additional_source_files: ${runtime_additional_source_files}"
+echo "kernel_folder: ${kernel_folder}"
 if [[ $compiler == "aiecompiler" ]]; then
     echo "compiler_options_aie: ${compiler_options_aie}"
 else
@@ -379,7 +437,7 @@ echo "After"
 if [[ -z $workfolder ]]; then
     echo "*****************Work folder is not provided, enter "$BAREMETAL_TEST_DIR "****************"
     pushd $BAREMETAL_TEST_DIR
-    make alib ${MAKE_EXTRA_CPPFLAGS}
+    make alib platform=$platform ${MAKE_EXTRA_CPPFLAGS}
     check_status $? "make alib"
     popd
 else
@@ -409,28 +467,33 @@ if [[ -z $workfolder ]]; then
         
         metadata_preproc="$preproc_options -D__AEG_METADATA_ONLY__"
         if [[ "$new_api" == true ]]; then
+            _meta_src="$kernel_folder/aeg_metadata_wrapper.cpp"
+            printf '#include "aeg_metadata_main.h"\n#include "%s"\n' \
+                "$(readlink -f "$runtime_source_file")" > "$_meta_src"
+
             if [[ $custom_pdi == true ]]; then
-                aiecompiler $runtime_source_file --platform $PLATFORM --Xpreproc="$metadata_preproc" $compiler_options_aie "$partition_option" --workdir=$kernel_folder/Work $include_options --target=hw
+                aiecompiler "$_meta_src" --platform $PLATFORM --Xpreproc="$metadata_preproc" $compiler_options_aie "$partition_option" --workdir=$kernel_folder/Work $include_options --target=hw
                 check_status $? "aiecompiler $runtime_source_file (metadata generation)"
                 v++ -l --platform $PLATFORM   ./libadf.a -t hw --save-temps -g -o new.xsa
             else
-                aiecompiler $runtime_source_file --part=$DEVICE_FILE --Xpreproc="$metadata_preproc" $compiler_options_aie "$partition_option" --workdir=$kernel_folder/Work $include_options --target=hw
+                aiecompiler "$_meta_src" --part=$DEVICE_FILE --Xpreproc="$metadata_preproc" $compiler_options_aie "$partition_option" --workdir=$kernel_folder/Work $include_options --target=hw
                 check_status $? "aiecompiler $runtime_source_file (metadata generation)"
             fi
+            rm -f "$_meta_src"
 
             if [ -f "$kernel_folder/Work/ps/c_rts/aie_control_config.json" ]; then
                 pushd $kernel_folder/Work/ps/c_rts
                 if [ -f "../../arch/aie_partition.json" ]; then
-                    python3 $BAREMETAL_SCRIPT_DIR/aiemetacpp.py aie_control_config.json ../../arch/aie_partition.json
+                    local_python $BAREMETAL_SCRIPT_DIR/aiemetacpp.py aie_control_config.json ../../arch/aie_partition.json
                 else
-                    python3 $BAREMETAL_SCRIPT_DIR/aiemetacpp.py aie_control_config.json
+                    local_python $BAREMETAL_SCRIPT_DIR/aiemetacpp.py aie_control_config.json
                 fi
                 generation_status=$?
                 popd
                 check_status $generation_status "Code generation from metadata"
-                cp $kernel_folder/Work/ps/c_rts/generated_graphs.h $BAREMETAL_DIR/src/include/
-                check_status $? "Copy generated_graphs.h to baremetal directory"
-                cp $kernel_folder/Work/ps/c_rts/generated_graphs.h $(dirname $runtime_source_file)/
+                mv $kernel_folder/Work/ps/c_rts/generated_graphs.h $BAREMETAL_DIR/src/include/
+                check_status $? "Move generated_graphs.h to baremetal include directory"
+                cp $BAREMETAL_DIR/src/include/generated_graphs.h $(dirname $runtime_source_file)/
                 check_status $? "Copy generated_graphs.h to runtime source file directory"
             fi
 
@@ -438,9 +501,18 @@ if [[ -z $workfolder ]]; then
                 if [[ $custom_pdi == true ]]; then
                     aiecompiler $runtime_source_file --platform $PLATFORM --Xpreproc="$preproc_options" $compiler_options_aie "$partition_option" --workdir=$kernel_folder/Work $include_options --target=x86sim
                     check_status $? "aiecompiler $runtime_source_file"
-                else
+                elif [[ $bootgen_enable == true || $hw_qemu == true ]]; then
                     aiecompiler $runtime_source_file --part=$DEVICE_FILE --Xpreproc="$preproc_options" $compiler_options_aie "$partition_option" --workdir=$kernel_folder/Work $include_options --target=hw
                     check_status $? "aiecompiler $runtime_source_file"
+                else
+                    _sysc_dir="$kernel_folder/Work/ps/c_rts/systemC"
+                    if [[ -d "$_sysc_dir" ]]; then
+                        for _mk in "$_sysc_dir"/Makefile "$_sysc_dir"/Makefile.*; do
+                            [ -f "$_mk" ] || continue
+                            sed -i -e 's/ -D__AEG_METADATA_ONLY__//g' \
+                                   -e "s#${_meta_src}#${runtime_source_file}#g" "$_mk"
+                        done
+                    fi
                 fi
             fi
         else
@@ -456,9 +528,9 @@ if [[ -z $workfolder ]]; then
             if [ -f "$kernel_folder/Work/ps/c_rts/aie_control_config.json" ]; then
                 pushd $kernel_folder/Work/ps/c_rts
                 if [ -f "../../arch/aie_partition.json" ]; then
-                    python3 $BAREMETAL_SCRIPT_DIR/aiemetacpp.py aie_control_config.json ../../arch/aie_partition.json
+                    local_python $BAREMETAL_SCRIPT_DIR/aiemetacpp.py aie_control_config.json ../../arch/aie_partition.json
                 else
-                    python3 $BAREMETAL_SCRIPT_DIR/aiemetacpp.py aie_control_config.json
+                    local_python $BAREMETAL_SCRIPT_DIR/aiemetacpp.py aie_control_config.json
                 fi
                 generation_status=$?
                 popd
@@ -477,9 +549,9 @@ if [[ -z $workfolder ]]; then
         if [ -f "$kernel_folder/Work/ps/c_rts/aie_control_config.json" ]; then
             pushd $kernel_folder/Work/ps/c_rts
             if [ -f "../../arch/aie_partition.json" ]; then
-                python3 $BAREMETAL_SCRIPT_DIR/aiemetacpp.py aie_control_config.json ../../arch/aie_partition.json
+                local_python $BAREMETAL_SCRIPT_DIR/aiemetacpp.py aie_control_config.json ../../arch/aie_partition.json
             else
-                python3 $BAREMETAL_SCRIPT_DIR/aiemetacpp.py aie_control_config.json
+                local_python $BAREMETAL_SCRIPT_DIR/aiemetacpp.py aie_control_config.json
             fi
             generation_status=$?
             popd
@@ -504,7 +576,7 @@ export LD_LIBRARY_PATH=$XILINX_VITIS/aietools/lib/lnx64.o:$LD_LIBRARY_PATH
 
 ## compile the simulation library
 if [[ $hw_only == false ]]; then
-    make ./build/libaiebaremetal.so  AIE_GEN=$aie_version ARCH_INCLUDE=$sysrootinclude AIE_KERNEL_LOC=$kernel_folder AIE_CONTROL_JSON=$control_json AIE_PARTITION_JSON=$partition_json ${MAKE_EXTRA_CPPFLAGS} -j32
+    make ./build/libaiebaremetal.so AIE_GEN=$aie_version platform=$platform ARCH_INCLUDE=$sysrootinclude AIE_KERNEL_LOC=$kernel_folder AIE_CONTROL_JSON=$control_json AIE_PARTITION_JSON=$partition_json ${MAKE_EXTRA_CPPFLAGS} -j32
     check_status $? "make ./build/libaiebaremetal.so"
 fi
 
@@ -512,46 +584,44 @@ AIE=10
 AIEML=20
 AIE2PS=22
 if [ "$aie_version" == "2" ]; then
-	__AIE_ARCH__=${AIEML}
-	if [[ $rpu == true ]]; then
-		BIF=vek280_rpu_boot_image.bif
+    __AIE_ARCH__=${AIEML}
+    if [[ $rpu == true ]]; then
+        BIF=vek280_rpu_boot_image.bif
     elif [[ $custom_pdi == true ]]; then
         BIF=vek280_custom.bif
-	else
-		BIF=vek280_boot_image.bif
-	fi
-
-	BOOTBIN=Vek280BOOT.BIN
-	ELF=vek280.elf
+    else
+        BIF=vek280_boot_image.bif
+    fi
+    BOOTBIN=Vek280BOOT.BIN
+    ELF=vek280.elf
 elif [ "$aie_version" == "5" ]; then
-	__AIE_ARCH__=${AIE2PS}
-	if [ $rpu == true ]; then
+    __AIE_ARCH__=${AIE2PS}
+    if [ $rpu == true ]; then
         if [ $palmyra == true ]; then
-		    BIF=Palmyra.bif
+            BIF=Palmyra.bif
         else
-		if [ $allgmio == true ]; then
-			echo "*************vek385 allgmio*****************"
-			BIF=vek385_allgmio.bif
-		else
-			echo "*************vek385*****************"
-			BIF=vek385.bif
-		fi
+            if [ $allgmio == true ]; then
+                echo "*************vek385 allgmio*****************"
+                BIF=vek385_rpu_allgmio.bif
+            else
+                echo "*************vek385*****************"
+                BIF=vek385.bif
+            fi
         fi
-	else
-		 if [ $palmyra == true ]; then
+    else
+        if [ $palmyra == true ]; then
             echo "**********************palmyra**************"
-		    BIF=Palmyra.bif
+            BIF=Palmyra.bif
         else
-		if [ $allgmio == true ]; then
-			echo "*************vek385 allgmio*****************"
-			BIF=vek385_allgmio.bif
-		else
-			echo "*************vek385*****************"
-			BIF=vek385.bif
-		fi
+            if [ $allgmio == true ]; then
+                echo "*************vek385 allgmio*****************"
+                BIF=vek385_allgmio.bif
+            else
+                echo "*************vek385*****************"
+                BIF=vek385.bif
+            fi
         fi
-	fi
-
+    fi
     if [ $palmyra == true ]; then
         BOOTBIN=Palmyra.BIN
         ELF=Palmyra.elf
@@ -559,16 +629,15 @@ elif [ "$aie_version" == "5" ]; then
         BOOTBIN=vek385.BIN
         ELF=vek385.elf
     fi
-
 else
-	__AIE_ARCH__=${AIE}
-	if [ $rpu == true ]; then
-		BIF=vck190_rpu_boot_image.bif
-	else
-		BIF=vck190_boot_image.bif
-	fi
-	BOOTBIN=Vck190BOOT.BIN
-	ELF=vck190.elf
+    __AIE_ARCH__=${AIE}
+    if [ $rpu == true ]; then
+        BIF=vck190_rpu_boot_image.bif
+    else
+        BIF=vck190_boot_image.bif
+    fi
+    BOOTBIN=Vck190BOOT.BIN
+    ELF=vck190.elf
 fi
 
 echo "The workfolder is located in: $workfolder"
@@ -576,47 +645,53 @@ if [[ -z $workfolder ]]; then
     echo "The workfolder is not exist  in: $workfolder"
      
     if [ $rpu == true ]; then
-        make hw_external_rpu  AIE_GEN=$aie_version  AIE_KERNEL_LOC=$kernel_folder ARCH_INCLUDE=$sysrootinclude ${MAKE_EXTRA_CPPFLAGS} -j32
+        make hw_external_rpu  AIE_GEN=$aie_version platform=$platform AIE_KERNEL_LOC=$kernel_folder ARCH_INCLUDE=$sysrootinclude ${MAKE_EXTRA_CPPFLAGS} -j32
         check_status $? "make hw_external_rpu"
     else
          if [ $aie_version == 5 ]; then
             echo "hw compile for apu kernel_folder is $kernel_folder"
-            make hw_external_apu78   AIE_GEN=$aie_version  AIE_KERNEL_LOC=$kernel_folder ARCH_INCLUDE=$sysrootinclude ${MAKE_EXTRA_CPPFLAGS} -j32
+            make hw_external_apu78   AIE_GEN=$aie_version platform=$platform AIE_KERNEL_LOC=$kernel_folder ARCH_INCLUDE=$sysrootinclude ${MAKE_EXTRA_CPPFLAGS} -j32
             check_status $? "make hw_external_apu78"
          else
             echo "hw compile for apu kernel_folder is $kernel_folder"
-            make hw_external_apu   AIE_GEN=$aie_version  AIE_KERNEL_LOC=$kernel_folder ARCH_INCLUDE=$sysrootinclude ${MAKE_EXTRA_CPPFLAGS} -j32
+            make hw_external_apu   AIE_GEN=$aie_version platform=$platform AIE_KERNEL_LOC=$kernel_folder ARCH_INCLUDE=$sysrootinclude ${MAKE_EXTRA_CPPFLAGS} -j32
             check_status $? "make hw_external_apu"
          fi
     fi
 else
 	if [ $rpu == true ]; then
 		if [ $aie_version == 5 ]; then
-			make hw_external_rpu_r52   AIE_GEN=$aie_version  AIE_COMPILE_WORK=$workfolder ARCH_INCLUDE="$sysrootinclude" AIE_CONTROL_JSON=$control_json AIE_PARTITION_JSON=$partition_json ARCH_RPU_R52_ARC_DIC="$sysrootinclude" ${MAKE_EXTRA_CPPFLAGS} -j32
+			make hw_external_rpu_r52   AIE_GEN=$aie_version platform=$platform AIE_COMPILE_WORK=$workfolder ARCH_INCLUDE="$sysrootinclude" AIE_CONTROL_JSON=$control_json AIE_PARTITION_JSON=$partition_json ARCH_RPU_R52_ARC_DIC="$sysrootinclude" ${MAKE_EXTRA_CPPFLAGS} -j32
 			check_status $? "make hw_external_rpu"
 
 		else
-			make hw_external_rpu   AIE_GEN=$aie_version  AIE_COMPILE_WORK=$workfolder ARCH_INCLUDE="$sysrootinclude" AIE_CONTROL_JSON=$control_json AIE_PARTITION_JSON=$partition_json ARCH_RPU_R53_ARC_DIC="$sysrootinclude" ${MAKE_EXTRA_CPPFLAGS} -j32
+			make hw_external_rpu   AIE_GEN=$aie_version platform=$platform AIE_COMPILE_WORK=$workfolder ARCH_INCLUDE="$sysrootinclude" AIE_CONTROL_JSON=$control_json AIE_PARTITION_JSON=$partition_json ARCH_RPU_R53_ARC_DIC="$sysrootinclude" ${MAKE_EXTRA_CPPFLAGS} -j32
 			check_status $? "make hw_external_rpu"
 		fi
 	else
         if [ $aie_version == 5 ]; then
 			echo "hw compile for apu A78"
-            make hw_external_apu78   AIE_GEN=$aie_version  AIE_COMPILE_WORK=$workfolder ARCH_INCLUDE="$sysrootinclude" AIE_CONTROL_JSON=$control_json AIE_PARTITION_JSON=$partition_json ARCH_APU_A78_ARC_DIC="$sysrootinclude" ${MAKE_EXTRA_CPPFLAGS} -j32
+            make hw_external_apu78   AIE_GEN=$aie_version platform=$platform AIE_COMPILE_WORK=$workfolder ARCH_INCLUDE="$sysrootinclude" AIE_CONTROL_JSON=$control_json AIE_PARTITION_JSON=$partition_json ARCH_APU_A78_ARC_DIC="$sysrootinclude" ${MAKE_EXTRA_CPPFLAGS} -j32
             check_status $? "make hw_external_apu78"
-        else 
+        else
             echo "hw compile for apu A72"
-            make hw_external_apu   AIE_GEN=$aie_version  AIE_COMPILE_WORK=$workfolder ARCH_INCLUDE="$sysrootinclude" AIE_CONTROL_JSON=$control_json AIE_PARTITION_JSON=$partition_json ARCH_APU_A72_ARC_DIC="$sysrootinclude" ${MAKE_EXTRA_CPPFLAGS} -j32
+            make hw_external_apu   AIE_GEN=$aie_version platform=$platform AIE_COMPILE_WORK=$workfolder ARCH_INCLUDE="$sysrootinclude" AIE_CONTROL_JSON=$control_json AIE_PARTITION_JSON=$partition_json ARCH_APU_A72_ARC_DIC="$sysrootinclude" ${MAKE_EXTRA_CPPFLAGS} -j32
             check_status $? "make hw_external_apu A72"
         fi
-    fi     
+    fi
 fi
 
 if [ $lwip_enalbe == true ]; then
     if [ $rpu == true ]; then
         echo "to do not support lwip in rpu yet"
     else
-        if [ ! -e "$XTFLWIPALL" ]; then
+        # Use -s (exists AND non-empty), not -e: a zero-byte archive (the
+        # committed origin placeholder, or an `ar` run that found no objects)
+        # would satisfy -e and skip BSP generation, leaving platform.h
+        # ungenerated -> "fatal error: platform.h: No such file". Remove the
+        # empty stub so `make` actually regenerates the lwIP BSP + archive.
+        if [ ! -s "$XTFLWIPALL" ]; then
+            rm -f "$XTFLWIPALL"
             make $XTFLWIPALL ${MAKE_EXTRA_CPPFLAGS}
             check_status $? "make $XTFLWIPALL"
         fi
@@ -639,6 +714,59 @@ export BOOTBIN
 export ELF
 #export ARCH_DIR
 
+# Embed the AIE CDO binaries into cdoheader.h so the host app can load them
+# from memory instead of reading ./Work/ps/cdo/*.bin at runtime. Generated here
+# (after the CDOs exist, before the host compile) so graph.cpp can #include it.
+# Guarded so it is a no-op when the CDOs are absent.
+cdo_dir="$kernel_folder/Work/ps/cdo"
+if [ -d "$cdo_dir" ]; then
+    cdo_header="$(dirname "$runtime_source_file")/cdoheader.h"
+    cdo_bins=(
+        aie_cdo_reset.bin
+        aie_cdo_clock_gating.bin
+        aie_cdo_error_handling.bin
+        aie_cdo_elfs.bin
+        aie_cdo_init.bin
+    )
+    cdo_all_present=true
+    for _b in "${cdo_bins[@]}"; do
+        if [ ! -f "$cdo_dir/$_b" ]; then
+            echo "[compile.sh] WARNING: $cdo_dir/$_b missing; skipping cdoheader.h generation"
+            cdo_all_present=false
+            break
+        fi
+    done
+    if [ "$cdo_all_present" = true ]; then
+        echo "[compile.sh] Generating $cdo_header from $cdo_dir"
+        {
+            echo "// Auto-generated by compile.sh - do not edit."
+            echo "// Embeds Work/ps/cdo/*.bin so the host app can load CDOs from memory."
+            echo "#ifndef CDOHEADER_H"
+            echo "#define CDOHEADER_H"
+            echo "#include <cstddef>"
+            echo ""
+            for _b in "${cdo_bins[@]}"; do
+                _var="${_b%.bin}"
+                echo "static const unsigned char ${_var}[] = {"
+                xxd -i < "$cdo_dir/$_b"
+                echo "};"
+                echo "static const size_t ${_var}_len = sizeof(${_var});"
+                echo ""
+            done
+            echo "struct CdoBlob { const unsigned char *data; size_t size; };"
+            echo "static const CdoBlob cdo_blobs[] = {"
+            for _b in "${cdo_bins[@]}"; do
+                _var="${_b%.bin}"
+                echo "    { ${_var}, ${_var}_len },"
+            done
+            echo "};"
+            echo "static const size_t cdo_blobs_count = sizeof(cdo_blobs) / sizeof(cdo_blobs[0]);"
+            echo "#endif // CDOHEADER_H"
+        } > "$cdo_header"
+        check_status $? "generate cdoheader.h"
+    fi
+fi
+
 #build the vek280/a72 app
 #source  /proj/petalinux/2023.2/petalinux-v2023.2_daily_latest/tool/petalinux-v2023.2-final/settings.sh
 #source  /proj/petalinux/2025.1/petalinux-v2025.1_daily_latest/tool/petalinux-v2025.1-final/settings.sh
@@ -652,25 +780,76 @@ if [ $rpu == true ]; then
 	# _RPU_ used to declare this is RPU, app to support both APU and RPU can use this macro to do RPU specify config
 	if [ $aie_version == 5 ]; then
 		echo "rpu r52 compile"
-        set -x
-		armr5-none-eabi-g++ -DARMR5 -D__AIE_ARCH__=${__AIE_ARCH__} ${host_compiler_options_aie} -mcpu=cortex-r52 -mfloat-abi=hard -mfpu=vfpv3-d16 -Wl,-T -Wl,$sysrootlinker -D_RPU_  $preproc_options -I$BAREMETAL_DIR/thirdparty/aielib/aie-rt/driver/internal/ -I$BAREMETAL_DIR/thirdparty/aielib/aie-rt/fal/build/src/include/ -I/$BAREMETAL_DIR/src/include/ -I$sysrootinclude -L$sysrootlib -L$BAREMETAL_TEST_DIR/build/ -o ./${ELF} $runtime_source_file -Wl,--start-group,-laiebaremetalr52,-lxil,-lgcc,-lstdc++,-lxiltimer,-lxilstandalone,-lc,--end-group
-        set +x
+		set -x
+		armr5-none-eabi-g++ -DARMR5 -D__AIE_ARCH__=${__AIE_ARCH__} ${host_compiler_options_aie}		\
+			-mcpu=cortex-r52 -mfloat-abi=hard -mfpu=vfpv3-d16 -Wl,-T -Wl,$sysrootlinker -D_RPU_	\
+			$preproc_options -I$BAREMETAL_DIR/thirdparty/aielib/aie-rt/driver/internal/		\
+			-I$BAREMETAL_DIR/thirdparty/aielib/aie-rt/fal/build/src/include/			\
+			-I/$BAREMETAL_DIR/src/include/ -I$sysrootinclude -L$sysrootlib				\
+			-L$BAREMETAL_TEST_DIR/build/ -o ./${ELF} $runtime_source_file				\
+			$runtime_additional_source_files							\
+			-Wl,--start-group,-laiebaremetalr52,-lxil,-lgcc,-lstdc++,-lxiltimer,-lxilstandalone,-lc,-lm,--end-group
 		check_status $? "armr5-none-eabi-g++ rpu compile"
+		set +x
 
 	else
 		echo "rpu r53 compile"
-		armr5-none-eabi-g++ -D__AIE_ARCH__=${__AIE_ARCH__} ${host_compiler_options_aie} -mcpu=cortex-r5 -mfloat-abi=hard -mfpu=vfpv3-d16 -Wl,-T -Wl,$sysrootlinker -D_RPU_  $preproc_options -I$BAREMETAL_DIR/thirdparty/aielib/aie-rt/driver/internal/ -I$BAREMETAL_DIR/thirdparty/aielib/aie-rt/fal/build/src/include/ -I/$BAREMETAL_DIR/src/include/ -I$sysrootinclude -L$sysrootlib -L$BAREMETAL_TEST_DIR/build/ -o ./${ELF} $runtime_source_file -Wl,--start-group,-laiebaremetalr53,-lxil,-lgcc,-lc,-lstdc++,--end-group
+		armr5-none-eabi-g++ -DARMR5 -D__AIE_ARCH__=${__AIE_ARCH__} ${host_compiler_options_aie}			\
+			-mcpu=cortex-r5 -mfloat-abi=hard -mfpu=vfpv3-d16 -Wl,-T -Wl,$sysrootlinker		\
+			-D_RPU_  $preproc_options -I$BAREMETAL_DIR/thirdparty/aielib/aie-rt/driver/internal/	\
+			-I$BAREMETAL_DIR/thirdparty/aielib/aie-rt/fal/build/src/include/			\
+			-I/$BAREMETAL_DIR/src/include/ -I$sysrootinclude -L$sysrootlib				\
+			-L$BAREMETAL_TEST_DIR/build/ -o ./${ELF} $runtime_source_file				\
+			$runtime_additional_source_files							\
+			-Wl,--start-group,-laiebaremetalr53,-lxil,-lgcc,-lc,-lstdc++,-lm,--end-group
 		check_status $? "armr5-none-eabi-g++ rpu compile"
 	fi
 else
 
+    if [ $platform == "linux" ]; then
+        if [ $aie_version == 5 ]; then
+            echo "apu compile for linux A78"
+            aarch64-linux-gnu-g++ $preproc_options -Os -D__AIE_ARCH__=${__AIE_ARCH__} ${host_compiler_options_aie} -mcpu=cortex-a78 \
+                -I$BAREMETAL_DIR/thirdparty/aielib/aie-rt/driver/internal/ -I$BAREMETAL_DIR/thirdparty/aielib/aie-rt/fal/build/src/include/ \
+                -I/$BAREMETAL_DIR/src/include -I$sysrootinclude \
+                -L$sysrootlib -L$BAREMETAL_TEST_DIR/build/ -L$BAREMETAL_DIR/thirdparty/aielib/aie-rt/driver/src \
+                -o ./${ELF} $runtime_source_file \
+                -Wl,--start-group,-laiebaremetala78,-lxaiengine,--end-group
+            check_status $? "aarch64-linux-gnu-g++ apu compile A78"
+        else
+            echo "apu compile for linux"
+            aarch64-linux-gnu-g++ $preproc_options -Os -D__AIE_ARCH__=${__AIE_ARCH__} ${host_compiler_options_aie} -mcpu=cortex-a72 \
+                $lwip_include_options -I$BAREMETAL_DIR/thirdparty/aielib/aie-rt/driver/internal/ -I$BAREMETAL_DIR/thirdparty/aielib/aie-rt/fal/build/src/include/ \
+                -I/$BAREMETAL_DIR/src/include -I$sysrootinclude \
+                -L$sysrootlib -L$BAREMETAL_TEST_DIR/build/ -L$BAREMETAL_DIR/thirdparty/aielib/aie-rt/driver/src \
+                -o ./${ELF} $runtime_source_file $LWIPLIB \
+                -Wl,--start-group,-laiebaremetala72,-lxaiengine,--end-group
+            check_status $? "aarch64-linux-gnu-g++ apu compile"
+        fi
+        exit 0
+    fi
+
     if [ $aie_version == 5 ]; then
         echo "apu compile A78"
-        aarch64-none-elf-gcc $preproc_options -D__AIE_ARCH__=${__AIE_ARCH__}  ${host_compiler_options_aie} -mcpu=cortex-a78 -Wl,-T -Wl,$sysrootlinker -I$BAREMETAL_DIR/thirdparty/aielib/aie-rt/driver/internal/ -I$BAREMETAL_DIR/thirdparty/aielib/aie-rt/fal/build/src/include/ -I/$BAREMETAL_DIR/src/include -I$sysrootinclude -L$sysrootlib -L$BAREMETAL_TEST_DIR/build/ -o ./${ELF} $runtime_source_file -Wl,--start-group,-laiebaremetala78,-lxil,-lxiltimer,-lxilstandalone,-lgcc,-lc,-lstdc++,--end-group
+        set -x
+        aarch64-none-elf-gcc $preproc_options -D__AIE_ARCH__=${__AIE_ARCH__}					\
+		${host_compiler_options_aie} -mcpu=cortex-a78 -Wl,-T -Wl,$sysrootlinker				\
+		-I$BAREMETAL_DIR/thirdparty/aielib/aie-rt/driver/internal/					\
+		-I$BAREMETAL_DIR/thirdparty/aielib/aie-rt/fal/build/src/include/				\
+		-I/$BAREMETAL_DIR/src/include -I$sysrootinclude -L$sysrootlib					\
+		-L$BAREMETAL_TEST_DIR/build/ -o ./${ELF} $runtime_additional_source_files $runtime_source_file	\
+		-Wl,--start-group,-laiebaremetala78,-lxil,-lxiltimer,-lxilstandalone,-lgcc,-lc,-lstdc++,-lm,--end-group
         check_status $? "aarch64-none-elf-gcc apu compile A78"
+        set +x
     else
         echo "apu compile"
-        aarch64-none-elf-gcc $preproc_options -D__AIE_ARCH__=${__AIE_ARCH__}  ${host_compiler_options_aie} -mcpu=cortex-a72 -Wl,-T -Wl,$sysrootlinker $lwip_include_options -I$BAREMETAL_DIR/thirdparty/aielib/aie-rt/driver/internal/ -I$BAREMETAL_DIR/thirdparty/aielib/aie-rt/fal/build/src/include/ -I/$BAREMETAL_DIR/src/include -I$sysrootinclude -L$sysrootlib -L$BAREMETAL_TEST_DIR/build/ -o ./${ELF} $runtime_source_file $LWIPLIB -Wl,--start-group,-laiebaremetala72,-lxil,-lgcc,-lc,-lstdc++,--end-group
+        aarch64-none-elf-gcc $preproc_options -D__AIE_ARCH__=${__AIE_ARCH__}					\
+		${host_compiler_options_aie} -mcpu=cortex-a72 -Wl,-T -Wl,$sysrootlinker				\
+		$lwip_include_options -I$BAREMETAL_DIR/thirdparty/aielib/aie-rt/driver/internal/		\
+		-I$BAREMETAL_DIR/thirdparty/aielib/aie-rt/fal/build/src/include/				\
+		-I/$BAREMETAL_DIR/src/include -I$sysrootinclude -L$sysrootlib -L$BAREMETAL_TEST_DIR/build/ -o	\
+		./${ELF} $runtime_source_file $runtime_additional_source_files $LWIPLIB				\
+		-Wl,--start-group,-laiebaremetala72,-lxil,-lgcc,-lc,-lstdc++,-lm,--end-group
         check_status $? "aarch64-none-elf-gcc apu compile"
     fi
 
@@ -678,9 +857,8 @@ fi
 
 #generate the boot.bin
 if [[ $bootgen_enable == true ]]; then
-    if [ ! -d "arch" ]; then
-        cp -R $BAREMETAL_DIR/thirdparty/arch ./
-    fi
+    rm -rf arch
+    cp -R $BAREMETAL_DIR/thirdparty/arch ./
 
     if [ $aie_version == 5 ]; then 
         bootgen -arch versal_2ve_2vm -image ${BIF} -o ${BOOTBIN} -w
@@ -693,14 +871,26 @@ if [[ $bootgen_enable == true ]]; then
     rm -rf ./build
     mkdir ./build
     mv ./${BOOTBIN} ./build/
-    rm -f $BIF || true
-    rm -rf arch
+    #rm -f $BIF || true
+    #rm -rf arch
 fi
 
 if [[ $hw_qemu == true ]]; then
     echo "Building QEMU package"
+    export AIE_GEN="$aie_version"
     source $BAREMETAL_SCRIPT_DIR/build_hw_qemu.sh
     check_status $? "qemu.sh"
+fi
+
+if [[ $hw_only == false && $hw_qemu == false \
+      && -d "$kernel_folder/Work/ps/c_rts/systemC" ]]; then
+    build_sim_args=(--runtime_source_file "$runtime_source_file")
+    if [[ "$new_api" == true ]]; then
+        build_sim_args+=(-new_api)
+    fi
+    echo "Building simulator artifacts via build_sim.sh for $kernel_folder"
+    bash "$BAREMETAL_SCRIPT_DIR/build_sim.sh" "$kernel_folder" "${build_sim_args[@]}" \
+        || echo "[compile.sh] WARNING: build_sim.sh failed; simulator artifacts not built for $kernel_folder"
 fi
 
 echo "Compilation script completed."

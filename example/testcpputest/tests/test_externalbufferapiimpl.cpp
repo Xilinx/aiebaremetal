@@ -1,17 +1,98 @@
-/**
- * @file test_externalbufferapiimpl.cpp
- * @brief Unit tests for the ExternalBufferApiImpl class
- *
- * This file contains unit tests for the ExternalBufferApiImpl class, which provides
- * DMA and external buffer handling for AI Engine shim ports. The tests validate address
- * setup, ping-pong buffer configuration, DMA transfers in both directions, and
- * wait/synchronization behaviour for various shim-port configurations and error paths.
- *
- * Copyright (C) 2026 Advanced Micro Devices, Inc.
- */
+/******************************************************************************
+* (c) Copyright 2022 Xilinx, Inc. All rights reserved.
+* (c) Copyright 2022-2026 Advanced Micro Devices, Inc. All Rights Reserved.
+*
+* This file contains confidential and proprietary information
+* of Xilinx, Inc. and is protected under U.S. and
+* international copyright and other intellectual property
+* laws.
+*
+* DISCLAIMER
+* This disclaimer is not a license and does not grant any
+* rights to the materials distributed herewith. Except as
+* otherwise provided in a valid license issued to you by
+* Xilinx, and to the maximum extent permitted by applicable
+* law: (1) THESE MATERIALS ARE MADE AVAILABLE "AS IS" AND
+* WITH ALL FAULTS, AND XILINX HEREBY DISCLAIMS ALL WARRANTIES
+* AND CONDITIONS, EXPRESS, IMPLIED, OR STATUTORY, INCLUDING
+* BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, NON-
+* INFRINGEMENT, OR FITNESS FOR ANY PARTICULAR PURPOSE; and
+* (2) Xilinx shall not be liable (whether in contract or tort,
+* including negligence, or under any other theory of
+* liability) for any loss or damage of any kind or nature
+* related to, arising under or in connection with these
+* materials, including for any direct, or any indirect,
+* special, incidental, or consequential loss or damage
+* (including loss of data, profits, goodwill, or any type of
+* loss or damage suffered as a result of any action brought
+* by a third party) even if such damage or loss was
+* reasonably foreseeable or Xilinx had been advised of the
+* possibility of the same.
+*
+* CRITICAL APPLICATIONS
+* Xilinx products are not designed or intended to be fail-
+* safe, or for use in any application requiring fail-safe
+* performance, such as life-support or safety devices or
+* systems, Class III medical devices, nuclear facilities,
+* applications related to the deployment of airbags, or any
+* other applications that could lead to death, personal
+* injury, or severe property or environmental damage
+* (individually and collectively, "Critical
+* Applications"). Customer assumes the sole risk and
+* liability of any use of Xilinx products in Critical
+* Applications, subject only to applicable laws and
+* regulations governing limitations on product liability.
+*
+* THIS COPYRIGHT NOTICE AND DISCLAIMER MUST BE RETAINED AS
+* PART OF THIS FILE AT ALL TIMES.
+******************************************************************************/
 
-#include "CppUTest/TestHarness.h"
+/*****************************************************************************/
+/**
+*
+* @file test_externalbufferapiimpl.cpp
+*  This file contains test cases of External Buffer API functions
+*
+*
+* <pre>
+* MODIFICATION HISTORY:
+*
+* * Ver	  Who	   Date		Changes
+* ----- -------- -------- ---------------------------------
+* 1.0	 Veera      05/03/2026  Initial creation
+* 1.1	 Veera      20/04/2026  Added test cases for External Buffer API functions
+* 1.2	 Veera      10/05/2026  updated comment section for External Buffer API functions
+* 1.3	 Veera      26/05/2026  updated timing analysis for External Buffer API functions
+* </pre>
+*
+******************************************************************************/
+
+/*****************************************************************************/
+/**
+*
+* TEST SPECIFCIATION:
+* Source code version: <2026.1>
+* Verification Environment1:
+	Testing Tool: LDRA
+	Platform: Silicon
+	Target: APU
+	Compiler1: gcc
+* Verification Environment2:
+	Testing Tool: CPPUTEST
+	Platform: Host
+	Target: x86
+    Compiler2: gcc
+* Verification Method:By Specification of test cases
+* Test Procedure: The test execution procedure is same for all the test cases.
+* After the tests have been specified, the test procedure involves:
+*   - building the tests cases for the selected environment
+*   - execution of the binary executable in the selected environment
+*   - recording the results of execution
+*
+/*****************************************************************************/
+/***************************** Include Files *********************************/
 #include "CppUTest/CommandLineTestRunner.h"
+#include "CppUTest/TestHarness.h"
 #include "CppUTestExt/MockSupport_c.h"
 
 #ifdef new
@@ -23,207 +104,194 @@
 #ifdef __node
 #undef __node
 #endif
+//#define __AIESIM__ 1
+#include "aeg_baremetal_api.h"
+#include "aiebaremetal.h"
 
-// Include headers for Unit Under Test (UUT) and comparators
+
 #include "externalbufferapiimpl.h"
-#include "test_comparator.h"
 
-/**
- * @brief Test group for basic ExternalBufferApiImpl functionality
- *
- * This test group verifies basic buffer address setup and the wait()method for
- * different shim port configurations. It uses a minimal external_buffer_config and
- * a shared XAieMem instance to construct the ExternalBufferApiImpl under test.
- */
-TEST_GROUP(ExternalBufferApiImplBasicTests)
-{
-	// Test fixtures
+#include "stubs.h"
+#include "test_comparator.h"
+#include <chrono>
+#include <cstdint>
+#include <iostream>
+
+TEST_GROUP(ExternalBufferApiImplBasicTests) {
+
 	std::shared_ptr<XAieMem> xaiemem;
 	abr::external_buffer_config config;
 	std::string testName;
-	ExternalBufferApiImpl* uut;
+	ExternalBufferApiImpl *uut;
 
-	/**
-	 * @brief Set up test fixtures before each test
-	 *
-	 * Installs the XAie_LocType comparator, resets the external_buffer_config,
-	 * creates a XAieMem object, and constructs a new ExternalBufferApiImpl instance.
-	 */
-	void setup()
-	{
+
+	void setup() {
 		mock_c()->installComparator("XAie_LocType", CompareXAieLocType, XAieLocTypeToString);
-		// Create a fresh configuration for each test
+
 		config = {};
 		testName = "TestBuffer";
 		XAie_DevInst devInst;
-		// Create a fresh memory interface for each test
+
 		xaiemem = std::make_shared<XAieMem>(&devInst);
-		// Create the UUT
+
 		uut = new ExternalBufferApiImpl(config, testName, xaiemem);
+		XAieMem::reset_test_state();
 	}
 
-	/**
-	 * @brief Clean up test fixtures after each test
-	 *
-	 * Destroys the ExternalBufferApiImpl instance and clears mock expectations.
-	 */
-	void teardown()
-	{
+
+	void teardown() {
 		delete uut;
 		mock_c()->removeAllComparatorsAndCopiers();
 		mock_c()->clear();
+		XAieMem::reset_test_state();
 	}
 };
-/**
- * @brief TC_001: Verify successful initial buffer address configuration
- *
- * This test verifies that setAddress()accepts an initial virtual address and
- * completes without error when no address has been configured before.
- */
-TEST(ExternalBufferApiImplBasicTests, TC_001_SetAddress_Success)
-{
-	// ARRANGE: Create a pointer for testing
-	void* testPtr = (void*)0x12345678;
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_001_SetAddress_Success
+*		Function Name: setAddress
+*		Input: testPtr = (void *)0x12345678
+*		Expectation: none
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ExternalBufferApiImplBasicTests, TC_001_SetAddress_Success) {
 
-	// ACT: Call the function under test
+	void *testPtr = (void *)0x12345678;
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
 	uut->setAddress(testPtr);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by setAddress function: " << total_clock_enable_us << " microseconds" << std::endl;
 
-	// ASSERT: Verify mock expectations are satisfied
 	CHECK(true);
 }
-/**
- * @brief TC_002: Verify repeated calls to setAddress()with new address
- *
- * This test sets an initial address and then calls setAddress()again with a different
- * pointer to confirm that the API tolerates reconfiguration without crashing.
- */
-TEST(ExternalBufferApiImplBasicTests, TC_002_SetAddress_AlreadySet)
-{
-	// ARRANGE: Set an initial address
-	void* initialPtr = (void*)0x12345678;
-	void* newPtr = (void*)0x87654321;
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_002_SetAddress_AlreadySet
+*		Function Name: setAddress
+*		Input: initialPtr = (void *)0x12345678, newPtr = (void *)0x87654321
+*		Expectation: none
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ExternalBufferApiImplBasicTests, TC_002_SetAddress_AlreadySet) {
+
+	void *initialPtr = (void *)0x12345678;
+	void *newPtr = (void *)0x87654321;
 	uut->setAddress(initialPtr);
-
-	// ACT: Call the function under test with different address
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
 	uut->setAddress(newPtr);
-
-	// ASSERT: Verify mock expectations are satisfied
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by setAddress function: " << total_clock_enable_us << " microseconds" << std::endl;
 	CHECK(true);
 }
-/**
- * @brief TC_003: Verify wait()with empty shimPortConfigs
- *
- * Verifies that wait()returns abr::err_code::ok immediately when the
- * configuration contains no shimPortConfigs, regardless of the port name.
- */
-TEST(ExternalBufferApiImplBasicTests, TC_003_Wait_EmptyShimPortConfigs)
-{
-	// ARRANGE: Ensure config.shimPortConfigs is empty (already done in setup)
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_003_Wait_EmptyShimPortConfigs
+*		Function Name: ExternalBufferApiImpl::wait
+*		Input: port_name = "invalid_port"
+*		Expectation: result == err_code::ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ExternalBufferApiImplBasicTests, TC_003_Wait_EmptyShimPortConfigs) {
 
-	// ACT: Call the wait method
-	abr::err_code result = uut->wait("test_port");
-
-	// ASSERT: Verify early return with OK status
-	CHECK_EQUAL(static_cast<int>(abr::err_code::ok), static_cast<int>(result));
-}
-/**
- * @brief TC_004: Verify wait()with invalid port name
- *
- * This test adds a single shim_port_config with one port name and calls wait()
- * using a different, invalid port name. Verifies that the function returns
- * abr::err_code::ok without attempting any DMA interaction.
- */
-TEST(ExternalBufferApiImplBasicTests, TC_004_Wait_InvalidPortName)
-{
-	// ARRANGE: Create a configuration with a shimPortConfig but with a different port name
-	abr::shim_port_config portConfig;
-	portConfig.portName = "valid_port";
-	portConfig.column = 1;
-	portConfig.S2MMOrMM2S = 0; // S2MM
-	portConfig.channel = 1;
-	config.shimPortConfigs.push_back(portConfig);
-
-	// Need to recreate UUT to use updated config
-	delete uut;
-	uut = new ExternalBufferApiImpl(config, testName, xaiemem);
-
-	// ACT: Call wait with an invalid port name
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
 	abr::err_code result = uut->wait("invalid_port");
-
-	// ASSERT: Verify early return with OK status
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by wait function: " << total_clock_enable_us << " microseconds" << std::endl;
 	CHECK_EQUAL(static_cast<int>(abr::err_code::ok), static_cast<int>(result));
 }
-/**
- * @brief TC_005: Verify wait()for valid MM2S shim port
- *
- * Configures a MM2S shim port, expects XAie_DmaWaitForDone and
- * XAie_MemSyncForCPUVAddr mocks to be called, and verifies that wait()
- * returns abr::err_code::ok for a valid port name.
- */
-TEST(ExternalBufferApiImplBasicTests, TC_005_Wait_ValidPortNameMM2S)
-{
-	// ARRANGE: Create a configuration with a MM2S shimPortConfig
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_004_Wait_ValidPortNameMM2S
+*		Function Name: ExternalBufferApiImpl::wait
+*		Input: port_name = "valid_port"
+*		Expectation: result == err_code::ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ExternalBufferApiImplBasicTests, TC_004_Wait_ValidPortNameMM2S) {
+
 	abr::shim_port_config portConfig;
 	portConfig.portName = "valid_port";
 	portConfig.column = 1;
-	portConfig.S2MMOrMM2S = 1; // MM2S
+	portConfig.S2MMOrMM2S = 1;
 	portConfig.channel = 1;
 	config.shimPortConfigs.push_back(portConfig);
 
-	// Need to recreate UUT to use updated config
+
 	delete uut;
 	uut = new ExternalBufferApiImpl(config, testName, xaiemem);
 
-	mock_c()->expectOneCall("XAie_DmaWaitForDone")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	mock_c()->expectNCalls(3,"XAie_MemSyncForCPUVAddr")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	// ACT: Call wait with the valid port name
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
 	abr::err_code result = uut->wait("valid_port");
-
-	// ASSERT: Verify correct return status
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by wait function: " << total_clock_enable_us << " microseconds" << std::endl;
 	CHECK_EQUAL(static_cast<int>(abr::err_code::ok), static_cast<int>(result));
 }
-/**
- * @brief TC_006: Verify wait()for valid S2MM shim port
- *
- * Configures a S2MM shim port, expects XAie_DmaWaitForDone to be called,
- * and verifies that wait()returns abr::err_code::ok.
- */
-TEST(ExternalBufferApiImplBasicTests, TC_006_Wait_ValidPortNameS2MM)
-{
-	// ARRANGE: Create a configuration with a S2MM shimPortConfig
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_005_Wait_ValidPortNameS2MM
+*		Function Name: ExternalBufferApiImpl::wait
+*		Input: port_name = "valid_port"
+*		Expectation: result == err_code::ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ExternalBufferApiImplBasicTests, TC_005_Wait_ValidPortNameS2MM) {
+
 	abr::shim_port_config portConfig;
 	portConfig.portName = "valid_port";
 	portConfig.column = 1;
-	portConfig.S2MMOrMM2S = 0; // S2MM
+	portConfig.S2MMOrMM2S = 0;
 	portConfig.channel = 1;
 	config.shimPortConfigs.push_back(portConfig);
 
-	// Need to recreate UUT to use updated config
+
 	delete uut;
 	uut = new ExternalBufferApiImpl(config, testName, xaiemem);
 
-	mock_c()->expectOneCall("XAie_DmaWaitForDone")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	// ACT: Call wait with the valid port name
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
 	abr::err_code result = uut->wait("valid_port");
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by wait function: " << total_clock_enable_us << " microseconds" << std::endl;
 
-	// ASSERT: Verify correct return status
 	CHECK_EQUAL(static_cast<int>(abr::err_code::ok), static_cast<int>(result));
 }
-/**
- * @brief TC_007: Verify wait()with invalid S2MMOrMM2S configuration
- *
- * Uses a shim_port_config with an invalid S2MMOrMM2S value (-1) and confirms
- * that wait()still returns abr::err_code::ok without accessing DMA APIs.
- */
-TEST(ExternalBufferApiImplBasicTests, TC_007_Wait_InvalidConfig)
-{
-	// ARRANGE: Create a configuration with a shimPortConfig but with a different port name
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_006_Wait_InvalidConfig
+*		Function Name: ExternalBufferApiImpl::wait
+*		Input: wait port_name = "invalid_port"
+*		Expectation: result == err_code::ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ExternalBufferApiImplBasicTests, TC_006_Wait_InvalidConfig) {
+
 	abr::shim_port_config portConfig;
 	portConfig.portName = "valid_port";
 	portConfig.column = 1;
@@ -231,217 +299,279 @@ TEST(ExternalBufferApiImplBasicTests, TC_007_Wait_InvalidConfig)
 	portConfig.channel = 1;
 	config.shimPortConfigs.push_back(portConfig);
 
-	// Need to recreate UUT to use updated config
+
 	delete uut;
 	uut = new ExternalBufferApiImpl(config, testName, xaiemem);
 
-	// ACT: Call wait with an invalid port name
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
 	abr::err_code result = uut->wait("invalid_port");
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by wait function: " << total_clock_enable_us << " microseconds" << std::endl;
 
-	// ASSERT: Verify early return with OK status
 	CHECK_EQUAL(static_cast<int>(abr::err_code::ok), static_cast<int>(result));
 }
-/**
- * @brief Test group for ping-pong buffer configuration.
- *
- * This group validates setupPingPongBuffers()behaviour, including
- * initial configuration, idempotent reconfiguration, and interaction
- * with shim BD descriptors for S2MM/MM2S ports.
- */
-TEST_GROUP(ExternalBufferApiImplPingPongTests)
-{
-	// Common test objects
+
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_007_Wait_InvalidPort_WithConfiguredPorts
+*		Function Name: ExternalBufferApiImpl::wait
+*		Input: wait port_name = "missing_port"
+*		Expectation: result == err_code::ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ExternalBufferApiImplBasicTests, TC_007_Wait_InvalidPort_WithConfiguredPorts) {
+	abr::shim_port_config portConfig;
+	portConfig.portName = "configured_port";
+	portConfig.column = 1;
+	portConfig.S2MMOrMM2S = 0;
+	portConfig.channel = 1;
+	config.shimPortConfigs.push_back(portConfig);
+
+	delete uut;
+	uut = new ExternalBufferApiImpl(config, testName, xaiemem);
+
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	abr::err_code result = uut->wait("missing_port");
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by wait function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_EQUAL(static_cast<int>(abr::err_code::ok), static_cast<int>(result));
+}
+
+TEST_GROUP(ExternalBufferApiImplPingPongTests) {
+
 	std::shared_ptr<XAieMem> xaiemem;
 	abr::external_buffer_config config;
 	std::string testName;
-	ExternalBufferApiImpl* uut;
-	void* pingAddress;
-	void* pongAddress;
+	ExternalBufferApiImpl *uut;
+	void *pingAddress;
+	void *pongAddress;
 
-	void setup()
-	{
+	void setup() {
 
 		mock_c()->installComparator("XAie_LocType", CompareXAieLocType, XAieLocTypeToString);
-		// Create a fresh configuration for each test
+
 		config = {};
 		testName = "TestBuffer";
 
-		// Create test addresses
-		pingAddress = (void*)0x12345678;
-		pongAddress = (void*)0x87654321;
 
-		// Create a fresh memory interface for each test
+		pingAddress = (void *)0x12345678;
+		pongAddress = (void *)0x87654321;
+
+
 		XAie_DevInst devInst;
-		// Create a fresh memory interface for each test
+
 		xaiemem = std::make_shared<XAieMem>(&devInst);
 
-		// Create the UUT
+
 		uut = new ExternalBufferApiImpl(config, testName, xaiemem);
+		XAieMem::reset_test_state();
 	}
 
-	void teardown()
-	{
+	void teardown() {
 		delete uut;
 		mock_c()->removeAllComparatorsAndCopiers();
 		mock_c()->clear();
+		XAieMem::reset_test_state();
 	}
-	// Helper to set up a common port configuration
+
 	void setupCommonPortConfig(bool isS2MM) {
 		abr::shim_port_config portConfig;
 		portConfig.portName = "valid_port";
 		portConfig.column = 1;
-		portConfig.S2MMOrMM2S = isS2MM ? 0 : 1; // 0 for S2MM, 1 for MM2S
+		portConfig.S2MMOrMM2S = isS2MM ? 0 : 1;
 		portConfig.channel = 1;
 		portConfig.taskRepetition = 1;
 		portConfig.enable_task_complete_token = false;
 
-		// Add BD infos for both ping and pong buffers
+
 		abr::shimBDInfo bdInfo1;
 		bdInfo1.bd_id = 2;
-		bdInfo1.buf_idx = 0; // Ping
+		bdInfo1.buf_idx = 0;
 		bdInfo1.offset = 0;
 		bdInfo1.transaction_size = 1024;
 		portConfig.shimBDInfos.push_back(bdInfo1);
 
 		abr::shimBDInfo bdInfo2;
 		bdInfo2.bd_id = 3;
-		bdInfo2.buf_idx = 1; // Pong
+		bdInfo2.buf_idx = 1;
 		bdInfo2.offset = 0;
 		bdInfo2.transaction_size = 1024;
 		portConfig.shimBDInfos.push_back(bdInfo2);
 
 		config.shimPortConfigs.push_back(portConfig);
 
-		// Need to recreate UUT to use updated config
+
 		delete uut;
 		uut = new ExternalBufferApiImpl(config, testName, xaiemem);
 	}
 };
 
-/**
- * @brief TC_029: Verify Successful ping-pong buffer setup
- *
- * Verifies that setupPingPongBuffers()returns abr::err_code::ok when
- * called with valid ping and pong virtual addresses and a default config.
- */
-TEST(ExternalBufferApiImplPingPongTests, TC_029_SetupPingPongBuffers_Success)
-{
-	// ARRANGE: Nothing special needed here
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_001_SetupPingPongBuffers_Success
+*		Function Name: setupPingPongBuffers
+*		Input: ptr1 = (void *)0x12345678, ptr2 = (void *)0x87654321
+*		Expectation: result = abr::err_code::ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ExternalBufferApiImplPingPongTests, TC_001_SetupPingPongBuffers_Success) {
 
-	// ACT: Call the method under test
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
 	abr::err_code result = uut->setupPingPongBuffers(pingAddress, pongAddress);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by setupPingPongBuffers function: " << total_clock_enable_us << " microseconds" << std::endl;
 
-	// ASSERT: Verify successful execution
+
 	CHECK_EQUAL(static_cast<int>(abr::err_code::ok), static_cast<int>(result));
 }
-/**
- * @brief TC_030: Verify Repeated ping-pong buffer setup with new addresses
- *
- * Calls setupPingPongBuffers()twice with different ping/pong addresses
- * to ensure the API remains stable and continues to return ok.
- */
-TEST(ExternalBufferApiImplPingPongTests, TC_030_SetupPingPongBuffers_AlreadySet)
-{
-	// ARRANGE: Set the ping-pong addresses first
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_002_SetupPingPongBuffers_AlreadySet
+*		Function Name: setupPingPongBuffers
+*		Input: newPingAddress = (void *)0x11223344, newPongAddress = (void *)0x55667788
+*		Expectation: result == err_code::ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ExternalBufferApiImplPingPongTests, TC_002_SetupPingPongBuffers_AlreadySet) {
+
 	uut->setupPingPongBuffers(pingAddress, pongAddress);
 
-	// ACT: Try to set different addresses
-	void* newPingAddress = (void*)0x11223344;
-	void* newPongAddress = (void*)0x55667788;
+
+	void *newPingAddress = (void *)0x11223344;
+	void *newPongAddress = (void *)0x55667788;
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
 	abr::err_code result = uut->setupPingPongBuffers(newPingAddress, newPongAddress);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by setupPingPongBuffers function: " << total_clock_enable_us << " microseconds" << std::endl;
 
-	// ASSERT: Verify successful return
 	CHECK_EQUAL(static_cast<int>(abr::err_code::ok), static_cast<int>(result));
 }
-/**
- * @brief TC_032: Verify setupPingPongBuffers()with shim port and BD programming
- *
- * Configures a S2MM shim port with two BD entries (ping and pong), expects
- * device-address conversion and BD programming mocks to be invoked, and
- * verifies an abr::err_code::ok result.
- */
-TEST(ExternalBufferApiImplPingPongTests, TC_032_SetupPingPongBuffers_Success)
-{
-	// ARRANGE: Setup a port config for S2MM
-	setupCommonPortConfig(true); // S2MM
-
-	mock_c()->expectOneCall("XAie_MemGetDevAddrFromVAddr")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	mock_c()->expectOneCall("XAie_MemGetDevAddrFromVAddr")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	mock_c()->expectOneCall("XAie_DmaUpdateBdAddr")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	mock_c()->expectOneCall("XAie_DmaUpdateBdAddr")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	mock_c()->expectOneCall("XAie_MemSyncForDevVAddr")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	mock_c()->expectOneCall("XAie_DmaChannelSetStartQueue")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	// ACT: Call setupPingPongBuffers method
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_003_SetupPingPongBuffers_PartialNullState
+*		Function Name: setupPingPongBuffers
+*		Input: newPingAddress = nullptr, newPongAddress = (void *)0x87654321
+*		Expectation: result == err_code::ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ExternalBufferApiImplPingPongTests, TC_003_SetupPingPongBuffers_PartialNullState) {
+	(void)uut->setupPingPongBuffers(nullptr, pongAddress);
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
 	abr::err_code result = uut->setupPingPongBuffers(pingAddress, pongAddress);
-
-	// ASSERT: Verify correct error code is returned
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by setupPingPongBuffers function: " << total_clock_enable_us << " microseconds" << std::endl;
 	CHECK_EQUAL(static_cast<int>(abr::err_code::ok), static_cast<int>(result));
 }
-/**
- * @brief Test group for non-blocking and blocking DMA operations.
- *
- * This group verifies gm2aie_nb(), aie2gm_nb(), and their blocking wrappers
- * gm2aie() and aie2gm() for various shim-port configurations and driver
- * return codes.
- */
-TEST_GROUP(ExternalBufferApiImplDmaTests)
-{
-	// Common test objects
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_004_SetupPingPongBuffers_Success
+*		Function Name: setupPingPongBuffers
+*		Input: ptr1 = (void *)0x12345678, ptr2 = (void *)0x87654321
+*		Expectation: result = abr::err_code::ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ExternalBufferApiImplPingPongTests, TC_004_SetupPingPongBuffers_Success) {
+
+	setupCommonPortConfig(true);
+
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	abr::err_code result = uut->setupPingPongBuffers(pingAddress, pongAddress);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by setupPingPongBuffers function: " << total_clock_enable_us << " microseconds" << std::endl;
+
+	CHECK_EQUAL(static_cast<int>(abr::err_code::ok), static_cast<int>(result));
+}
+
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_005_SetupPingPongBuffers_UpdateBDAddress_ErrorPath
+*		Function Name: setupPingPongBuffers
+*		Input: pingAddress = (void *)0x12345678, pongAddress = (void *)0x87654321
+*		Expectation: result == err_code::ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ExternalBufferApiImplPingPongTests, TC_005_SetupPingPongBuffers_UpdateBDAddress_ErrorPath) {
+	setupCommonPortConfig(true);
+	g_ut_externalbuffer_force_dma_update_bd_fail = 1;
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	abr::err_code result = uut->setupPingPongBuffers(pingAddress, pongAddress);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by setupPingPongBuffers function: " << total_clock_enable_us << " microseconds" << std::endl;
+	g_ut_externalbuffer_force_dma_update_bd_fail = 0;
+	CHECK_EQUAL(static_cast<int>(abr::err_code::ok), static_cast<int>(result));
+}
+
+TEST_GROUP(ExternalBufferApiImplDmaTests) {
 	std::shared_ptr<XAieMem> xaiemem;
 	abr::external_buffer_config config;
 	std::string testName;
-	ExternalBufferApiImpl* uut;
-	void* testAddress;
+	ExternalBufferApiImpl *uut;
+	void *testAddress;
 
-	void setup()
-	{
+	void setup() {
 		mock_c()->installComparator("XAie_LocType", CompareXAieLocType, XAieLocTypeToString);
-		// Create a fresh configuration for each test
 		config = {};
 		testName = "TestBuffer";
-		testAddress = (void*)0x12345678;
+		testAddress = (void *)0x12345678;
 
 		XAie_DevInst devInst;
-		// Create a fresh memory interface for each test
 		xaiemem = std::make_shared<XAieMem>(&devInst);
 
-		// Create the UUT
 		uut = new ExternalBufferApiImpl(config, testName, xaiemem);
 
-		// Set the address for most tests
 		uut->setAddress(testAddress);
+		XAieMem::reset_test_state();
 	}
 
-	void teardown()
-	{
+	void teardown() {
 		delete uut;
 		mock_c()->removeAllComparatorsAndCopiers();
 		mock_c()->clear();
+		XAieMem::reset_test_state();
 	}
 
-	// Helper to set up a common port configuration
 	void setupCommonPortConfig(bool isS2MM) {
 		abr::shim_port_config portConfig;
 		portConfig.portName = "valid_port";
 		portConfig.column = 1;
-		portConfig.S2MMOrMM2S = isS2MM ? 0 : 1; // 0 for S2MM, 1 for MM2S
+		portConfig.S2MMOrMM2S = isS2MM ? 0 : 1;
 		portConfig.channel = 1;
 		portConfig.taskRepetition = 1;
 		portConfig.enable_task_complete_token = false;
 
-		// Add a BD info
+
 		abr::shimBDInfo bdInfo;
 		bdInfo.bd_id = 2;
 		bdInfo.buf_idx = 0;
@@ -451,377 +581,835 @@ TEST_GROUP(ExternalBufferApiImplDmaTests)
 
 		config.shimPortConfigs.push_back(portConfig);
 
-		// Need to recreate UUT to use updated config
+
 		delete uut;
 		uut = new ExternalBufferApiImpl(config, testName, xaiemem);
 		uut->setAddress(testAddress);
 	}
 };
-/**
- * @brief TC_010: Verify gm2aie_nb() with no shim ports
- *
- * Ensures that gm2aie_nb() returns abr::err_code::ok when shimPortConfigs
- * is empty, without invoking any DMA API.
- */
-TEST(ExternalBufferApiImplDmaTests, TC_010_GM2AIE_NB_EmptyShimPortConfigs)
-{
-	// ARRANGE: Ensure config.shimPortConfigs is empty (already done in setup)
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_001_GM2AIE_NB_EmptyShimPortConfigs
+*		Function Name: gm2aie_nb
+*		Input: port_name = "test_port"
+*		Expectation: result = abr::err_code::ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ExternalBufferApiImplDmaTests, TC_001_GM2AIE_NB_EmptyShimPortConfigs) {
 
-	// ACT: Call the gm2aie_nb method
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
 	abr::err_code result = uut->gm2aie_nb("test_port");
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by gm2aie_nb function: " << total_clock_enable_us << " microseconds" << std::endl;
 
-	// ASSERT: Verify early return with OK status
 	CHECK_EQUAL(static_cast<int>(abr::err_code::ok), static_cast<int>(result));
 }
-/**
- * @brief TC_011: Verify gm2aie_nb() with invalid port name
- *
- * Configures a shim port but calls gm2aie_nb() with a different name.
- * Verifies an early ok return and no DMA programming.
- */
-TEST(ExternalBufferApiImplDmaTests, TC_011_GM2AIE_NB_InvalidPortName)
-{
-	// ARRANGE: Setup a port config
-	setupCommonPortConfig(true); // MM2S
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_002_GM2AIE_NB_InvalidPortName
+*		Function Name: gm2aie_nb
+*		Input: port_name = "invalid_port"
+*		Expectation: result = abr::err_code::ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ExternalBufferApiImplDmaTests, TC_002_GM2AIE_NB_InvalidPortName) {
+	setupCommonPortConfig(true);
 
-	// ACT: Call gm2aie_nb with an invalid port name
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
 	abr::err_code result = uut->gm2aie_nb("invalid_port");
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by gm2aie_nb function: " << total_clock_enable_us << " microseconds" << std::endl;
 
-	// ASSERT: Verify early return with OK status
 	CHECK_EQUAL(static_cast<int>(abr::err_code::ok), static_cast<int>(result));
 }
-/**
- * @brief TC_012: Verify gm2aie_nb() with MM2S port and successful driver calls
- *
- * Sets up a MM2S shim port and expects MemGetDevAddr, DmaUpdateBdAddr,
- * MemSyncForDevVAddr and DmaChannelSetStartQueue mocks, verifying that
- * gm2aie_nb() returns abr::err_code::ok.
- */
-TEST(ExternalBufferApiImplDmaTests, TC_012_GM2AIE_NB_Success)
-{
-	// ARRANGE: Setup a port config for MM2S
-	setupCommonPortConfig(false); // MM2S
+//*********************************************************************************/
+/*		Unique test case ID: TC_003_GM2AIE_NB_Success
+*		Function Name: gm2aie_nb
+*		Input: port_name = "valid_port"
+*		Expectation: result == err_code::ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ExternalBufferApiImplDmaTests, TC_003_GM2AIE_NB_Success) {
+	setupCommonPortConfig(false);
 
-	mock_c()->expectOneCall("XAie_MemGetDevAddrFromVAddr")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	mock_c()->expectOneCall("XAie_DmaUpdateBdAddr")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	mock_c()->expectOneCall("XAie_MemSyncForDevVAddr")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	mock_c()->expectOneCall("XAie_DmaChannelSetStartQueue")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	// ACT: Call gm2aie_nb with a valid port name
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
 	abr::err_code result = uut->gm2aie_nb("valid_port");
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
 
-	// ASSERT: Verify correct error code is returned
+	std::cout << "Time taken by gm2aie_nb function: " << total_clock_enable_us << " microseconds" << std::endl;
+
 	CHECK_EQUAL(static_cast<int>(abr::err_code::ok), static_cast<int>(result));
 }
-/**
- * @brief aie2gm_nb() returns OK when no shim ports are configured.
- *
- * This test leaves config.shimPortConfigs empty and calls
- * ExternalBufferApiImpl::aie2gm_nb() with an arbitrary port name.
- * It verifies that, in the absence of any shim configuration,
- * the function returns abr::err_code::ok and does not attempt to
- * access or program any DMA descriptors.
- */
-TEST(ExternalBufferApiImplDmaTests, TC_018_AIE2GM_NB_EmptyShimPortConfigs)
-{
-	// ARRANGE: Ensure config.shimPortConfigs is empty (already done in setup)
+//*********************************************************************************/
+/*		Unique test case ID: TC_004_GM2AIE_NB_Failure
+*		Function Name: gm2aie_nb
+*		Input: port_name = "valid_port"
+*		Expectation: result == err_code::aie_driver_error
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ExternalBufferApiImplDmaTests, TC_004_GM2AIE_NB_Failure) {
 
-	// ACT: Call the aie2gm_nb method
-	abr::err_code result = uut->aie2gm_nb("test_port");
+	setupCommonPortConfig(false);
 
-	// ASSERT: Verify early return with OK status
-	CHECK_EQUAL(static_cast<int>(abr::err_code::ok), static_cast<int>(result));
-}
-/**
- * @brief aie2gm_nb() ignores ports that do not match any shim portName.
- *
- * After configuring a single shim_port_config with portName="valid_port",
- * this test calls ExternalBufferApiImpl::aie2gm_nb() using a different
- * port string. The UUT should iterate through the shimPortConfigs vector,
- * find no match, perform no DMA programming, and return abr::err_code::ok.
- */
-TEST(ExternalBufferApiImplDmaTests, TC_019_AIE2GM_NB_InvalidPortName)
-{
-	// ARRANGE: Setup a port config
-	setupCommonPortConfig(false); // S2MM
+	XAieMem::s_get_dev_addr_ret = 1;
+	g_ut_externalbuffer_force_dma_enqueue_fail = 1;
 
-	// ACT: Call aie2gm_nb with an invalid port name
-	abr::err_code result = uut->aie2gm_nb("invalid_port");
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	abr::err_code result = uut->gm2aie_nb("valid_port");
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by gm2aie_nb function: " << total_clock_enable_us << " microseconds" << std::endl;
+	g_ut_externalbuffer_force_dma_enqueue_fail = 0;
 
-	// ASSERT: Verify early return with OK status
-	CHECK_EQUAL(static_cast<int>(abr::err_code::ok), static_cast<int>(result));
-}
-/**
- * @brief Verify aie2gm_nb() success path for a valid S2MM shim port.
- *
- * The test then calls aie2gm_nb() with the valid port name and verifies that
- * abr::err_code::ok is returned, confirming that the function correctly
- * traverses the shim configuration, invokes all required driver APIs, and
- * reports success when the S2MM path is fully programmed without errors.
- */
-TEST(ExternalBufferApiImplDmaTests, TC_021_AIE2GM_NB_UpdateBDAddressSuccess)
-{
-	// ARRANGE: Setup a port config for S2MM
-	setupCommonPortConfig(true); // S2MM
-	mock_c()->expectOneCall("XAie_MemGetDevAddrFromVAddr")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	mock_c()->expectOneCall("XAie_DmaUpdateBdAddr")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	mock_c()->expectOneCall("XAie_MemSyncForDevVAddr")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	mock_c()->expectOneCall("XAie_DmaChannelSetStartQueue")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	// ACT: Call aie2gm_nb with a valid port name
-	abr::err_code result = uut->aie2gm_nb("valid_port");
 
-	// ASSERT: Verify correct error code is returned
-	CHECK_EQUAL(static_cast<int>(abr::err_code::ok), static_cast<int>(result));
-}
-/**
- * @brief TC_022: Verify aie2gm_nb() propagates driver error status
- *
- * Mocks MemGetDevAddr, DmaUpdateBdAddr, MemSyncForDevVAddr and
- * DmaChannelSetStartQueue to return non-zero error codes and
- * verifies that aie2gm_nb() returns abr::err_code::aie_driver_error.
- */
-TEST(ExternalBufferApiImplDmaTests, TC_022_AIE2GM_NB_UpdateBDAddressFails)
-{
-	// ARRANGE: Setup a port config and configure updateBDAddress to fail
-	setupCommonPortConfig(true); // S2MM
-	mock_c()->expectOneCall("XAie_MemGetDevAddrFromVAddr")
-		->ignoreOtherParameters()
-		->andReturnIntValue(1);
-	mock_c()->expectOneCall("XAie_DmaUpdateBdAddr")
-		->ignoreOtherParameters()
-		->andReturnIntValue(1);
-	mock_c()->expectOneCall("XAie_MemSyncForDevVAddr")
-		->ignoreOtherParameters()
-		->andReturnIntValue(1);
-	mock_c()->expectOneCall("XAie_DmaChannelSetStartQueue")
-		->ignoreOtherParameters()
-		->andReturnIntValue(1);
-	// ACT: Call aie2gm_nb with a valid port name
-	abr::err_code result = uut->aie2gm_nb("valid_port");
-
-	// ASSERT: Verify correct error code is returned
 	CHECK_EQUAL(static_cast<int>(abr::err_code::aie_driver_error), static_cast<int>(result));
 }
-/**
- * @brief TC_013: Verify gm2aie() blocking wrapper around gm2aie_nb()/wait()
- *
- * Expects a mock wait()call to succeed and verifies that the blocking
- * gm2aie() API returns abr::err_code::ok.
- */
-TEST(ExternalBufferApiImplDmaTests, TC_013_GM2AIE)
-{
+//*********************************************************************************/
+/*		Unique test case ID: TC_005_AIE2GM_NB_EmptyShimPortConfigs
+*		Function Name: aie2gm_nb
+*		Input: port_name = "test_port"
+*		Expectation: result == err_code::ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ExternalBufferApiImplDmaTests, TC_005_AIE2GM_NB_EmptyShimPortConfigs) {
 
-	mock_c()->expectOneCall("wait")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	abr::err_code result = uut->aie2gm_nb("test_port");
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by aie2gm_nb function: " << total_clock_enable_us << " microseconds" << std::endl;
 
-	// ACT: Call aie2gm_nb with a valid port name
+	CHECK_EQUAL(static_cast<int>(abr::err_code::ok), static_cast<int>(result));
+}
+//*********************************************************************************/
+/*		Unique test case ID: TC_006_AIE2GM_NB_InvalidPortName
+*		Function Name: aie2gm_nb
+*		Input: port_name = "invalid_port"
+*		Expectation: result == err_code::ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ExternalBufferApiImplDmaTests, TC_006_AIE2GM_NB_InvalidPortName) {
+	setupCommonPortConfig(false);
+
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	abr::err_code result = uut->aie2gm_nb("invalid_port");
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by aie2gm_nb function: " << total_clock_enable_us << " microseconds" << std::endl;
+
+	CHECK_EQUAL(static_cast<int>(abr::err_code::ok), static_cast<int>(result));
+}
+//*********************************************************************************/
+/*		Unique test case ID: TC_007_AIE2GM_NB_UpdateBDAddressSuccess
+*		Function Name: aie2gm_nb
+*		Input: port_name = "valid_port"
+*		Expectation: result == err_code::ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ExternalBufferApiImplDmaTests, TC_007_AIE2GM_NB_UpdateBDAddressSuccess) {
+	setupCommonPortConfig(true);
+	XAieMem::s_get_dev_addr_ret = 1;
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	abr::err_code result = uut->aie2gm_nb("valid_port");
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by aie2gm_nb function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_EQUAL(static_cast<int>(abr::err_code::ok), static_cast<int>(result));
+}
+//*********************************************************************************/
+/*		Unique test case ID: TC_008_AIE2GM_NB_UpdateBDAddressFails
+*		Function Name: aie2gm_nb
+*		Input: port_name = "valid_port"
+*		Expectation: result == err_code::aie_driver_error
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ExternalBufferApiImplDmaTests, TC_008_AIE2GM_NB_UpdateBDAddressFails) {
+	setupCommonPortConfig(true);
+	g_ut_externalbuffer_force_dma_enqueue_fail = 1;
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	abr::err_code result = uut->aie2gm_nb("valid_port");
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by aie2gm_nb function: " << total_clock_enable_us << " microseconds" << std::endl;
+	g_ut_externalbuffer_force_dma_enqueue_fail = 0;
+	CHECK_EQUAL(static_cast<int>(abr::err_code::aie_driver_error), static_cast<int>(result));
+}
+
+//*********************************************************************************/
+/*		Unique test case ID: TC_009_GM2AIE_NB_UpdateBDAddress_ErrorPath
+*		Function Name: gm2aie_nb
+*		Input: port_name = "valid_port"
+*		Expectation: result == err_code::ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ExternalBufferApiImplDmaTests, TC_009_GM2AIE_NB_UpdateBDAddress_ErrorPath) {
+	setupCommonPortConfig(false);
+	g_ut_externalbuffer_force_dma_update_bd_fail = 1;
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	abr::err_code result = uut->gm2aie_nb("valid_port");
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by gm2aie_nb function: " << total_clock_enable_us << " microseconds" << std::endl;
+	g_ut_externalbuffer_force_dma_update_bd_fail = 0;
+	CHECK_EQUAL(static_cast<int>(abr::err_code::ok), static_cast<int>(result));
+}
+
+//*********************************************************************************/
+/*		Unique test case ID: TC_010_AIE2GM_NB_UpdateBDAddress_ErrorPath
+*		Function Name: aie2gm_nb
+*		Input: port_name = "valid_port"
+*		Expectation: result == err_code::ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ExternalBufferApiImplDmaTests, TC_010_AIE2GM_NB_UpdateBDAddress_ErrorPath) {
+	setupCommonPortConfig(true);
+	g_ut_externalbuffer_force_dma_update_bd_fail = 1;
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	abr::err_code result = uut->aie2gm_nb("valid_port");
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by aie2gm_nb function: " << total_clock_enable_us << " microseconds" << std::endl;
+	g_ut_externalbuffer_force_dma_update_bd_fail = 0;
+	CHECK_EQUAL(static_cast<int>(abr::err_code::ok), static_cast<int>(result));
+}
+
+//*********************************************************************************/
+/*		Unique test case ID: TC_011_GM2AIE
+*		Function Name: gm2aie
+*		Input: port_name = "valid_port"
+*		Expectation: result == err_code::ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ExternalBufferApiImplDmaTests, TC_011_GM2AIE) {
+	setupCommonPortConfig(false);
+
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
 	abr::err_code result = uut->gm2aie("valid_port");
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by gm2aie function: " << total_clock_enable_us << " microseconds" << std::endl;
 
-	// ASSERT: Verify correct error code is returned
 	CHECK_EQUAL(static_cast<int>(abr::err_code::ok), static_cast<int>(result));
 }
 
-/**
- * @brief TC_02: Verify aie2gm() blocking wrapper around aie2gm_nb()/wait()
- *
- * Expects a mock wait()call to succeed and verifies that the blocking
- * aie2gm() API returns abr::err_code::ok.
- */
-TEST(ExternalBufferApiImplDmaTests, TC_023_AIE2GM)
-{
+//*********************************************************************************/
+/*		Unique test case ID: TC_012_AIE2GM
+*		Function Name: aie2gm
+*		Input: port_name = "valid_port"
+*		Expectation: result == err_code::ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ExternalBufferApiImplDmaTests, TC_012_AIE2GM) {
+	setupCommonPortConfig(true);
 
-	mock_c()->expectOneCall("wait")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-
-	// ACT: Call aie2gm_nb with a valid port name
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
 	abr::err_code result = uut->aie2gm("valid_port");
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by aie2gm function: " << total_clock_enable_us << " microseconds" << std::endl;
 
-	// ASSERT: Verify correct error code is returned
 	CHECK_EQUAL(static_cast<int>(abr::err_code::ok), static_cast<int>(result));
 }
-/**
- * @ingroup ExternalBufferApiImplTests
- * @brief Ping‑pong buffer tests tailored for simulation flows.
- *
- * This group mirrors the ping‑pong buffer configuration scenarios of
- * ExternalBufferApiImplPingPongTests, but targets simulation‑oriented
- * flows where the shim port configuration and BD programming are
- * exercised through simulation hooks.
- *
- * The tests validate that the UUT interacts correctly with XAieMem and
- * shim BD descriptors in a simulated environment for both S2MM and MM2S
- * directions.
- */
-TEST_GROUP(ExternalBufferApiImplPingPongTestsforsim)
-{
-	// Common test objects
+
+//*********************************************************************************/
+/*		Unique test case ID: TC_013_GM2AIE_NB_MultipleBds
+*		Function Name: gm2aie_nb
+*		Input: port_name = "valid_port"
+*		Expectation: result == err_code::ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ExternalBufferApiImplDmaTests, TC_013_GM2AIE_NB_MultipleBds) {
+	abr::shim_port_config portConfig;
+	portConfig.portName = "valid_port";
+	portConfig.column = 1;
+	portConfig.S2MMOrMM2S = 1;
+	portConfig.channel = 1;
+	portConfig.taskRepetition = 1;
+	portConfig.enable_task_complete_token = false;
+	abr::shimBDInfo bdInfo1; bdInfo1.bd_id = 2; bdInfo1.buf_idx = 0; bdInfo1.offset = 0; bdInfo1.transaction_size = 1024;
+	abr::shimBDInfo bdInfo2; bdInfo2.bd_id = 3; bdInfo2.buf_idx = 0; bdInfo2.offset = 64; bdInfo2.transaction_size = 1024;
+	portConfig.shimBDInfos.push_back(bdInfo1);
+	portConfig.shimBDInfos.push_back(bdInfo2);
+	config.shimPortConfigs.push_back(portConfig);
+
+	delete uut;
+	uut = new ExternalBufferApiImpl(config, testName, xaiemem);
+	uut->setAddress(testAddress);
+
+
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	abr::err_code result = uut->gm2aie_nb("valid_port");
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by gm2aie_nb function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_EQUAL(static_cast<int>(abr::err_code::ok), static_cast<int>(result));
+}
+//*********************************************************************************/
+/*		Unique test case ID: TC_014_AIE2GM_NB_MultipleBds
+*		Function Name: aie2gm_nb
+*		Input: port_name = "valid_port"
+*		Expectation: result == err_code::ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ExternalBufferApiImplDmaTests, TC_014_AIE2GM_NB_MultipleBds) {
+	abr::shim_port_config portConfig;
+	portConfig.portName = "valid_port";
+	portConfig.column = 1;
+	portConfig.S2MMOrMM2S = 0;
+	portConfig.channel = 1;
+	portConfig.taskRepetition = 1;
+	portConfig.enable_task_complete_token = false;
+	abr::shimBDInfo bdInfo1; bdInfo1.bd_id = 2; bdInfo1.buf_idx = 0; bdInfo1.offset = 0; bdInfo1.transaction_size = 1024;
+	abr::shimBDInfo bdInfo2; bdInfo2.bd_id = 3; bdInfo2.buf_idx = 0; bdInfo2.offset = 64; bdInfo2.transaction_size = 1024;
+	portConfig.shimBDInfos.push_back(bdInfo1);
+	portConfig.shimBDInfos.push_back(bdInfo2);
+	config.shimPortConfigs.push_back(portConfig);
+
+	delete uut;
+	uut = new ExternalBufferApiImpl(config, testName, xaiemem);
+	uut->setAddress(testAddress);
+
+
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	abr::err_code result = uut->aie2gm_nb("valid_port");
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by aie2gm_nb function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_EQUAL(static_cast<int>(abr::err_code::ok), static_cast<int>(result));
+}
+//*********************************************************************************/
+/*		Unique test case ID: TC_015_GM2AIE_Failure
+*		Function Name: gm2aie
+*		Input: port_name = "valid_port"
+*		Expectation: result == err_code::aie_driver_error
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ExternalBufferApiImplDmaTests, TC_015_GM2AIE_Failure) {
+	setupCommonPortConfig(false);
+	g_ut_externalbuffer_force_dma_enqueue_fail = 1;
+
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	abr::err_code result = uut->gm2aie("valid_port");
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by gm2aie function: " << total_clock_enable_us << " microseconds" << std::endl;
+
+	g_ut_externalbuffer_force_dma_enqueue_fail = 0;
+	CHECK_EQUAL(static_cast<int>(abr::err_code::aie_driver_error), static_cast<int>(result));
+}
+//*********************************************************************************/
+/*		Unique test case ID: TC_016_AIE2GM_Failure
+*		Function Name: aie2gm
+*		Input: port_name = "valid_port"
+*		Expectation: result == err_code::aie_driver_error
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ExternalBufferApiImplDmaTests, TC_016_AIE2GM_Failure) {
+	setupCommonPortConfig(true);
+	g_ut_externalbuffer_force_dma_enqueue_fail = 1;
+
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	abr::err_code result = uut->aie2gm("valid_port");
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by aie2gm function: " << total_clock_enable_us << " microseconds" << std::endl;
+
+	g_ut_externalbuffer_force_dma_enqueue_fail = 0;
+	CHECK_EQUAL(static_cast<int>(abr::err_code::aie_driver_error), static_cast<int>(result));
+}
+
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_017_GM2AIE_NB_GetAddressFailure_Continues
+*		Function Name: gm2aie_nb
+*		Input: port_name = "valid_port"
+*		Expectation: result == err_code::ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ExternalBufferApiImplDmaTests, TC_017_GM2AIE_NB_GetAddressFailure_Continues) {
+	setupCommonPortConfig(false);
+	XAieMem::s_get_dev_addr_ret = 1;
+
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	abr::err_code result = uut->gm2aie_nb("valid_port");
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by gm2aie_nb function: " << total_clock_enable_us << " microseconds" << std::endl;
+
+	XAieMem::s_get_dev_addr_ret = 0;
+	CHECK_EQUAL(static_cast<int>(abr::err_code::ok), static_cast<int>(result));
+}
+
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_018_AIE2GM_NB_GetAddressFailure_Continues
+*		Function Name: aie2gm_nb
+*		Input: port_name = "valid_port"
+*		Expectation: result == err_code::aie_driver_error
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ExternalBufferApiImplDmaTests, TC_018_AIE2GM_NB_GetAddressFailure_Continues) {
+	setupCommonPortConfig(true);
+	XAieMem::s_get_dev_addr_ret = 1;
+
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	abr::err_code result = uut->aie2gm_nb("valid_port");
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by aie2gm_nb function: " << total_clock_enable_us << " microseconds" << std::endl;
+
+	XAieMem::s_get_dev_addr_ret = 0;
+	CHECK_EQUAL(static_cast<int>(abr::err_code::ok), static_cast<int>(result));
+}
+
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_019_GM2AIE_NB_InvalidPort_WithConfigs
+*		Function Name: gm2aie_nb
+*		Input: port_name = "no_port"
+*		Expectation: result == err_code::ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ExternalBufferApiImplDmaTests, TC_019_GM2AIE_NB_InvalidPort_WithConfigs) {
+	setupCommonPortConfig(false);
+
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	abr::err_code result = uut->gm2aie_nb("no_port");
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by gm2aie_nb function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_EQUAL(static_cast<int>(abr::err_code::ok), static_cast<int>(result));
+}
+
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_020_AIE2GM_NB_InvalidPort_WithConfigs
+*		Function Name: aie2gm_nb
+*		Input: port_name = "no_port"
+*		Expectation: result == err_code::aie_driver_error
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ExternalBufferApiImplDmaTests, TC_020_AIE2GM_NB_InvalidPort_WithConfigs) {
+	setupCommonPortConfig(true);
+
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	abr::err_code result = uut->aie2gm_nb("no_port");
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by aie2gm_nb function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_EQUAL(static_cast<int>(abr::err_code::ok), static_cast<int>(result));
+}
+
+#if defined(__AIESIM__)
+//*********************************************************************************/
+/*		Unique test case ID: TC_021_Wait_Sim_DrainsGm2aieQueue_AfterGm2aieNb
+*		Function Name: ExternalBufferApiImpl::wait
+*		Input: gm2aie_nb("valid_port") followed by wait("valid_port")
+*		Expectation: result == err_code::ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ExternalBufferApiImplDmaTests, TC_021_Wait_Sim_DrainsGm2aieQueue_AfterGm2aieNb) {
+	setupCommonPortConfig(false);
+
+	CHECK_EQUAL(static_cast<int>(abr::err_code::ok), static_cast<int>(uut->gm2aie_nb("valid_port")));
+
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	CHECK_EQUAL(static_cast<int>(abr::err_code::ok), static_cast<int>(uut->wait("valid_port")));
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by wait function: " << total_clock_enable_us << " microseconds" << std::endl;
+	mock_c()->checkExpectations();
+}
+
+//*********************************************************************************/
+/*		Unique test case ID: TC_022_Wait_Sim_DrainsAie2gmQueue_AfterAie2gmNb
+*		Function Name: ExternalBufferApiImpl::wait
+*		Input: aie2gm_nb("valid_port") followed by wait("valid_port")
+*		Expectation: result == err_code::ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ExternalBufferApiImplDmaTests, TC_022_Wait_Sim_DrainsAie2gmQueue_AfterAie2gmNb) {
+	setupCommonPortConfig(true);
+
+	CHECK_EQUAL(static_cast<int>(abr::err_code::ok), static_cast<int>(uut->aie2gm_nb("valid_port")));
+
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	CHECK_EQUAL(static_cast<int>(abr::err_code::ok), static_cast<int>(uut->wait("valid_port")));
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by wait function: " << total_clock_enable_us << " microseconds" << std::endl;
+	mock_c()->checkExpectations();
+}
+
+//*********************************************************************************/
+/*		Unique test case ID: TC_023_Wait_Sim_DrainsGm2aieQueue_MultipleNb
+*		Function Name: ExternalBufferApiImpl::wait
+*		Input: two gm2aie_nb("valid_port") calls followed by wait("valid_port")
+*		Expectation: result == err_code::ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ExternalBufferApiImplDmaTests, TC_023_Wait_Sim_DrainsGm2aieQueue_MultipleNb) {
+	setupCommonPortConfig(false);
+
+	for (int i = 0; i < 2; ++i) {
+		CHECK_EQUAL(static_cast<int>(abr::err_code::ok), static_cast<int>(uut->gm2aie_nb("valid_port")));
+	}
+
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	CHECK_EQUAL(static_cast<int>(abr::err_code::ok), static_cast<int>(uut->wait("valid_port")));
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by wait function: " << total_clock_enable_us << " microseconds" << std::endl;
+	mock_c()->checkExpectations();
+}
+#endif // defined(__AIESIM__)
+
+TEST_GROUP(ExternalBufferApiImplPingPongTestsforsim) {
+
 	std::shared_ptr<XAieMem> xaiemem;
 	abr::external_buffer_config config;
 	std::string testName;
-	ExternalBufferApiImpl* uut;
-	void* pingAddress;
-	void* pongAddress;
-	/**
-	 * @brief Per-test setup for ExternalBufferApiImplPingPongTestsforsim.
-	 *
-	 * Initializes a clean simulation configuration, creates deterministic
-	 * ping and pong virtual addresses, constructs a XAieMem instance over
-	 * a local XAie_DevInst, and then creates an ExternalBufferApiImpl
-	 * instance to be used by each test.
-	 */
-	void setup()
-	{
+	ExternalBufferApiImpl *uut;
+	void *pingAddress;
+	void *pongAddress;
+	void setup() {
 
 		mock_c()->installComparator("XAie_LocType", CompareXAieLocType, XAieLocTypeToString);
-		// Create a fresh configuration for each test
+
 		config = {};
 		testName = "TestBuffer";
 
-		// Create test addresses
-		pingAddress = (void*)0x12345678;
-		pongAddress = (void*)0x87654321;
 
-		// Create a fresh memory interface for each test
+		pingAddress = (void *)0x12345678;
+		pongAddress = (void *)0x87654321;
+
 		XAie_DevInst devInst;
-		// Create a fresh memory interface for each test
 		xaiemem = std::make_shared<XAieMem>(&devInst);
 
-		// Create the UUT
+
 		uut = new ExternalBufferApiImpl(config, testName, xaiemem);
+		XAieMem::reset_test_state();
 	}
-	/**
-	 * @brief Per-test teardown for ExternalBufferApiImplPingPongTestsforsim.
-	 *
-	 * Deletes the UUT and clears all mock comparators and expectations so
-	 * that each simulation test starts from a pristine state.
-	 */
-	void teardown()
-	{
+
+	void teardown() {
 		delete uut;
 		mock_c()->removeAllComparatorsAndCopiers();
 		mock_c()->clear();
+		XAieMem::reset_test_state();
 	}
-	// Helper to set up a common port configuration
+
 	void setupCommonPortConfig(bool isS2MM) {
 		abr::shim_port_config portConfig;
 		portConfig.portName = "valid_port";
 		portConfig.column = 1;
-		portConfig.S2MMOrMM2S = isS2MM ? 0 : 1; // 0 for S2MM, 1 for MM2S
+		portConfig.S2MMOrMM2S = isS2MM ? 0 : 1;
 		portConfig.channel = 1;
 		portConfig.taskRepetition = 1;
 		portConfig.enable_task_complete_token = false;
 
-		// Add BD infos for both ping and pong buffers
+
 		abr::shimBDInfo bdInfo1;
 		bdInfo1.bd_id = 2;
-		bdInfo1.buf_idx = 0; // Ping
+		bdInfo1.buf_idx = 0;
 		bdInfo1.offset = 0;
 		bdInfo1.transaction_size = 1024;
 		portConfig.shimBDInfos.push_back(bdInfo1);
 
 		abr::shimBDInfo bdInfo2;
 		bdInfo2.bd_id = 3;
-		bdInfo2.buf_idx = 1; // Pong
+		bdInfo2.buf_idx = 1;
 		bdInfo2.offset = 0;
 		bdInfo2.transaction_size = 1024;
 		portConfig.shimBDInfos.push_back(bdInfo2);
 
 		config.shimPortConfigs.push_back(portConfig);
 
-		// Need to recreate UUT to use updated config
+
 		delete uut;
 		uut = new ExternalBufferApiImpl(config, testName, xaiemem);
 	}
 };
-/**
- * @brief TC_034: Simulation ping‑pong configuration for a S2MM shim port.
- *
- * This test configures a simulation S2MM shim port with ping and pong BD
- * entries using setupCommonPortConfig(true). The XAie address conversion,
- * BD update, memory sync, and start‑queue calls are mocked to succeed.
- * It then invokes ExternalBufferApiImpl::setupPingPongBuffers()and
- * verifies that abr::err_code::ok is returned in the simulated S2MM path.
- */
-TEST(ExternalBufferApiImplPingPongTestsforsim, TC_034_SetupPingPongBuffers_S2MM)
-{
-	// ARRANGE: Setup a port config for S2MM
-	setupCommonPortConfig(true); // S2MM
 
-	mock_c()->expectOneCall("XAie_MemGetDevAddrFromVAddr")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	mock_c()->expectOneCall("XAie_MemGetDevAddrFromVAddr")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	mock_c()->expectOneCall("XAie_DmaUpdateBdAddr")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	mock_c()->expectOneCall("XAie_DmaUpdateBdAddr")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	mock_c()->expectOneCall("XAie_MemSyncForDevVAddr")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	mock_c()->expectOneCall("XAie_DmaChannelSetStartQueue")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	// ACT: Call setupPingPongBuffers method
+//*********************************************************************************/
+/*		Unique test case ID: TC_001_SetupPingPongBuffers_S2MM
+*		Function Name: setupPingPongBuffers
+*		Input: pingAddress = (void *)0x12345678, pongAddress = (void *)0x87654321
+*		Expectation: result == err_code::ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ExternalBufferApiImplPingPongTestsforsim, TC_001_SetupPingPongBuffers_S2MM) {
+
+	setupCommonPortConfig(true);
+
+
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
 	abr::err_code result = uut->setupPingPongBuffers(pingAddress, pongAddress);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by setupPingPongBuffers function: " << total_clock_enable_us << " microseconds" << std::endl;
 
-	// ASSERT: Verify correct error code is returned
 	CHECK_EQUAL(static_cast<int>(abr::err_code::ok), static_cast<int>(result));
 }
-/**
- * @brief TC_035: Simulation ping‑pong configuration for a MM2S shim port.
- *
- * Similar to TC_034, but setupCommonPortConfig(false) is used to model a
- * MM2S shim port. The same sequence of XAie calls is mocked to return
- * success, and the test confirms that setupPingPongBuffers()completes
- * with abr::err_code::ok in the simulated MM2S scenario.
- */
-TEST(ExternalBufferApiImplPingPongTestsforsim, TC_035_SetupPingPongBuffers_MM2S)
-{
-	// ARRANGE: Setup a port config for MM2S
-	setupCommonPortConfig(false); // MM2S
+//*********************************************************************************/
+/*		Unique test case ID: TC_002_SetupPingPongBuffers_MM2S
+*		Function Name: setupPingPongBuffers
+*		Input: pingAddress = (void *)0x12345678, pongAddress = (void *)0x87654321
+*		Expectation: result == err_code::ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ExternalBufferApiImplPingPongTestsforsim, TC_002_SetupPingPongBuffers_MM2S) {
 
-	mock_c()->expectOneCall("XAie_MemGetDevAddrFromVAddr")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	mock_c()->expectOneCall("XAie_MemGetDevAddrFromVAddr")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	mock_c()->expectOneCall("XAie_DmaUpdateBdAddr")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	mock_c()->expectOneCall("XAie_DmaUpdateBdAddr")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	mock_c()->expectOneCall("XAie_MemSyncForDevVAddr")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	mock_c()->expectOneCall("XAie_DmaChannelSetStartQueue")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	// ACT: Call setupPingPongBuffers method
+	setupCommonPortConfig(false);
+
+
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
 	abr::err_code result = uut->setupPingPongBuffers(pingAddress, pongAddress);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by setupPingPongBuffers function: " << total_clock_enable_us << " microseconds" << std::endl;
 
-	// ASSERT: Verify correct error code is returned
+
 	CHECK_EQUAL(static_cast<int>(abr::err_code::ok), static_cast<int>(result));
 }
+//*********************************************************************************/
+/*		Unique test case ID: TC_003_SetupPingPongBuffers_MM2S_Failure
+*		Function Name: setupPingPongBuffers
+*		Input: pingAddress = (void *)0x12345678, pongAddress = (void *)0x87654321
+*		Expectation: result == err_code::aie_driver_error
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ExternalBufferApiImplPingPongTestsforsim, TC_003_SetupPingPongBuffers_MM2S_Failure) {
+
+	setupCommonPortConfig(false);
+
+	XAieMem::s_get_dev_addr_ret = 1;
+	g_ut_externalbuffer_force_dma_enqueue_fail = 1;
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	abr::err_code result = uut->setupPingPongBuffers(pingAddress, pongAddress);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by setupPingPongBuffers function: " << total_clock_enable_us << " microseconds" << std::endl;
+	g_ut_externalbuffer_force_dma_enqueue_fail = 0;
+	CHECK_EQUAL(static_cast<int>(abr::err_code::aie_driver_error), static_cast<int>(result));
+}
+//*********************************************************************************/
+/*		Unique test case ID: TC_004_SetupPingPongBuffers_NoSyncCache
+*		Function Name: setupPingPongBuffers
+*		Input: pingAddress = (void *)0x12345678, pongAddress = (void *)0x87654321, sync_cache = false
+*		Expectation: result == err_code::ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ExternalBufferApiImplPingPongTestsforsim, TC_004_SetupPingPongBuffers_NoSyncCache) {
+	setupCommonPortConfig(true);
+
+
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	abr::err_code result = uut->setupPingPongBuffers(pingAddress, pongAddress, /*sync_cache=*/false);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by setupPingPongBuffers function: " << total_clock_enable_us << " microseconds" << std::endl;
+
+	CHECK_EQUAL(static_cast<int>(abr::err_code::ok), static_cast<int>(result));
+}
+
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_005_SetupPingPong_EnqueueTaskFail
+*		Function Name: setupPingPongBuffers
+*		Input: pingAddress = (void *)0x12345678, pongAddress = (void *)0x87654321
+*		Expectation: result == err_code::aie_driver_error
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ExternalBufferApiImplPingPongTestsforsim, TC_005_SetupPingPong_EnqueueTaskFail) {
+	setupCommonPortConfig(false);
+	g_ut_externalbuffer_force_dma_enqueue_fail = 1;
+
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	abr::err_code result = uut->setupPingPongBuffers(pingAddress, pongAddress);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by setupPingPongBuffers function: " << total_clock_enable_us << " microseconds" << std::endl;
+
+	g_ut_externalbuffer_force_dma_enqueue_fail = 0;
+	CHECK_EQUAL(static_cast<int>(abr::err_code::aie_driver_error), static_cast<int>(result));
+}
+
+/*@section Test Execution details
+| Test Case ID                                          | Test Result | CR  | Impact | Test Details |
+|-------------------------------------------------------|-------------|-----|--------|--------------|
+| TC_001_SetAddress_Success                             | PASS        | No  | NA     | NA           |
+| TC_002_SetAddress_AlreadySet                          | PASS        | No  | NA     | NA           |
+| TC_003_Wait_EmptyShimPortConfigs                      | PASS        | No  | NA     | NA           |
+| TC_004_Wait_ValidPortNameMM2S                         | PASS        | No  | NA     | NA           |
+| TC_005_Wait_ValidPortNameS2MM                         | PASS        | No  | NA     | NA           |
+| TC_006_Wait_InvalidConfig                             | PASS        | No  | NA     | NA           |
+| TC_007_Wait_InvalidPort_WithConfiguredPorts           | PASS        | No  | NA     | NA           |
+| TC_001_SetupPingPongBuffers_Success                   | PASS        | No  | NA     | NA           |
+| TC_002_SetupPingPongBuffers_AlreadySet                | PASS        | No  | NA     | NA           |
+| TC_003_SetupPingPongBuffers_PartialNullState          | PASS        | No  | NA     | NA           |
+| TC_004_SetupPingPongBuffers_Success                   | PASS        | No  | NA     | NA           |
+| TC_005_SetupPingPongBuffers_UpdateBDAddress_ErrorPath | PASS        | No  | NA     | NA           |
+| TC_001_GM2AIE_NB_EmptyShimPortConfigs                 | PASS        | No  | NA     | NA           |
+| TC_002_GM2AIE_NB_InvalidPortName                      | PASS        | No  | NA     | NA           |
+| TC_003_GM2AIE_NB_Success                              | PASS        | No  | NA     | NA           |
+| TC_004_GM2AIE_NB_Failure                              | PASS        | No  | NA     | NA           |
+| TC_005_AIE2GM_NB_EmptyShimPortConfigs                 | PASS        | No  | NA     | NA           |
+| TC_006_AIE2GM_NB_InvalidPortName                      | PASS        | No  | NA     | NA           |
+| TC_007_AIE2GM_NB_UpdateBDAddressSuccess               | PASS        | No  | NA     | NA           |
+| TC_008_AIE2GM_NB_UpdateBDAddressFails                 | PASS        | No  | NA     | NA           |
+| TC_009_GM2AIE_NB_UpdateBDAddress_ErrorPath            | PASS        | No  | NA     | NA           |
+| TC_010_AIE2GM_NB_UpdateBDAddress_ErrorPath            | PASS        | No  | NA     | NA           |
+| TC_011_GM2AIE                                         | PASS        | No  | NA     | NA           |
+| TC_012_AIE2GM                                         | PASS        | No  | NA     | NA           |
+| TC_013_GM2AIE_NB_MultipleBds                          | PASS        | No  | NA     | NA           |
+| TC_014_AIE2GM_NB_MultipleBds                          | PASS        | No  | NA     | NA           |
+| TC_015_GM2AIE_Failure                                 | PASS        | No  | NA     | NA           |
+| TC_016_AIE2GM_Failure                                 | PASS        | No  | NA     | NA           |
+| TC_017_GM2AIE_NB_GetAddressFailure_Continues          | PASS        | No  | NA     | NA           |
+| TC_018_AIE2GM_NB_GetAddressFailure_Continues          | PASS        | No  | NA     | NA           |
+| TC_019_GM2AIE_NB_InvalidPort_WithConfigs              | PASS        | No  | NA     | NA           |
+| TC_020_AIE2GM_NB_InvalidPort_WithConfigs              | PASS        | No  | NA     | NA           |
+| TC_021_Wait_Sim_DrainsGm2aieQueue_AfterGm2aieNb       | PASS        | No  | NA     | NA           |
+| TC_022_Wait_Sim_DrainsAie2gmQueue_AfterAie2gmNb       | PASS        | No  | NA     | NA           |
+| TC_023_Wait_Sim_DrainsGm2aieQueue_MultipleNb          | PASS        | No  | NA     | NA           |
+| TC_001_SetupPingPongBuffers_S2MM                      | PASS        | No  | NA     | NA           |
+| TC_002_SetupPingPongBuffers_MM2S                      | PASS        | No  | NA     | NA           |
+| TC_003_SetupPingPongBuffers_MM2S_Failure              | PASS        | No  | NA     | NA           |
+| TC_004_SetupPingPongBuffers_NoSyncCache               | PASS        | No  | NA     | NA           |
+| TC_005_SetupPingPong_EnqueueTaskFail                  | PASS        | No  | NA     | NA           |
+
+/****Coverage Analysis*********/
+
+/*@section Coverage details
+
+| Coverage Type (Function Name)                | %      | Result     | CR/Status    | Impact          |
+|----------------------------------------------|--------|------------|--------------|-----------------|
+| ExternalBufferApiImpl::ExternalBufferApiImpl | <100>  | <Pass>     | <NA>         | No Impact       |
+| ExternalBufferApiImpl::setAddress            | <100>  | <Pass>     | <NA>         | No Impact       |
+| ExternalBufferApiImpl::wait                  | <100>  | <Pass>     | <NA>         | No Impact       |
+| ExternalBufferApiImpl::setupPingPongBuffers  | <100>  | <Pass>     | <NA>         | No Impact       |
+| ExternalBufferApiImpl::gm2aie_nb             | <100>  | <Pass>     | <NA>         | No Impact       |
+| ExternalBufferApiImpl::aie2gm_nb             | <100>  | <Pass>     | <NA>         | No Impact       |
+| ExternalBufferApiImpl::gm2aie                | <100>  | <Pass>     | <NA>         | No Impact       |
+| ExternalBufferApiImpl::aie2gm                | <100>  | <Pass>     | <NA>         | No Impact       |
+| _TransactionInfo::_TransactionInfo           | <100>  | <Pass>     | <NA>         | No Impact       |
+| ExternalBufferApiImpl::getAddress            | <100>  | <Pass>     | <NA>         | No Impact       |
+| Total file coverage (overall)                | 100    | <Pass>     | <NA>         | No Impact       |
+
+/*@section Uncovered details*/
+/* No uncovered details */

@@ -1,66 +1,113 @@
 // Copyright (C) 2025 - 2026 Advanced Micro Devices, Inc.
 // SPDX-License-Identifier: Apache-2.0
-#pragma once
+#ifndef BARRIER_H
+#define BARRIER_H
 
-#define likely(x) __builtin_expect(!!(x), 1)
-#define unlikely(x) __builtin_expect(!!(x), 0)
+#include <memory>
+#include <type_traits>
 
-/* Prevent compiler from re-ordering instructions */
-#define barrier() __asm__ __volatile__("" : : : "memory")
+namespace mem_barrier {
 
-template <typename T> inline T READ_ONCE(T &var) { return *reinterpret_cast<volatile T *>(&var); }
+inline void barrier() noexcept {
+    __asm__ __volatile__("" : : : "memory");
+}
 
-template <typename T> inline T READ_ONCE(T *var) { return *reinterpret_cast<volatile T *>(var); }
+template <typename T>
+inline bool likely(T x) {
+    return __builtin_expect(static_cast<bool>(x), 1);
+}
 
-template <typename T> inline void WRITE_ONCE(T &x, T val) { *reinterpret_cast<volatile T *>(&x) = val; }
+template <typename T>
+inline bool unlikely(T x) {
+    return __builtin_expect(static_cast<bool>(x), 0);
+}
 
-template <typename T> inline void WRITE_ONCE(T *x, T val) { *reinterpret_cast<volatile T *>(x) = val; }
+template <typename T>
+inline typename std::enable_if<!std::is_pointer<T>::value, T>::type READ_ONCE(const T &var) {
+    static_assert(std::is_scalar<T>::value, "READ_ONCE supports scalar types only");
+    const volatile T *const src = std::addressof(var);
+    return *src;
+}
+
+template <typename T>
+inline T READ_ONCE(const T *const ptr) {
+    static_assert(std::is_scalar<T>::value, "READ_ONCE supports scalar types only");
+    T value{};
+    if (ptr != nullptr) {
+        const volatile T *const src = ptr;
+        value = *src;
+    }
+    return value;
+}
+
+template <typename T>
+inline typename std::enable_if<!std::is_pointer<T>::value>::type WRITE_ONCE(T &var, const T &val) {
+    static_assert(std::is_scalar<T>::value, "WRITE_ONCE supports scalar types only");
+    volatile T *const dst = std::addressof(var);
+    *dst = val;
+}
+
+template <typename T>
+inline void WRITE_ONCE(T *const ptr, const T &val) {
+    static_assert(std::is_scalar<T>::value, "WRITE_ONCE supports scalar types only");
+    if (ptr != nullptr) {
+        volatile T *const dst = ptr;
+        *dst = val;
+    }
+}
 
 /* Prevent CPU from reordering instructions */
 #if defined(__arm__)
-#define smp_mb() __asm__ volatile("" ::: "memory")
-#define smp_wmb() __asm__ volatile("" ::: "memory")
-#define smp_rmb() __asm__ volatile("" ::: "memory")
+inline void smp_mb() { __asm__ volatile("" ::: "memory"); }
+inline void smp_wmb() { __asm__ volatile("" ::: "memory"); }
+inline void smp_rmb() { __asm__ volatile("" ::: "memory"); }
 
-#define mb() smp_mb()
-#define wmb() smp_wmb()
-#define rmb() smp_rmb()
+inline void mb() { smp_mb(); }
+inline void wmb() { smp_wmb(); }
+inline void rmb() { smp_rmb(); }
 
 #elif defined(__aarch64__)
-#define smp_mb() asm volatile("dmb ish" ::: "memory")
-#define smp_wmb() asm volatile("dmb ishst" ::: "memory")
-#define smp_rmb() asm volatile("dmb ishld" ::: "memory")
+inline void smp_mb() { asm volatile("dmb ish" ::: "memory"); }
+inline void smp_wmb() { asm volatile("dmb ishst" ::: "memory"); }
+inline void smp_rmb() { asm volatile("dmb ishld" ::: "memory"); }
 
-#define mb() smp_mb()
-#define wmb() smp_wmb()
-#define rmb() smp_rmb()
+inline void mb() { smp_mb(); }
+inline void wmb() { smp_wmb(); }
+inline void rmb() { smp_rmb(); }
 
 #elif defined(__i386__)
-#define mb() asm volatile("lock; addl $0,0(%%esp)" ::: "memory")
-#define rmb() asm volatile("lock; addl $0,0(%%esp)" ::: "memory")
-#define wmb() asm volatile("lock; addl $0,0(%%esp)" ::: "memory")
+inline void mb() { asm volatile("lock; addl $0,0(%%esp)" ::: "memory"); }
+inline void rmb() { asm volatile("lock; addl $0,0(%%esp)" ::: "memory"); }
+inline void wmb() { asm volatile("lock; addl $0,0(%%esp)" ::: "memory"); }
+
+inline void smp_mb() { mb(); }
+inline void smp_wmb() { wmb(); }
+inline void smp_rmb() { rmb(); }
 
 #elif defined(__x86_64__)
+inline void mb() { asm volatile("mfence" ::: "memory"); }
+inline void rmb() { asm volatile("lfence" ::: "memory"); }
+inline void wmb() { asm volatile("sfence" ::: "memory"); }
 
-#define mb() asm volatile("mfence" ::: "memory")
-#define rmb() asm volatile("lfence" ::: "memory")
-#define wmb() asm volatile("sfence" ::: "memory")
-
-#define smp_rmb() barrier()
-#define smp_wmb() barrier()
-#define smp_mb() asm volatile("lock; addl $0,-132(%%rsp)" ::: "memory", "cc")
-
-#define smp_store_release(p, v)                                                                                        \
-    do {                                                                                                               \
-        barrier();                                                                                                     \
-        WRITE_ONCE(*p, v);                                                                                             \
-    } while (0)
-
-#define smp_load_acquire(p)                                                                                            \
-    ({                                                                                                                 \
-        typeof(*p) ___p1 = READ_ONCE(*p);                                                                              \
-        barrier();                                                                                                     \
-        ___p1;                                                                                                         \
-    })
+inline void smp_rmb() { barrier(); }
+inline void smp_wmb() { barrier(); }
+inline void smp_mb() { asm volatile("lock; addl $0,-132(%%rsp)" ::: "memory", "cc"); }
 
 #endif
+
+template <typename T>
+inline void smp_store_release(T *const ptr, const T &val) {
+    barrier();
+    WRITE_ONCE(ptr, val);
+}
+
+template <typename T>
+inline T smp_load_acquire(const T *const ptr) {
+    const T value = READ_ONCE(ptr);
+    barrier();
+    return value;
+}
+
+} // namespace mem_barrier
+
+#endif // BARRIER_H

@@ -6,7 +6,6 @@ SETTINGS_SCRIPT_DIR=$(dirname "$(readlink -f "$BASH_SOURCE")")
 
 source "${SETTINGS_SCRIPT_DIR}/envaie2pst50.sh"
 
-
 : "${VERSION2:=0}"
 if [ "${VERSION2}" -eq 1 ]; then
 	VERSION="hub"
@@ -15,12 +14,15 @@ else
 	VERSION="enterprise."
 	WEBSITE="xilinx"
 fi
+export GITBASE_ENTERPRISE="${GITBASE_ENTERPRISE:-https://github.com}"
 export GITBASE="${GITBASE:-https://git${VERSION}${WEBSITE}.com}"
 export CERT_REPO="${CERT_REPO:-TurinAI/cert}"
 export XTF_REPO="${XTF_REPO:-regressions/xtf}"
 export EMBEDDEDSW_REPO="${EMBEDDEDSW_REPO:-embeddedsw/embeddedsw}"
-export AIERT_REPO="${AIERT_REPO:-ai-engine/aie-rt}"
-export AIERT_COMMIT="${AIERT_COMMIT:-7e331051439034265511eb442956bb1b082d7494}"
+export AIERT_REPO="${AIERT_REPO:-AMD-AECG-AIENGINE/aie-rt}"
+export AIERT_COMMIT="${AIERT_COMMIT:-main-aie-next}"
+export AIERT_BRANCH="${AIERT_BRANCH:-main-aie-next}"
+export AIERT_GIT_REPO="${AIERT_GIT_REPO:-${GITBASE_ENTERPRISE}/${AIERT_REPO}}"
 
 COMPILE_TYPE=0
 : "${CERT_GIT_REPO:=}"
@@ -50,8 +52,14 @@ if [ -n "${GITBASE:-}" ]; then
 	_clone_if_missing_or_empty() {
 		local repo="$1"
 		local dest="$2"
+		local branch="$3"
+
 		if [ ! -d "$dest" ] || [ -z "$(ls -A "$dest" 2>/dev/null)" ]; then
-			git clone --recursive "$repo" "$dest" || true
+			if [ -n "$branch" ]; then
+				git clone --recursive "$repo" -b "$branch" "$dest" || true
+			else
+				git clone --recursive "$repo" "$dest" || true
+			fi
 		fi
 	}
 	_pin_repo_commit_if_set() {
@@ -67,14 +75,13 @@ if [ -n "${GITBASE:-}" ]; then
 	_clone_if_missing_or_empty "$XTF_GIT_REPO" xtf
 	_clone_if_missing_or_empty "$EMBEDDEDSW_GIT_REPO" embeddedsw
 	pushd aielib
-	_clone_if_missing_or_empty "$AIERT_GIT_REPO" aie-rt
-	# _pin_repo_commit_if_set "$AIERT_COMMIT" aie-rt
+	_clone_if_missing_or_empty "$AIERT_GIT_REPO" aie-rt "$AIERT_BRANCH"
+	#_pin_repo_commit_if_set "$AIERT_COMMIT" aie-rt
 	popd
 	popd
 fi
 
 echo ${COMPILE_TYPE}
-
 
 echo "The settings script is located in: $SETTINGS_SCRIPT_DIR"
 
@@ -118,5 +125,14 @@ source "${SETTINGS_SCRIPT_DIR}/adftoaeg_setup.sh"
 
 if [[ -n "${XILINX_VITIS:-}" ]]; then
 	export XILINX_VITIS_AIETOOLS="${XILINX_VITIS}/aietools"
+fi
+
+if [[ -z "${local_python:-}" ]]; then
+	if [[ -x /usr/bin/python3 ]]; then
+		local_python=/usr/bin/python3
+	else
+		local_python="$(command -v python3)"
+	fi
+	export local_python
 fi
 

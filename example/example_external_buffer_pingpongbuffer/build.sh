@@ -63,4 +63,5 @@ if [ $compile_status -ne 0 ]; then
     echo "Error: compile.sh failed with status $compile_status" >&2
     exit $compile_status
 fi
+
 echo "Build completed successfully with AIE_GEN=${AIE_GEN}, BOOTGEN=${BOOTGEN}, RPUFLAG=${RPUFLAG}, new_api=${new_api}"

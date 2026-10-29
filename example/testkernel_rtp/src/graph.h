@@ -15,7 +15,6 @@ struct myGraph : public adf::graph {
 
     adf::input_gmio in;
     adf::output_gmio out;
-
     int a = 2;
 
     myGraph() {

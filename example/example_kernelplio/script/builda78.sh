@@ -3,13 +3,34 @@
 # SPDX-License-Identifier: Apache-2.0
 # Source the environment variables
 AIE_GEN=5
-if [ $# -gt 0 ]; then
-	AIE_GEN=$1
-fi
+new_api=false
+
+# Parse args:
+#   <1|2|5>     positional AIE generation (default: 5)
+#   -new_api    compile ../src/graph_new_api.cpp (typed AEG API) instead of
+#               the legacy ../src/graph.cpp, and define AEG_INHERITANCE_BASED_API
+#               so aiebaremetal.h pulls in generated_graphs.h.
+while [[ $# -gt 0 ]]; do
+	case "$1" in
+		-new_api)
+			new_api=true
+			shift
+			;;
+		*)
+			if [[ $1 =~ ^[0-9]+$ ]]; then
+				AIE_GEN=$1
+				shift
+			else
+				echo "Unknown option: $1" >&2
+				return 1 2>/dev/null || exit 1
+			fi
+			;;
+	esac
+done
 #clear the parameter number to avoid enclose script inherit the param and get confuse
 set --
 
-echo ${AIE_GEN}
+echo "AIE_GEN=${AIE_GEN}, new_api=${new_api}"
 
 HW_GEN=$(python3 vercheck.py 2>/dev/null) || true
 
@@ -59,7 +80,23 @@ if [ ! -f "${SW_DOMAIN}/include/xil_cache.h" ]; then
 	echo "ERROR: Missing ${SW_DOMAIN}/include/xil_cache.h after platform generation." >&2
 	return 1
 fi
-aarch64-none-elf-gcc -mcpu=cortex-a78 -Wl,-T -Wl,$ARCH_78_DIR//standalone_cortexa78_0/bsp/lscript.ld -D__AIE_ARCH__=22 -I../../../thirdparty/aielib/aie-rt/driver/internal/ -I../../../src/include/ -I$XILINX_VITIS/aietools/include/ -I$SW_DOMAIN/include -L$SW_DOMAIN/lib -L../../build/ -o ./${ELF} ../src/graph.cpp -Wl,--start-group,-laiebaremetala78,-lxil,-lxiltimer,-lxilstandalone,-lgcc,-lc,-lstdc++,--end-group
+# Pick host source + flags based on -new_api.
+HOST_SRC=../src/graph.cpp
+HOST_DEFS=
+if [[ "$new_api" == true ]]; then
+	HOST_SRC=../src/graph_new_api.cpp
+	HOST_DEFS=-DAEG_INHERITANCE_BASED_API
+	# aiemetacpp.py wrote generated_graphs.h into example/ during `make hw`;
+	# stage it on the baremetal include path so aiebaremetal.h finds it.
+	GENERATED_GRAPHS_SRC=../../generated_graphs.h
+	if [ ! -f "$GENERATED_GRAPHS_SRC" ]; then
+		echo "ERROR: $GENERATED_GRAPHS_SRC not found - 'make hw' must run before builda78.sh." >&2
+		return 1 2>/dev/null || exit 1
+	fi
+	cp "$GENERATED_GRAPHS_SRC" ../../../src/include/generated_graphs.h
+fi
+
+aarch64-none-elf-gcc $HOST_DEFS -mcpu=cortex-a78 -Wl,-T -Wl,$ARCH_78_DIR//standalone_cortexa78_0/bsp/lscript.ld -D__AIE_ARCH__=22 -I../../../thirdparty/aielib/aie-rt/driver/internal/ -I../../../src/include/ -I$XILINX_VITIS/aietools/include/ -I$SW_DOMAIN/include -L$SW_DOMAIN/lib -L../../build/ -o ./${ELF} $HOST_SRC -Wl,--start-group,-laiebaremetala78,-lxil,-lxiltimer,-lxilstandalone,-lgcc,-lc,-lstdc++,--end-group
 if [ ! -f "./${ELF}" ]; then
 	echo "ERROR: Failed to build ${ELF}." >&2
 	return 1

@@ -23,14 +23,32 @@
  * -SSW AIE Team, 2023-12-30
  *   - Remove the error.h header file.
  */
+/*
+ * Changes made:
+ * -SSW AIE Team, 2026-04-17
+ *   - Fix the misra cpp 2023 violations.
+ */
+/*
+ * Changes made:
+ * -SSW AIE Team, 2026-08-18
+ *   - Fix the namespace violation issue.
+ */
 #include "aeg_api_message.h"
+#include <cstdint>
 #include "aeg_log.h"
-
-abr::err_code errorMsg(abr::err_code code, std::string msg) {
+namespace aeg_api_message {
+abr::err_code errorMsg(abr::err_code code, std::string_view msg) {
     (void)msg;
     return code;
 }
 
-void debugMsg(std::string msg) { AEG_LOG("%s\n", msg.c_str()); }
+void debugMsg(std::string_view msg) {
+    AEG_LOG("%.*s\n", static_cast<int32_t>(msg.size()), msg.data());
+    (void)msg;
+}
 
-void infoMsg(std::string msg) { AEG_LOG("%s\n", msg.c_str()); }
+void infoMsg(std::string_view msg) {
+    AEG_LOG("%.*s\n", static_cast<int32_t>(msg.size()), msg.data());
+    (void)msg;
+}
+} // namespace aeg_api_message

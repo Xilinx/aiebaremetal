@@ -66,18 +66,18 @@ xxd -i ./build/gmiosconfig.bin >> $output_file
 xxd -i ./build/rtpsconfig.bin >> $output_file
 xxd -i ./build/externalbuffersconfig.bin >> $output_file
 
-sed -i -e 's/__build_driverconfig_bin/_binary_build_driverconfig_bin_start/g' $output_file
-sed -i -e 's/__build_graphconfig_bin/_binary_build_graphconfig_bin_start/g' $output_file
-sed -i -e 's/__build_gmiosconfig_bin/_binary_build_gmiosconfig_bin_start/g' $output_file
-sed -i -e 's/__build_rtpsconfig_bin/_binary_build_rtpsconfig_bin_start/g' $output_file
-sed -i -e 's/__build_externalbuffersconfig_bin/_binary_build_externalbuffersconfig_bin_start/g' $output_file
+sed -i -e 's/__build_driverconfig_bin/binary_build_driverconfig_bin_start/g' $output_file
+sed -i -e 's/__build_graphconfig_bin/binary_build_graphconfig_bin_start/g' $output_file
+sed -i -e 's/__build_gmiosconfig_bin/binary_build_gmiosconfig_bin_start/g' $output_file
+sed -i -e 's/__build_rtpsconfig_bin/binary_build_rtpsconfig_bin_start/g' $output_file
+sed -i -e 's/__build_externalbuffersconfig_bin/binary_build_externalbuffersconfig_bin_start/g' $output_file
 
 
-sed -i -e 's/unsigned int _binary_build_driverconfig_bin_start_len =/unsigned int _binary_build_driverconfig_bin_size = /g' $output_file
-sed -i -e 's/unsigned int _binary_build_graphconfig_bin_start_len =/unsigned int _binary_build_graphconfig_bin_size = /g' $output_file
-sed -i -e 's/unsigned int _binary_build_gmiosconfig_bin_start_len =/unsigned int _binary_build_gmiosconfig_bin_size = /g' $output_file
-sed -i -e 's/unsigned int _binary_build_rtpsconfig_bin_start_len =/unsigned int _binary_build_rtpsconfig_bin_size = /g' $output_file
-sed -i -e 's/unsigned int _binary_build_externalbuffersconfig_bin_start_len =/unsigned int _binary_build_externalbuffersconfig_bin_size = /g' $output_file
+sed -i -e 's/unsigned int binary_build_driverconfig_bin_start_len =/unsigned int binary_build_driverconfig_bin_size = /g' $output_file
+sed -i -e 's/unsigned int binary_build_graphconfig_bin_start_len =/unsigned int binary_build_graphconfig_bin_size = /g' $output_file
+sed -i -e 's/unsigned int binary_build_gmiosconfig_bin_start_len =/unsigned int binary_build_gmiosconfig_bin_size = /g' $output_file
+sed -i -e 's/unsigned int binary_build_rtpsconfig_bin_start_len =/unsigned int binary_build_rtpsconfig_bin_size = /g' $output_file
+sed -i -e 's/unsigned int binary_build_externalbuffersconfig_bin_start_len =/unsigned int binary_build_externalbuffersconfig_bin_size = /g' $output_file
 
 
 

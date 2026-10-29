@@ -1,17 +1,97 @@
-/**
- * @file test_gmioapiimpl.cpp
- * @brief Unit tests for the GmioApiImpl class
- *
- * This file contains unit tests for the GmioApiImpl class, which provides GMIO
- * (Global Memory I/O) functionality for AI Engine devices. The tests verify
- * memory transfers between global memory and AI Engine, including blocking and
- * non-blocking operations.
- *
- * Copyright (C) 2026 Advanced Micro Devices, Inc.
- */
+/******************************************************************************
+* (c) Copyright 2022 Xilinx, Inc. All rights reserved.
+* (c) Copyright 2022-2026 Advanced Micro Devices, Inc. All Rights Reserved.
+*
+* This file contains confidential and proprietary information
+* of Xilinx, Inc. and is protected under U.S. and
+* international copyright and other intellectual property
+* laws.
+*
+* DISCLAIMER
+* This disclaimer is not a license and does not grant any
+* rights to the materials distributed herewith. Except as
+* otherwise provided in a valid license issued to you by
+* Xilinx, and to the maximum extent permitted by applicable
+* law: (1) THESE MATERIALS ARE MADE AVAILABLE "AS IS" AND
+* WITH ALL FAULTS, AND XILINX HEREBY DISCLAIMS ALL WARRANTIES
+* AND CONDITIONS, EXPRESS, IMPLIED, OR STATUTORY, INCLUDING
+* BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, NON-
+* INFRINGEMENT, OR FITNESS FOR ANY PARTICULAR PURPOSE; and
+* (2) Xilinx shall not be liable (whether in contract or tort,
+* including negligence, or under any other theory of
+* liability) for any loss or damage of any kind or nature
+* related to, arising under or in connection with these
+* materials, including for any direct, or any indirect,
+* special, incidental, or consequential loss or damage
+* (including loss of data, profits, goodwill, or any type of
+* loss or damage suffered as a result of any action brought
+* by a third party) even if such damage or loss was
+* reasonably foreseeable or Xilinx had been advised of the
+* possibility of the same.
+*
+* CRITICAL APPLICATIONS
+* Xilinx products are not designed or intended to be fail-
+* safe, or for use in any application requiring fail-safe
+* performance, such as life-support or safety devices or
+* systems, Class III medical devices, nuclear facilities,
+* applications related to the deployment of airbags, or any
+* other applications that could lead to death, personal
+* injury, or severe property or environmental damage
+* (individually and collectively, "Critical
+* Applications"). Customer assumes the sole risk and
+* liability of any use of Xilinx products in Critical
+* Applications, subject only to applicable laws and
+* regulations governing limitations on product liability.
+*
+* THIS COPYRIGHT NOTICE AND DISCLAIMER MUST BE RETAINED AS
+* PART OF THIS FILE AT ALL TIMES.
+******************************************************************************/
 
-#include "CppUTest/TestHarness.h"
+/*****************************************************************************/
+/**
+*
+* @file test_gmioapiimpl.cpp
+*  This file contains test cases of GMIO API functions
+*
+* <pre>
+* MODIFICATION HISTORY:
+*
+* * Ver	  Who	   Date		Changes
+* ----- -------- -------- ---------------------------------
+* 1.0	 Veera      05/03/2026  Initial creation
+* 1.1	 Veera      20/04/2026  Added test cases for GMIO API functions
+* 1.2	 Veera      10/05/2026  updated comment section for GMIO API functions
+* 1.3	 Veera      26/05/2026  updated timing analysis for GMIO API functions
+* </pre>
+*
+******************************************************************************/
+
+/*****************************************************************************/
+/**
+*
+* TEST SPECIFCIATION:
+* Source code version: <2026.1>
+* Verification Environment1:
+	Testing Tool: LDRA
+	Platform: Silicon
+	Target: APU
+	Compiler1: gcc
+* Verification Environment2:
+	Testing Tool: CPPUTEST
+	Platform: Host
+	Target: x86
+    Compiler2: gcc
+* Verification Method:By Specification of test cases
+* Test Procedure: The test execution procedure is same for all the test cases.
+* After the tests have been specified, the test procedure involves:
+*   - building the tests cases for the selected environment
+*   - execution of the binary executable in the selected environment
+*   - recording the results of execution
+*
+/*****************************************************************************/
+/***************************** Include Files *********************************/
 #include "CppUTest/CommandLineTestRunner.h"
+#include "CppUTest/TestHarness.h"
 #include "CppUTestExt/MockSupport_c.h"
 #ifdef new
 #undef new
@@ -22,37 +102,22 @@
 #ifdef __node
 #undef __node
 #endif
-//#define __AIESIM__
+// #define __AIESIM__
 #include "gmioapiimpl.h"
+#include "stubs.h"
 #include "test_comparator.h"
+#include <chrono>
+#include <iostream>
 using namespace abr;
+TEST_GROUP(GmioApiImplTests) {
 
-/**
- * @brief Test group for GmioApiImpl class functionality
- *
- * This test group verifies the functionality of the GmioApiImpl class, which provides
- * GMIO operations for AI Engine devices. The tests validate constructor initialization,
- * wait operations, and data transfer functions in both GM2AIE and AIE2GM directions.
- */
-TEST_GROUP(GmioApiImplTests)
-{
-	// Test fixtures
 	std::shared_ptr<abr::gmio_api> api;
 	std::shared_ptr<XAieMem> mem;
 	abr::gmio_config gmioconfig;
-	GmioApiImpl* gmio;
-	XAie_LocType testLoc;
+	GmioApiImpl *gmio;
 	XAie_DevInst devInst;
 
-	/**
-	 * @brief Set up test fixtures before each test
-	 *
-	 * Initializes the GMIO configuration, device instance, and creates the GmioApiImpl
-	 * instance. Also installs custom comparators and copiers for mocking.
-	 */
-	void setup()
-	{
-		// Setup gmio_config
+	void setup() {
 		gmioconfig.name = "gradf.in";
 		gmioconfig.type = abr::gmio_config::gm2aie;
 		gmioconfig.id = 1;
@@ -60,311 +125,302 @@ TEST_GROUP(GmioApiImplTests)
 		gmioconfig.channelNum = 0;
 		gmioconfig.burstLength = 4;
 		devInst.DevProp.DevGen = XAIE_DEV_GEN_AIEML - 1;
-		abr::config_manager::s_pDevInst = &devInst;
-		abr::config_manager::s_bInitialized = true;
 
-		// Create mock objects
-		testLoc.Col = 0;
-		testLoc.Row = 0;
 		api = std::make_shared<abr::gmio_api>(&gmioconfig);
 		mem = std::make_shared<XAieMem>(&devInst);
 
-		// Create gmio_api
+		(void)api->configure();
 		gmio = new GmioApiImpl(api, gmioconfig, mem, "test_gmio");
 		mock_c()->installComparator("XAie_LocType", CompareXAieLocType, XAieLocTypeToString);
 		mock_c()->installCopier("u8", u8Copier);
 		mock_c()->installComparator("XAie_Lock", XAie_LockComparator, XAie_LockToString);
+		XAieMem::reset_test_state();
 	}
 
-	/**
-	 * @brief Clean up test fixtures after each test
-	 *
-	 * Deletes the GmioApiImpl instance, resets configuration manager, removes
-	 * comparators and copiers, and clears mock expectations.
-	 */
-	void teardown()
-	{
+	void teardown() {
 		delete gmio;
-		abr::config_manager::s_pDevInst = nullptr;
-		abr::config_manager::s_bInitialized = false;
 		mock_c()->removeAllComparatorsAndCopiers();
 		mock_c()->clear();
+		XAieMem::reset_test_state();
 	}
 };
-/**
- * @brief TC_001: Verify constructor initializes members correctly
- *
- * This test verifies that the GmioApiImpl constructor properly initializes all
- * member variables. Since private members cannot be directly checked, verification
- * is done implicitly through behavior in subsequent tests.
- */
-TEST(GmioApiImplTests, TC_001_ConstructorInitialization)
-{
-	// ASSERT: Implicit verification through setup
-	CHECK(gmio != nullptr);
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_001_ConstructorInitialization
+*		Function Name: GmioApiImpl::GmioApiImpl
+*		Input: configured gmio_api, gmio_config name = "test_gmio", mem = XAieMem instance
+*		Expectation: gmio != nullptr
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 1
+*/
+/*********************************************************************************/
+TEST(GmioApiImplTests, TC_001_ConstructorInitialization) {
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	bool gmio_not_null = (gmio != nullptr);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by GmioApiImpl constructor check: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK(gmio_not_null);
 }
-
-/**
- * @brief TC_002: Verify wait() calls gmio_api wait with blocking enabled
- *
- * This test verifies that the wait() function properly calls the underlying GMIO API
- * wait function when blocking is enabled (true parameter).
- */
-TEST(GmioApiImplTests, TC_002_WaitCallsGmioApiWait)
-{
-	// ARRANGE: Configure DMA mocks
-	u8 FirstCallOutput = 1;
-	u8 secondCallOutput = 2;
-	mock_c()->expectOneCall("XAie_DmaDescInit")
-		->withPointerParameters("DevInst", &devInst)
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-
-	mock_c()->expectOneCall("XAie_DmaChannelEnable")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-
-	mock_c()->expectOneCall("XAie_DmaGetMaxQueueSize")
-		->withOutputParameterOfTypeReturning("u8", "QueueSize", &FirstCallOutput)
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-
-	mock_c()->expectOneCall("XAie_DmaSetAxi")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-
-	// ACT: Configure API
-	abr::err_code res = api->configure();
-	CHECK_EQUAL((int)abr::err_code::ok, (int)res);
-
-	int dir = 0x0;
-	uint8_t channel = 0x1;
-	mock_c()->expectOneCall("XAie_DmaWaitForDone")
-		->withPointerParameters("DevInst", &devInst)
-		->withParameterOfType("XAie_LocType", "Loc", &testLoc)
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-
-	// ACT: Call wait function
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_002_WaitCallsGmioApiWait
+*		Function Name: GmioApiImpl::wait
+*		Input: syncmode = true
+*		Expectation: result == 0
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 1
+*/
+/*********************************************************************************/
+TEST(GmioApiImplTests, TC_002_WaitCallsGmioApiWait) {
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
 	int result = gmio->wait(true);
-
-	// ASSERT: Verify result
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by wait function: " << total_clock_enable_us << " microseconds" << std::endl;
 	CHECK_EQUAL(0, result);
 }
-
-/**
- * @brief TC_003: Verify gm2aie_nb() works correctly with valid parameters
- *
- * This test verifies that the non-blocking GM2AIE transfer function successfully
- * transfers data from global memory to AI Engine with valid parameters.
- */
-TEST(GmioApiImplTests, TC_003_Gm2aie_NB_Success)
-{
-	// ARRANGE: Setup buffer and mock expectations
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_003_Gm2aie_NB_Success
+*		Function Name: AIEGraph::gm2aie
+*		Input: buffer = {0}, len = 100
+*		Expectation: result == err_code::ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(GmioApiImplTests, TC_003_Gm2aie_NB_Success) {
 	char buffer[100] = {0};
 	gmioconfig.type = abr::gmio_config::gm2aie;
-	mock_c()->expectOneCall("XAie_MemGetDevAddrFromVAddr")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	mock_c()->expectOneCall("XAie_MemSyncForDevVAddr")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
 
-	// ACT: Call the function under test
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
 	abr::err_code result = gmio->gm2aie_nb(buffer, 100);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by gm2aie_nb function: " << total_clock_enable_us << " microseconds" << std::endl;
 
-	// ASSERT: Verify result
 	CHECK(result == err_code::ok);
 }
-/**
- * @brief TC_004: Verify gm2aie_nb() handles failure correctly
- *
- * This test verifies that the non-blocking GM2AIE transfer function properly handles
- * failures when XAie_MemGetDevAddrFromVAddr returns an error.
- */
-TEST(GmioApiImplTests, TC_004_Gm2aie_NB_GetAddressFailure)
-{
-	// ARRANGE: Setup buffer and mock expectations for failure
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_004_Gm2aie_NB_GetAddressFailure
+*		Function Name: AIEGraph::gm2aie
+*		Input:  buffer = {0}, len = 100
+*		Expectation: result == err_code::aie_driver_error
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(GmioApiImplTests, TC_004_Gm2aie_NB_GetAddressFailure) {
 	char buffer[100] = {0};
 	gmioconfig.type = abr::gmio_config::gm2aie;
-	mock_c()->expectOneCall("XAie_MemGetDevAddrFromVAddr")
-		->ignoreOtherParameters()
-		->andReturnIntValue(1);
-	mock_c()->expectOneCall("XAie_MemSyncForDevVAddr")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
+	XAieMem::s_get_dev_addr_ret = 1;
 
-	// ACT: Call the function under test
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
 	abr::err_code result = gmio->gm2aie_nb(buffer, 100);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by gm2aie_nb function: " << total_clock_enable_us << " microseconds" << std::endl;
 
-	// ASSERT: Verify error is returned
+	CHECK(result == err_code::aie_driver_error);
+}
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_005_Aie2gm_NB_Success
+*		Function Name: aeg::detail::OutputGMIO::aie2gm
+*		Input: buffer = {0}, len = 100
+*		Expectation: result == err_code::ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(GmioApiImplTests, TC_005_Aie2gm_NB_Success) {
+
+	char buffer[100] = {0};
+	gmioconfig.type = abr::gmio_config::aie2gm;
+
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	abr::err_code result = gmio->aie2gm_nb(buffer, 100);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by aie2gm_nb function: " << total_clock_enable_us << " microseconds" << std::endl;
+
+	CHECK(result == err_code::ok);
+}
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_006_Aie2gm_NB_GetAddressFailure
+*		Function Name: aeg::detail::OutputGMIO::aie2gm
+*		Input:  buffer = {0}, len = 100
+*		Expectation: result == err_code::aie_driver_error
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(GmioApiImplTests, TC_006_Aie2gm_NB_GetAddressFailure) {
+
+	char buffer[100] = {0};
+	gmioconfig.type = abr::gmio_config::aie2gm;
+	XAieMem::s_get_dev_addr_ret = 1;
+
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	abr::err_code result = gmio->aie2gm_nb(buffer, 100);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by aie2gm_nb function: " << total_clock_enable_us << " microseconds" << std::endl;
+
+	CHECK(result == err_code::aie_driver_error);
+}
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_007_Gm2aie_Success
+*		Function Name: AIEGraph::gm2aie
+*		Input: buffer = {0}, len = 100
+*		Expectation: result == err_code::ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(GmioApiImplTests, TC_007_Gm2aie_Success) {
+	char buffer[100] = {0};
+	gmioconfig.type = abr::gmio_config::gm2aie;
+
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	abr::err_code result = gmio->gm2aie(buffer, 100);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by gm2aie function: " << total_clock_enable_us << " microseconds" << std::endl;
+
+	CHECK(result == err_code::ok);
+}
+
+#if defined(__AIESIM__)
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_008_Aie2gm_Nb_SimQueueThenWait
+*		Function Name: GmioApiImpl::aie2gm_nb / wait
+*		Input: buffer = {0}, len = 100 under __AIESIM__, then wait(syncmode = true)
+*		Expectation: nb_result == err_code::ok, result == 0
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(GmioApiImplTests, TC_008_Aie2gm_Nb_SimQueueThenWait) {
+	char buffer[100] = {0};
+	gmioconfig.type = abr::gmio_config::aie2gm;
+
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	abr::err_code nb_result = gmio->aie2gm_nb(buffer, 100);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by aie2gm_nb function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK(nb_result == err_code::ok);
+
+	CHECK_EQUAL(0, gmio->wait(true));
+}
+#endif
+
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_009_GmioSyncNb_EnqueueBDFailure
+*		Function Name: GmioApiImpl::gmio_sync_nb
+*		Input: dir = GM2AIE, data = 0x1000, len = 100
+*		Expectation: result == err_code::aie_driver_error
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(GmioApiImplTests, TC_009_GmioSyncNb_EnqueueBDFailure) {
+	gmioconfig.type = abr::gmio_config::gm2aie;
+	auto local_api = std::make_shared<abr::gmio_api>(&gmioconfig);
+	CHECK(local_api->configure() == err_code::ok);
+	GmioApiImpl gmio(local_api, gmioconfig, mem, "test_gmio");
+
+	g_ut_externalbuffer_force_dma_enqueue_fail = 1;
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	abr::err_code result = gmio.gmio_sync_nb(AIE_GMIO_DIR::GM2AIE, 0x1000, 100);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by gmio_sync_nb function: " << total_clock_enable_us << " microseconds" << std::endl;
+	g_ut_externalbuffer_force_dma_enqueue_fail = 0;
+
 	CHECK(result == err_code::aie_driver_error);
 }
 
-/**
- * @brief TC_005: Verify aie2gm_nb() works correctly with valid parameters
- *
- * This test verifies that the non-blocking AIE2GM transfer function successfully
- * transfers data from AI Engine to global memory with valid parameters.
- */
-TEST(GmioApiImplTests, TC_005_Aie2gm_NB_Success)
-{
-	// ARRANGE: Setup buffer and configure API first
-	char buffer[100] = {0};
-	gmioconfig.type = abr::gmio_config::aie2gm;
-
-	// Setup DMA configuration mocks
-	u8 FirstCallOutput = 1;
-	mock_c()->expectOneCall("XAie_DmaDescInit")
-		->withPointerParameters("DevInst", &devInst)
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	mock_c()->expectOneCall("XAie_DmaChannelEnable")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	mock_c()->expectOneCall("XAie_DmaGetMaxQueueSize")
-		->withOutputParameterOfTypeReturning("u8", "QueueSize", &FirstCallOutput)
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	mock_c()->expectOneCall("XAie_DmaSetAxi")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-
-	// Configure API
-	abr::err_code res = api->configure();
-	CHECK_EQUAL((int)abr::err_code::ok, (int)res);
-
-	// Setup mocks for aie2gm_nb call
-	mock_c()->expectOneCall("XAie_MemGetDevAddrFromVAddr")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	mock_c()->expectOneCall("XAie_MemSyncForDevVAddr")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-
-	// Setup BD programming mocks for gmio_sync_nb
-	mock_c()->expectOneCall("XAie_DmaSetAddrLen")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	mock_c()->expectOneCall("XAie_DmaSetLock")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	mock_c()->expectOneCall("XAie_DmaEnableBd")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	mock_c()->expectOneCall("XAie_DmaWriteBd")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	mock_c()->expectOneCall("XAie_DmaChannelPushBdToQueue")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-
-	// ACT: Call the function under test
-	abr::err_code result = gmio->aie2gm_nb(buffer, 100);
-
-	// ASSERT: Verify result
-	CHECK(result == err_code::ok);
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_010_Wait_NonBlockingFailure
+*		Function Name: GmioApiImpl::wait
+*		Input: syncmode = false
+*		Expectation: result == static_cast<int>(err_code::resource_unavailable)
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(GmioApiImplTests, TC_010_Wait_NonBlockingFailure) {
+	g_ut_gmio_wait_nb_fail = 1;
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	int result = gmio->wait(false);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by wait function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_EQUAL(static_cast<int>(err_code::resource_unavailable), result);
+	g_ut_gmio_wait_nb_fail = 0;
 }
-/**
- * @brief TC_006: Verify aie2gm_nb() handles memory address retrieval failure
- *
- * This test verifies that the non-blocking AIE2GM transfer function properly handles
- * failures when XAie_MemGetDevAddrFromVAddr returns an error.
- */
-TEST(GmioApiImplTests, TC_006_Aie2gm_NB_GetAddressFailure)
-{
-	// ARRANGE: Setup buffer and mock expectations for failure
-	char buffer[100] = {0};
-	gmioconfig.type = abr::gmio_config::aie2gm;
-	mock_c()->expectOneCall("XAie_MemGetDevAddrFromVAddr")
-		->ignoreOtherParameters()
-		->andReturnIntValue(1);
-	mock_c()->expectOneCall("XAie_MemSyncForDevVAddr")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
+/*********************************************************************************/
+/*
+*		Unique test case ID: TC_011_GmioSyncNb_NotConfigured
+*		Function Name: GmioApiImpl::gmio_sync_nb
+*		Input: dir = GM2AIE, data = 0x1000, len = 100
+*		Expectation: result == err_code::internal_error
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(GmioApiImplTests, TC_011_GmioSyncNb_NotConfigured) {
+	gmioconfig.type = abr::gmio_config::gm2aie;
+	auto unconfigured_api = std::make_shared<abr::gmio_api>(&gmioconfig);
+	GmioApiImpl gmio(unconfigured_api, gmioconfig, mem, "test_gmio");
 
-	// ACT: Call the function under test
-	abr::err_code result = gmio->aie2gm_nb(buffer, 100);
-
-	// ASSERT: Verify error is returned
-	CHECK(result == err_code::aie_driver_error);
-}
-/**
- * @brief TC_007: Verify aie2gm_nb() handles memory sync failure
- *
- * This test verifies that the non-blocking AIE2GM transfer function properly handles
- * failures when XAie_MemSyncForDevVAddr returns an error.
- */
-TEST(GmioApiImplTests, TC_007_Aie2gm_NB_SyncFailure)
-{
-	// ARRANGE: Setup buffer and mock expectations for sync failure
-	char buffer[100] = {0};
-	gmioconfig.type = abr::gmio_config::aie2gm;
-	mock_c()->expectOneCall("XAie_MemGetDevAddrFromVAddr")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	mock_c()->expectOneCall("XAie_MemSyncForDevVAddr")
-		->ignoreOtherParameters()
-		->andReturnIntValue(1);
-
-	// ACT: Call the function under test
-	abr::err_code result = gmio->aie2gm_nb(buffer, 100);
-
-	// ASSERT: Verify error is returned
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	abr::err_code result = gmio.gmio_sync_nb(AIE_GMIO_DIR::GM2AIE, 0x1000, 100);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by gmio_sync_nb function: " << total_clock_enable_us << " microseconds" << std::endl;
 	CHECK(result == err_code::internal_error);
 }
 
-/**
- * @brief TC_008: Verify gm2aie() works correctly with successful operations
- *
- * This test verifies that the blocking GM2AIE transfer function successfully transfers
- * data from global memory to AI Engine when both gm2aie_nb() and wait() succeed.
- */
-TEST(GmioApiImplTests, TC_008_Gm2aie_Success)
-{
-	// ARRANGE: Setup buffer and mock expectations
-	char buffer[100] = {0};
-	gmioconfig.type = abr::gmio_config::gm2aie;
-	mock_c()->expectOneCall("XAie_MemGetDevAddrFromVAddr")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	mock_c()->expectOneCall("XAie_MemSyncForDevVAddr")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-
-	// ACT: Call the function under test
-	abr::err_code result = gmio->gm2aie(buffer, 100);
-
-	// ASSERT: Verify result
-	CHECK(result == err_code::ok);
-}
-
-/**
- * @brief Test group for GmioApiImpl synchronization tests
- *
- * This test group verifies the synchronization functionality of the GmioApiImpl class,
- * including gmio_sync_nb() operations in different directions and aie2gm() blocking transfers.
- */
-TEST_GROUP(GmioApiImplsyncTests)
-{
-	// Test fixtures
+TEST_GROUP(GmioApiImplsyncTests) {
 	std::shared_ptr<abr::gmio_api> api;
 	std::shared_ptr<XAieMem> mem;
 	abr::gmio_config gmioconfig;
 	XAie_DevInst devInst;
 
-	/**
-	 * @brief Set up test fixtures before each test
-	 *
-	 * Initializes the device instance, GMIO configuration, and sets up custom
-	 * comparators and copiers for mocking.
-	 */
-	void setup()
-	{
-		// Setup device and config
+	void setup() {
 		devInst.DevProp.DevGen = XAIE_DEV_GEN_AIEML + 1;
-		abr::config_manager::s_pDevInst = &devInst;
-		abr::config_manager::s_bInitialized = true;
 		gmioconfig.name = "gradf.in";
 		gmioconfig.id = 1;
 		gmioconfig.name = "test_gmio";
@@ -375,312 +431,319 @@ TEST_GROUP(GmioApiImplsyncTests)
 		mock_c()->installCopier("u8", u8Copier);
 		mock_c()->installComparator("XAie_Lock", XAie_LockComparator, XAie_LockToString);
 		mem = std::make_shared<XAieMem>(&devInst);
+		XAieMem::reset_test_state();
 	}
 
-	/**
-	 * @brief Clean up test fixtures after each test
-	 *
-	 * Removes comparators and copiers, resets memory, clears mock expectations,
-	 * and validates that all expectations were met.
-	 */
-	void teardown()
-	{
+	void teardown() {
 		mock_c()->removeAllComparatorsAndCopiers();
 		mem.reset();
 		mock_c()->clear();
 		mock_c()->checkExpectations();
+		XAieMem::reset_test_state();
 	}
 };
-/**
- * @brief TC_009: Verify gmio_sync_nb() works correctly for AIE2GM direction
- *
- * This test verifies that the non-blocking synchronization function properly handles
- * transfers from AI Engine to global memory (AIE2GM direction).
- */
-TEST(GmioApiImplsyncTests, TC_009_GmioSyncNb_AIE2GM_Success)
-{
-	// ARRANGE: Setup GMIO config and test location
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_001_GmioSyncNb_AIE2GM_Success
+*		Function Name: GmioApiImpl::gmio_sync_nb
+*		Input: dir = AIE_GMIO_DIR::AIE2GM, data = 0x1000, len = 100
+*		Expectation: result == err_code::ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(GmioApiImplsyncTests, TC_001_GmioSyncNb_AIE2GM_Success) {
+
 	gmioconfig.type = abr::gmio_config::gm2aie;
 	api = std::make_shared<abr::gmio_api>(&gmioconfig);
-	XAie_LocType testLoc;
-	testLoc.Col = 0;
-	testLoc.Row = 0;
-
-	// Setup DMA mocks
-	u8 FirstCallOutput = 1;
-	u8 secondCallOutput = 2;
-	mock_c()->expectOneCall("XAie_DmaDescInit")
-		->withPointerParameters("DevInst", &devInst)
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-
-	mock_c()->expectOneCall("XAie_DmaChannelEnable")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-
-	mock_c()->expectOneCall("XAie_DmaGetMaxQueueSize")
-		->withOutputParameterOfTypeReturning("u8", "QueueSize", &FirstCallOutput)
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-
-	mock_c()->expectOneCall("XAie_DmaSetAxi")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-
-	// Configure API
 	abr::err_code res = api->configure();
 	CHECK_EQUAL((int)abr::err_code::ok, (int)res);
 
-	// Setup BD mocks
-	mock_c()->expectOneCall("XAie_DmaSetAddrLen")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	mock_c()->expectOneCall("XAie_DmaSetLock")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	mock_c()->expectOneCall("XAie_DmaEnableBd")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	mock_c()->expectOneCall("XAie_DmaWriteBd")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	mock_c()->expectOneCall("XAie_DmaChannelPushBdToQueue")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-
 	GmioApiImpl gmio(api, gmioconfig, mem, "test_gmio");
 
-	// ACT: Call the function under test
-	abr::err_code result = gmio.gmio_sync_nb(AIE2GM, 0x1000, 100);
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	abr::err_code result = gmio.gmio_sync_nb(AIE_GMIO_DIR::AIE2GM, 0x1000, 100);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by gmio_sync_nb function: " << total_clock_enable_us << " microseconds" << std::endl;
 
-	// ASSERT: Verify result
 	CHECK(result == err_code::ok);
-	abr::config_manager::s_pDevInst = nullptr;
-	abr::config_manager::s_bInitialized = false;
 	mock_c()->checkExpectations();
 }
-/**
- * @brief TC_010: Verify gmio_sync_nb() works correctly for GM2AIE direction
- *
- * This test verifies that the non-blocking synchronization function properly handles
- * transfers from global memory to AI Engine (GM2AIE direction).
- */
-TEST(GmioApiImplsyncTests, TC_010_GmioSyncNb_GM2AIE_Success)
-{
-	// ARRANGE: Setup GMIO config and test location
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_002_GmioSyncNb_GM2AIE_Success
+*		Function Name: GmioApiImpl::gmio_sync_nb
+*		Input: dir = AIE_GMIO_DIR::GM2AIE, data = 0x1000, len = 100
+*		Expectation: result == err_code::ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(GmioApiImplsyncTests, TC_002_GmioSyncNb_GM2AIE_Success) {
 	gmioconfig.type = abr::gmio_config::aie2gm;
 	api = std::make_shared<abr::gmio_api>(&gmioconfig);
-	XAie_LocType testLoc;
-	testLoc.Col = 0;
-	testLoc.Row = 0;
-
-	// Setup DMA mocks
-	u8 FirstCallOutput = 1;
-	u8 secondCallOutput = 2;
-	mock_c()->expectOneCall("XAie_DmaDescInit")
-		->withPointerParameters("DevInst", &devInst)
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-
-	mock_c()->expectOneCall("XAie_DmaChannelEnable")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-
-	mock_c()->expectOneCall("XAie_DmaGetMaxQueueSize")
-		->withOutputParameterOfTypeReturning("u8", "QueueSize", &FirstCallOutput)
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-
-	mock_c()->expectOneCall("XAie_DmaSetAxi")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-
-	// Configure API
 	abr::err_code res = api->configure();
 	CHECK_EQUAL((int)abr::err_code::ok, (int)res);
 
-	// Setup BD mocks
-	mock_c()->expectOneCall("XAie_DmaSetAddrLen")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	mock_c()->expectOneCall("XAie_DmaSetLock")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	mock_c()->expectOneCall("XAie_DmaEnableBd")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	mock_c()->expectOneCall("XAie_DmaWriteBd")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	mock_c()->expectOneCall("XAie_DmaChannelPushBdToQueue")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-
 	GmioApiImpl gmio(api, gmioconfig, mem, "test_gmio");
 
-	// ACT: Call the function under test
-	abr::err_code result = gmio.gmio_sync_nb(GM2AIE, 0x1000, 100);
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	abr::err_code result = gmio.gmio_sync_nb(AIE_GMIO_DIR::GM2AIE, 0x1000, 100);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by gmio_sync_nb function: " << total_clock_enable_us << " microseconds" << std::endl;
 
-	// ASSERT: Verify result
 	CHECK(result == err_code::ok);
-	abr::config_manager::s_pDevInst = nullptr;
-	abr::config_manager::s_bInitialized = false;
 	mock_c()->checkExpectations();
 }
-/**
- * @brief TC_011: Verify gmio_sync_nb() handles invalid direction
- *
- * This test verifies that the non-blocking synchronization function properly handles
- * an invalid direction parameter.
- */
-TEST(GmioApiImplsyncTests, TC_011_GmioSyncNb_InvalidDirection)
-{
-	// ARRANGE: Setup GMIO config and test location
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_003_GmioSyncNb_InvalidDirection
+*		Function Name: GmioApiImpl::gmio_sync_nb
+*		Input: dir = static_cast<AIE_GMIO_DIR>(99), data = 0x1000, len = 100
+*		Expectation: result == err_code::ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(GmioApiImplsyncTests, TC_003_GmioSyncNb_InvalidDirection) {
 	gmioconfig.type = abr::gmio_config::gm2aie;
 	api = std::make_shared<abr::gmio_api>(&gmioconfig);
-	XAie_LocType testLoc;
-	testLoc.Col = 0;
-	testLoc.Row = 0;
-
-	// Setup DMA mocks
-	u8 FirstCallOutput = 1;
-	u8 secondCallOutput = 2;
-	mock_c()->expectOneCall("XAie_DmaDescInit")
-		->withPointerParameters("DevInst", &devInst)
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-
-	mock_c()->expectOneCall("XAie_DmaChannelEnable")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-
-	mock_c()->expectOneCall("XAie_DmaGetMaxQueueSize")
-		->withOutputParameterOfTypeReturning("u8", "QueueSize", &FirstCallOutput)
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-
-	mock_c()->expectOneCall("XAie_DmaSetAxi")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-
-	// Configure API
 	abr::err_code res = api->configure();
 	CHECK_EQUAL((int)abr::err_code::ok, (int)res);
 
-	// Setup BD mocks
-	mock_c()->expectOneCall("XAie_DmaSetAddrLen")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	mock_c()->expectOneCall("XAie_DmaSetLock")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	mock_c()->expectOneCall("XAie_DmaEnableBd")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	mock_c()->expectOneCall("XAie_DmaWriteBd")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	mock_c()->expectOneCall("XAie_DmaChannelPushBdToQueue")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-
 	GmioApiImpl gmio(api, gmioconfig, mem, "test_gmio");
 
-	// ACT: Call the function under test with invalid direction
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
 	abr::err_code result = gmio.gmio_sync_nb(static_cast<AIE_GMIO_DIR>(99), 0x1000, 100);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by gmio_sync_nb function: " << total_clock_enable_us << " microseconds" << std::endl;
 
-	// ASSERT: Verify result
 	CHECK(result == err_code::ok);
-	abr::config_manager::s_pDevInst = nullptr;
-	abr::config_manager::s_bInitialized = false;
 	mock_c()->checkExpectations();
 }
-/**
- * @brief TC_012: Verify aie2gm() handles successful transfer
- *
- * This test verifies that the blocking AIE2GM transfer function successfully transfers
- * data from AI Engine to global memory.
- */
-TEST(GmioApiImplsyncTests, TC_012_Aie2gm_Success)
-{
-	// ARRANGE: Setup buffer and memory mocks
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_004_Aie2gm_Success
+*		Function Name: aeg::detail::OutputGMIO::aie2gm
+*		Input: buffer = {0}, len = 100
+*		Expectation: result == err_code::ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(GmioApiImplsyncTests, TC_004_Aie2gm_Success) {
 	char buffer[100] = {0};
-	mock_c()->expectOneCall("XAie_MemGetDevAddrFromVAddr")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-#ifndef __AIESIM__
-	mock_c()->expectOneCall("XAie_MemSyncForDevVAddr")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-#endif
 
-	// Setup GMIO config and API
 	gmioconfig.type = abr::gmio_config::gm2aie;
 	api = std::make_shared<abr::gmio_api>(&gmioconfig);
-	XAie_LocType testLoc;
-	testLoc.Col = 0;
-	testLoc.Row = 0;
-
-	// Setup DMA mocks
-	u8 FirstCallOutput = 1;
-	u8 secondCallOutput = 2;
-	mock_c()->expectOneCall("XAie_DmaDescInit")
-		->withPointerParameters("DevInst", &devInst)
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-
-	mock_c()->expectOneCall("XAie_DmaChannelEnable")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-
-	mock_c()->expectOneCall("XAie_DmaGetMaxQueueSize")
-		->withOutputParameterOfTypeReturning("u8", "QueueSize", &FirstCallOutput)
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-
-	mock_c()->expectOneCall("XAie_DmaSetAxi")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-
-	// Configure API
 	abr::err_code res = api->configure();
 	CHECK_EQUAL((int)abr::err_code::ok, (int)res);
 
-	// Setup BD mocks
-	mock_c()->expectOneCall("XAie_DmaSetAddrLen")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	mock_c()->expectOneCall("XAie_DmaSetLock")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	mock_c()->expectOneCall("XAie_DmaEnableBd")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	mock_c()->expectOneCall("XAie_DmaWriteBd")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-	mock_c()->expectOneCall("XAie_DmaChannelPushBdToQueue")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
+	GmioApiImpl gmio(api, gmioconfig, mem, "test_gmio");
+
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	abr::err_code result = gmio.aie2gm(buffer, 100);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by aie2gm function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK(result == err_code::ok);
+	mock_c()->checkExpectations();
+}
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_005_Aie2gm_GetAddressFailure
+*		Function Name: aeg::detail::OutputGMIO::aie2gm
+*		Input: buffer = {0}, len = 100
+*		Expectation: result == err_code::aie_driver_error
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(GmioApiImplsyncTests, TC_005_Aie2gm_GetAddressFailure) {
+	char buffer[100] = {0};
+	XAieMem::s_get_dev_addr_ret = 1;
+
+	gmioconfig.type = abr::gmio_config::gm2aie;
+	api = std::make_shared<abr::gmio_api>(&gmioconfig);
+	abr::err_code res = api->configure();
+	CHECK_EQUAL((int)abr::err_code::ok, (int)res);
 
 	GmioApiImpl gmio(api, gmioconfig, mem, "test_gmio");
 
-	// Setup wait mocks
-	mock_c()->expectOneCall("XAie_DmaWaitForDone")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-#ifdef __AIESIM__
-	mock_c()->expectOneCall("XAie_MemSyncForCPUVAddr")
-		->ignoreOtherParameters()
-		->andReturnIntValue(XAIE_OK);
-#endif
-
-	// ACT: Call the function under test
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
 	abr::err_code result = gmio.aie2gm(buffer, 100);
-
-	// ASSERT: Verify result
-	CHECK(result == err_code::ok);
-	abr::config_manager::s_pDevInst = nullptr;
-	abr::config_manager::s_bInitialized = false;
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by aie2gm function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK(result == err_code::aie_driver_error);
 	mock_c()->checkExpectations();
 }
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_006_Gm2aie_GetAddressFailure
+*		Function Name: AIEGraph::gm2aie
+*		Input: buffer = {0}, len = 100
+*		Expectation: result == err_code::aie_driver_error
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(GmioApiImplsyncTests, TC_006_Gm2aie_GetAddressFailure) {
+	char buffer[100] = {0};
+	XAieMem::s_get_dev_addr_ret = 1;
+
+	gmioconfig.type = abr::gmio_config::gm2aie;
+	api = std::make_shared<abr::gmio_api>(&gmioconfig);
+	abr::err_code res = api->configure();
+	CHECK_EQUAL((int)abr::err_code::ok, (int)res);
+
+	GmioApiImpl gmio(api, gmioconfig, mem, "test_gmio");
+
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	abr::err_code result = gmio.gm2aie(buffer, 100);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by gm2aie function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK(result == err_code::aie_driver_error);
+	mock_c()->checkExpectations();
+}
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_007_GmioSyncNb_AIE2GM_MatchingType
+*		Function Name: GmioApiImpl::gmio_sync_nb
+*		Input: dir = AIE_GMIO_DIR::AIE2GM, data = 0x1000, len = 100
+*		Expectation: result == err_code::ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(GmioApiImplsyncTests, TC_007_GmioSyncNb_AIE2GM_MatchingType) {
+	gmioconfig.type = abr::gmio_config::aie2gm;
+	api = std::make_shared<abr::gmio_api>(&gmioconfig);
+	abr::err_code res = api->configure();
+	CHECK_EQUAL((int)abr::err_code::ok, (int)res);
+
+	GmioApiImpl gmio(api, gmioconfig, mem, "test_gmio");
+
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	abr::err_code result = gmio.gmio_sync_nb(AIE_GMIO_DIR::AIE2GM, 0x1000, 100);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by gmio_sync_nb function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK(result == err_code::ok);
+	mock_c()->checkExpectations();
+}
+
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_008_GmioSyncNb_TypeMismatch_Gm2aieDir
+*		Function Name: GmioApiImpl::gmio_sync_nb
+*		Input: dir = GM2AIE, data = 0x1000, len = 100
+*		Expectation: result == err_code::ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(GmioApiImplsyncTests, TC_008_GmioSyncNb_TypeMismatch_Gm2aieDir) {
+	gmioconfig.type = abr::gmio_config::aie2gm;
+	api = std::make_shared<abr::gmio_api>(&gmioconfig);
+	CHECK_EQUAL(static_cast<int>(abr::err_code::ok), static_cast<int>(api->configure()));
+
+	GmioApiImpl gmio_sync(api, gmioconfig, mem, "test_gmio");
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	abr::err_code result = gmio_sync.gmio_sync_nb(AIE_GMIO_DIR::GM2AIE, 0x1000, 100);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by gmio_sync_nb function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK(result == err_code::ok);
+}
+
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_009_Aie2gm_Nb_EnqueueBDFailure
+*		Function Name: GmioApiImpl::aie2gm_nb
+*		Input: buffer = {0}, len = 100
+*		Expectation: result == err_code::aie_driver_error
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(GmioApiImplsyncTests, TC_009_Aie2gm_Nb_EnqueueBDFailure) {
+	char buffer[100] = {0};
+	gmioconfig.type = abr::gmio_config::aie2gm;
+	api = std::make_shared<abr::gmio_api>(&gmioconfig);
+	CHECK_EQUAL(static_cast<int>(abr::err_code::ok), static_cast<int>(api->configure()));
+
+	GmioApiImpl gmio_sync(api, gmioconfig, mem, "test_gmio");
+	g_ut_externalbuffer_force_dma_enqueue_fail = 1;
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	abr::err_code result = gmio_sync.aie2gm_nb(buffer, 100);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by aie2gm_nb function: " << total_clock_enable_us << " microseconds" << std::endl;
+	g_ut_externalbuffer_force_dma_enqueue_fail = 0;
+	CHECK(result == err_code::aie_driver_error);
+}
+
+/*@section Test Execution details
+| Test Case ID                             | Test Result | CR  | Impact | Test Details |
+|------------------------------------------|-------------|-----|--------|--------------|
+| TC_001_ConstructorInitialization         | PASS        | No  | NA     | NA           |
+| TC_002_WaitCallsGmioApiWait              | PASS        | No  | NA     | NA           |
+| TC_003_Gm2aie_NB_Success                 | PASS        | No  | NA     | NA           |
+| TC_004_Gm2aie_NB_GetAddressFailure       | PASS        | No  | NA     | NA           |
+| TC_005_Aie2gm_NB_Success                 | PASS        | No  | NA     | NA           |
+| TC_006_Aie2gm_NB_GetAddressFailure       | PASS        | No  | NA     | NA           |
+| TC_007_Gm2aie_Success                    | PASS        | No  | NA     | NA           |
+| TC_008_Aie2gm_Nb_SimQueueThenWait        | PASS        | No  | NA     | NA           |
+| TC_009_GmioSyncNb_EnqueueBDFailure       | PASS        | No  | NA     | NA           |
+| TC_010_Wait_NonBlockingFailure           | PASS        | No  | NA     | NA           |
+| TC_011_GmioSyncNb_NotConfigured          | PASS        | No  | NA     | NA           |
+| TC_001_GmioSyncNb_AIE2GM_Success         | PASS        | No  | NA     | NA           |
+| TC_002_GmioSyncNb_GM2AIE_Success         | PASS        | No  | NA     | NA           |
+| TC_003_GmioSyncNb_InvalidDirection       | PASS        | No  | NA     | NA           |
+| TC_004_Aie2gm_Success                    | PASS        | No  | NA     | NA           |
+| TC_005_Aie2gm_GetAddressFailure          | PASS        | No  | NA     | NA           |
+| TC_006_Gm2aie_GetAddressFailure          | PASS        | No  | NA     | NA           |
+| TC_007_GmioSyncNb_AIE2GM_MatchingType    | PASS        | No  | NA     | NA           |
+| TC_008_GmioSyncNb_TypeMismatch_Gm2aieDir | PASS        | No  | NA     | NA           |
+| TC_009_Aie2gm_Nb_EnqueueBDFailure        | PASS        | No  | NA     | NA           |
+
+/****Coverage Analysis*********/
+
+/*@section Coverage details
+
+| Coverage Type (Function Name)        | %      | Result     | CR/Status    | Impact          |
+|--------------------------------------|--------|------------|--------------|-----------------|
+| GmioApiImpl::GmioApiImpl             | <100>  | <Pass>     | <NA>         | No Impact       |
+| GmioApiImpl::wait                    | <100>  | <Pass>     | <NA>         | No Impact       |
+| GmioApiImpl::gm2aie_nb               | <100>  | <Pass>     | <NA>         | No Impact       |
+| GmioApiImpl::aie2gm_nb               | <100>  | <Pass>     | <NA>         | No Impact       |
+| GmioApiImpl::gm2aie                  | <100>  | <Pass>     | <NA>         | No Impact       |
+| GmioApiImpl::gmio_sync_nb            | <100>  | <Pass>     | <NA>         | No Impact       |
+| GmioApiImpl::aie2gm                  | <100>  | <Pass>     | <NA>         | No Impact       |
+| Total file coverage (overall)        | 100    | <Pass>     | <NA>         | No Impact       |
+
+/*@section Uncovered details*/
+/* No uncovered details */

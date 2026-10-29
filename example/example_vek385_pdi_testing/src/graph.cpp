@@ -1,18 +1,15 @@
 // Copyright (C) 2025 - 2026 Advanced Micro Devices, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-#include "aiebaremetal.h"
 #include <fstream>
 #include <xaiengine.h>
-#if defined(__AIESIM__) || defined(__ADF_FRONTEND__)
+#include "aiebaremetal.h"
+#include "aeg_platform.h"
+#if defined(__ADF_FRONTEND__)
 #include "graph.h"
 mygraph gradf;
 BaremetalGraphSim gr("gradf");
 #else
-#include "xil_cache.h"
-#include "xil_io.h"
-#include "xil_printf.h"
-#include "xparameters.h"
 BaremetalGraph gr("gradf");
 #endif
 
@@ -26,13 +23,9 @@ BaremetalGraph gr("gradf");
 
 int main() {
 
-#if defined(__AIESIM__) || defined(__ADF_FRONTEND__)
-    gradf.init();
-#else
+#if defined(AEG_HARDWARE)
     Xil_DCacheDisable();
     Xil_ICacheDisable();
-
-
 #endif
 
     gr.init();

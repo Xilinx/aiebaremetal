@@ -20,5 +20,5 @@ fi
 
 echo ${AIE_GEN}
 #set this is is local env
-source ../../script/settings.sh 1
+source ../../../script/settings.sh 1
 compile.sh --runtime_source_file ./src/graph.cpp --aie_version ${AIE_GEN} ${RPUFLAG} ${BOOTGEN}

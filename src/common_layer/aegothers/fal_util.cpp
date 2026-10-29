@@ -16,32 +16,44 @@
  */
 
 #include "fal_util.h"
-
+namespace fal {
 std::shared_ptr<xaiefal::XAieDev> fal_util::s_pXAieDev;
 
 bool fal_util::initialize(XAie_DevInst *pDevInst) {
     if (!pDevInst)
+    {
         return false;
+    }
     s_pXAieDev = std::make_shared<xaiefal::XAieDev>(pDevInst);
     return true;
 }
 
-int fal_util::request(std::shared_ptr<xaiefal::XAieRsc> pResource) {
+int32_t fal_util::request(std::shared_ptr<xaiefal::XAieRsc> pResource) {
     if (!pResource)
+    {
         return -1;
-
-    int xaiefalStatus = AieRC::XAIE_OK;
+    }
     if (auto pBroadcastRsc = std::dynamic_pointer_cast<xaiefal::XAieBroadcast>(pResource)) {
-        xaiefalStatus = pBroadcastRsc->reserve(); // Will return error if already reserved
-        return (xaiefalStatus == AieRC::XAIE_OK ? pBroadcastRsc->getBc() : -1);
+        const auto xaiefalStatus = pBroadcastRsc->reserve(); // Will return error if already reserved
+        if (xaiefalStatus == AieRC::XAIE_OK) {
+            return pBroadcastRsc->getBc();
+        }
+        return -1;
     } else if (auto pSingleTileRsc = std::dynamic_pointer_cast<xaiefal::XAieSingleTileRsc>(pResource)) {
-        int id = -1;
+        int32_t id = -1;
+        uint32_t rsc_id = 0U;
         XAie_LocType loc;
-        XAie_ModuleType module;
-        xaiefalStatus = pSingleTileRsc->reserve(); // Will return error if already reserved
-        if (xaiefalStatus == AieRC::XAIE_OK)
-            xaiefalStatus = pSingleTileRsc->getRscId(loc, module, (uint32_t &)id);
-        return (xaiefalStatus == AieRC::XAIE_OK ? id : -1);
+        XAie_ModuleType module{};
+        auto xaiefalStatus = pSingleTileRsc->reserve(); // Will return error if already reserved
+        if (xaiefalStatus == AieRC::XAIE_OK) {
+            xaiefalStatus = pSingleTileRsc->getRscId(loc, module, rsc_id);
+        }
+        if (xaiefalStatus == AieRC::XAIE_OK) {
+            id = static_cast<int32_t>(rsc_id);
+        }
+        return id;
+    } else {
+        /* No matching resource type - fall through to default return */
     }
 
     return -1;
@@ -49,8 +61,10 @@ int fal_util::request(std::shared_ptr<xaiefal::XAieRsc> pResource) {
 
 bool fal_util::release(std::shared_ptr<xaiefal::XAieRsc> pResource) {
     if (!pResource)
+    {
         return false;
-    int xaiefalStatus = AieRC::XAIE_OK;
-    xaiefalStatus |= pResource->release(); // If resource is not reserved, release() will not error out
+    }
+    const auto xaiefalStatus = pResource->release(); // If resource is not reserved, release() will not error out
     return (xaiefalStatus == AieRC::XAIE_OK);
 }
+} // namespace fal

@@ -4,6 +4,10 @@ AIE_GEN                ?= 1
 #this will enable aie-rt debug
 #ENABLE_AIE_RT_DEBUG = -DXAIE_DEBUG
 #ENABLE_AIE_DEBUG_BACKEND = -D_AIEDEBUG_
+# Set via compile.sh's -fusa flag to compile aie-rt with -DXAIE_FEATURE_FUSA_LIBC
+# (GCC, no armclang/real FuSa library).
+XAIE_FUSA_FLAG         ?=
+VERSION                ?= 2026.1
 ARCH_APU_A72_ARC_PATH  ?= ../thirdparty/arch/ps/psv_cortexa72_0/
 ARCH_APU_A72_ARC_DIC   ?= $(ARCH_APU_A72_ARC_PATH)/include
 ARCH_APU_A72_ARC_LIB   ?= $(ARCH_APU_A72_ARC_PATH)/lib
@@ -36,10 +40,10 @@ AIE_COMPILE_WORK       ?= $(AIE_KERNEL_LOC)/Work/
 AIE_KERNEL_BUILD        = aiekernel
 #PETALINUX_PATH         ?= /proj/petalinux/2023.2/petalinux-v2023.2_daily_latest/tool/petalinux-v2023.2-final/
 #PETALINUX_PATH         ?= /proj/petalinux/2025.1/petalinux-v2025.1_daily_latest/tool/petalinux-v2025.1-final/
-PETALINUX_PATH         ?= /proj/petalinux/2025.2/petalinux-v2025.2_daily_latest/tool/petalinux-v2025.2-final/
+PETALINUX_PATH         ?= /proj/petalinux/$(VERSION)/petalinux-v$(VERSION)_daily_latest/tool/petalinux-v$(VERSION)-final/
 INCLUDE                 = $(AIE_DRIVER)/internal
 INCLUDE_XAIE            = $(AIE_DRIVER_PARENT_DIC)/include/
-INCLUDE_AIETOOLS        = /proj/xbuilds/HEAD_qualified_latest/installs/lin64/HEAD/Vitis/aietools/include
+INCLUDE_AIETOOLS        ?= $(XILINX_VITIS_AIETOOLS)/include
 #aie fal header
 AIEFAL_INCLUDE          = $(AIE_FAL)/src/
 AIEFAL_INCLUDE2          = $(AIE_FAL)/build/src/include/
@@ -65,6 +69,11 @@ EXTRA_CPPFLAGS         ?=
 CFLAGS                 := -Wall -Wextra -O0 -g -std=c++17 -D_BSD_SOURCE -D_DEFAULT_SOURCE -I$(AIE_BAREMETAL_INCLUDE) -I$(AIE_BAREMETAL_INC_COMMON) -I$(AIE_BAREMETAL_INC_COMMON_OTHER) -I$(INCLUDE) -I$(INCLUDE_XAIE) -I$(AIEFAL_INCLUDE) -I$(AIEFAL_INCLUDE2) -I$(INCLUDE_AIETOOLS) -DAIE_GEN=$(AIE_GEN) -I$(ARCH_INCLUDE) -I$(ELFIO_INCLUDE) -I$(ELFIO_INCLUDE2) -I$(CERT_HANDSHAKE_INCLUDE) -I$(CERT_API_INCLUDE) -DNO_JSON -fPIC $(EXTRA_CPPFLAGS)
 LDFLAGS                := -L$(LD_PATH) -L$(BUILD) $(ENABLE_AIE_RT_DEBUG)
 LDLIBS                 := -lxaiengine
+
+SIM_CFLAGS             := $(CFLAGS)
+SIM_LDFLAGS            := $(LDFLAGS)
+SIM_LDLIBS             := $(LDLIBS)
+SIM_LINK_INPUTS         = $^
 TESTLDLIBS             := -laiebaremetal -ldl $(LDLIBS)
 TESTSIMLDLIBS          := -ldl
 TEST_IS_LOCAL_MACRO    ?=
@@ -84,7 +93,8 @@ CERT_ELF       = $(CERT_DIR)/cert_ve2.elf
 
 TESTTARGET             := $(BUILD)/test
 TESTSIMTARGET          := $(BUILD)/testsim
-TARGET                 := $(BUILD)/libaiebaremetal.so
+TARGET                 := $(BUILD)/libaiebaremetal_sim.so
+TARGET_SIM_LINK        := $(BUILD)/libaiebaremetal.so
 
 AIE_CONTROL_JSON_PATH     ?= $(AIE_COMPILE_WORK)/ps/c_rts/
 AIE_CONTROL_JSON_FILE     = aie_control_config.json
@@ -101,6 +111,7 @@ SCSIM_CJSON_O           = $(BUILD)/scsimconfigjson.o
 
 AIE_METADATATOOL        = ../script/aiemetacpp.py
 AIE_BARMETALDATA        = $(BUILD)/baremetal_metadata.cpp
+PYTHON                  ?= $(or $(local_python),$(wildcard /usr/bin/python3),$(shell command -v python3))
 
 AIELIBAPU_ALIB         := ./build/libxaienginea72.a
 AIELIBAPU78_ALIB       := ./build/libxaienginea78.a
@@ -136,6 +147,13 @@ TEST_SRCS              := ./testut/test.c ./testut/main_rts.c
 TEST_SIM_SRCS          := ./testut/testsim.c ./testut/main_rts.c
 
 BUILD_DIR := build
+
+platform ?= baremetal
+ifeq ($(platform),linux)
+    APU_TOOL_PREFIX := aarch64-linux-gnu-
+else
+    APU_TOOL_PREFIX := aarch64-none-elf-
+endif
 
 #set the is local macro for test and testsim
 # ifeq ($(MAKECMDGOALS), $(TESTTARGET))
@@ -202,17 +220,21 @@ targetforce: cleanlib
 
 # the aiebaremetal.cc should enabled NO_JSON
 $(TARGET): $(OBJS_CC) $(OBJ_TEST_UC_C) $(OBJ_TEST_AIE_C) $(OBJS_CPP) $(AIE_BARMETALDATA)\
-					 $(AIELIB) $(SCSIM_CJSON_O) ${UCFIRM_O}
+					 $(AIELIB) ${UCFIRM_O}
 	echo "$(TARGET) build"
-	$(CC) $(CFLAGS) -D__AIESIM__ $(TEST_IS_LOCAL_MACRO) -shared -o $@ $^ $(LDFLAGS) $(LDLIBS)
+	$(CC) $(SIM_CFLAGS) -D__AIESIM__ $(TEST_IS_LOCAL_MACRO) -shared -o $@ $(SIM_LINK_INPUTS) $(SIM_LDFLAGS) $(SIM_LDLIBS)
+	ln -sf $(notdir $(TARGET)) $(TARGET_SIM_LINK)
 
-$(TARGETA72): $(AIELIBAPU_ALIB) $(SRCS_CC) $(SRCS_CPP) $(AIE_BARMETALDATA) 
-	bash -c "rm -f ../src/*.o;rm -f ../src/common_layer/*.o"
+$(TARGET_SIM_LINK): $(TARGET)
+	ln -sf $(notdir $(TARGET)) $@
+
+$(TARGETA72): $(AIELIBAPU_ALIB) $(SRCS_CC) $(SRCS_CPP) $(AIE_BARMETALDATA)
+	bash -c "rm -f ../src/*.o ../src/common_layer/*.o ../src/common_layer/aegothers/*.o ../src/ipc/*.o"
 	bash -c "source $(PETALINUX_PATH)/settings.sh;                          \
 	         make -f ../Makefile                                            \
-	          \"CC=aarch64-none-elf-gcc\"                             \
-	          \"AS=aarch64-none-elf-as\"                             \
-	          \"AR=aarch64-none-elf-ar\"                              \
+	          \"CC=$(APU_TOOL_PREFIX)gcc\"                             \
+	          \"AS=$(APU_TOOL_PREFIX)as\"                             \
+	          \"AR=$(APU_TOOL_PREFIX)ar\"                              \
 	          \"CFLAGS= -O2 -c $(CFLAGS)                            \
 	          			 -g -Wall -Wextra -Dversal -DARMA72_EL3 \
 	                                 -fno-tree-loop-distribute-patterns\"   \
@@ -222,13 +244,13 @@ $(TARGETA72): $(AIELIBAPU_ALIB) $(SRCS_CC) $(SRCS_CPP) $(AIE_BARMETALDATA)
 	          \"AIEMETASRC=$(AIE_BARMETALDATA)\""
 #	mv $(AIE_DRIVER_PARENT_DIC)/lib/libxil.a $(AIELIBAPU_ALIB)
 
-$(TARGETA78): $(AIELIBAPU78_ALIB) $(SRCS_CC) $(SRCS_CPP) $(AIE_BARMETALDATA) 
-	bash -c "rm -f ../src/*.o;rm -f ../src/common_layer/*.o"
+$(TARGETA78): $(AIELIBAPU78_ALIB) $(SRCS_CC) $(SRCS_CPP) $(AIE_BARMETALDATA)
+	bash -c "rm -f ../src/*.o ../src/common_layer/*.o ../src/common_layer/aegothers/*.o ../src/ipc/*.o"
 	bash -c "source $(PETALINUX_PATH)/settings.sh;                          \
 	         make a78 -f ../Makefile                                            \
-	          \"CC=aarch64-none-elf-gcc\"                             \
-	          \"AS=aarch64-none-elf-as\"                             \
-	          \"AR=aarch64-none-elf-ar\"                              \
+	          \"CC=$(APU_TOOL_PREFIX)gcc\"                             \
+	          \"AS=$(APU_TOOL_PREFIX)as\"                             \
+	          \"AR=$(APU_TOOL_PREFIX)ar\"                              \
 	          \"CFLAGS= -O2 -c $(CFLAGS)                            \
 	          			 -g -Wall -Wextra -Dversal -DARMA72_EL3 \
 	                                 -fno-tree-loop-distribute-patterns\"   \
@@ -239,7 +261,7 @@ $(TARGETA78): $(AIELIBAPU78_ALIB) $(SRCS_CC) $(SRCS_CPP) $(AIE_BARMETALDATA)
 #	mv $(AIE_DRIVER_PARENT_DIC)/lib/libxil.a $(AIELIBAPU_ALIB)
 
 $(TARGETR53): $(AIELIBRPU_ALIB) $(SRCS_CC) $(SRCS_CPP) $(AIE_BARMETALDATA)
-	bash -c "rm -f ../src/*.o;rm -f ../src/common_layer/*.o"
+	bash -c "rm -f ../src/*.o ../src/common_layer/*.o ../src/common_layer/aegothers/*.o ../src/ipc/*.o"
 	bash -c "source $(PETALINUX_PATH)/settings.sh;                          \
 	         make rpu -f ../Makefile                                            \
 	          \"CC=armr5-none-eabi-gcc\"                             \
@@ -256,7 +278,7 @@ $(TARGETR53): $(AIELIBRPU_ALIB) $(SRCS_CC) $(SRCS_CPP) $(AIE_BARMETALDATA)
 	          \"AIEMETASRC=$(AIE_BARMETALDATA)\""
 
 $(TARGETR52): $(AIELIBRPUR52_ALIB) $(SRCS_CC) $(SRCS_CPP) $(AIE_BARMETALDATA)
-	bash -c "rm -f ../src/*.o;rm -f ../src/common_layer/*.o"
+	bash -c "rm -f ../src/*.o ../src/common_layer/*.o ../src/common_layer/aegothers/*.o ../src/ipc/*.o"
 	bash -c "source $(PETALINUX_PATH)/settings.sh;                          \
 	         make rpu_r52 -f ../Makefile                                            \
 	          \"CC=armr5-none-eabi-gcc\"                             \
@@ -287,22 +309,22 @@ $(BUILD)/%.o: %.cpp
 	echo $(AIE_KERNEL_LOC)
 	echo $(MAKECMDGOALS)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) -D__AIESIM__ $(TEST_IS_LOCAL_MACRO) -c $< -o $@
+	$(CC) $(SIM_CFLAGS) -D__AIESIM__ $(TEST_IS_LOCAL_MACRO) -c $< -o $@
 
 $(BUILD)/%.o: %.cc
 	echo $(AIE_KERNEL_LOC)
 	echo $(MAKECMDGOALS)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) -D__AIESIM__ $(TEST_IS_LOCAL_MACRO) -c $< -o $@
+	$(CC) $(SIM_CFLAGS) -D__AIESIM__ $(TEST_IS_LOCAL_MACRO) -c $< -o $@
 
 $(BUILD)/%.o: %.c
 	echo $(MAKECMDGOALS)
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) -D__AIESIM__ $(TEST_IS_LOCAL_MACRO) -c $< -o $@
+	$(CC) $(SIM_CFLAGS) -D__AIESIM__ $(TEST_IS_LOCAL_MACRO) -c $< -o $@
 
 ${UCFIRM_O}: $(AIELIB)
 	bash -c "cd ./testuc/ucfirmware; source ./env.sh;make clean;make"
-	bash -c "cd ./testuc/ucfirmware/output; ld -EL -r -b binary -o ucfw_exe.o ./app.elf"
+	bash -c "cd ./testuc/ucfirmware/output; ld -EL -r -b binary -o ucfw_exe.o ./app.elf; objcopy --redefine-sym _binary___app_elf_start=binary_app_elf_start --redefine-sym _binary___app_elf_end=binary_app_elf_end --redefine-sym _binary___app_elf_size=binary_app_elf_size ucfw_exe.o"
 
 # src/cert_elf.cc is a dummy file initially. Do not build cert if .cc file is available. Uncomment
 # or rm src/cert_elf.cc to for build.
@@ -310,9 +332,11 @@ ${UCFIRM_O}: $(AIELIB)
 ${CERT_CC}:
 	bash -c "cd ../thirdparty/cert/main; LOG_LEVEL=LOG_LEVEL_INFO_CONSOLE make"
 	bash -c "cd $(CERT_DIR); cp ${CERT_ELF} cert.elf; xxd -i cert.elf ${CERT_CC}"
+	sed -i '1i#include <cstddef>' ${CERT_CC}
 
 ${CTRL_CODE_CC}:
 	bash -c "cd ../thirdparty/cert-elf-binaries/; cp ${CTRL_CODE_ELF} ctrl_code.elf; xxd -i ctrl_code.elf ${CTRL_CODE_CC}"
+	sed -i '1i#include <cstddef>' ${CTRL_CODE_CC}
 
 $(TARGET_LWIP): $(TARGET_LWIP_XTF)
 	cp $(TARGET_LWIP_XTF) $(TARGET_LWIP)
@@ -327,13 +351,14 @@ $(HW_LIB_XTF_ALL): $(TARGET_LWIP_XTF)
 #	bash -c "cd $(AIE_FAL); [ ! -d \"build\" ] && mkdir build; cd ./build; cmake ../ -DWITH_TESTS=OFF && make"
 
 $(AIELIB):
-#	make -C $(AIE_DRIVER)/src CFLAGS='$(ENABLE_AIE_RT_DEBUG) -g -D__AIELINUX__' -f Makefile.Linux
 	bash -c "cd $(AIE_FAL); [ ! -d \"build\" ] && mkdir build; cd ./build; cmake ../  -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DWITH_TESTS=OFF -DWITH_DOC=off && make"
 	bash -c "cd $(AIE_FAL)/src/;make include"
 	mkdir -p ./build
-#	make -C $(AIE_DRIVER)/src CFLAGS='$(ENABLE_AIE_RT_DEBUG) -D__AIESIM__ -g -I../../../include/' -f Makefile.Linux
-#	make -C $(AIE_DRIVER)/src CFLAGS='-D__AIESIM__ $(ENABLE_AIE_RT_DEBUG) -g -I../../../include/' -f Makefile.Linux
+ifeq ($(platform),linux)
+	bash -c "make -C $(AIE_DRIVER)/src CC=$(APU_TOOL_PREFIX)gcc CFLAGS='-Wall -g -Wextra --std=c11 -D__AIELINUX__ -I$(AIE_DRIVER)/../../../src/include/' -f Makefile.Linux"
+else
 	bash -c "make -C $(AIE_DRIVER)/src CC=gcc CXX=g++ CFLAGS='-D__AIESIM__ -g -std=c99 -I../../../../../src/include/' -f Makefile.Linux"
+endif
 	chmod +x ../script/aieldpath.sh
 	../script/aieldpath.sh
 
@@ -364,16 +389,16 @@ apuhw:  $(AIELIB)
 	bash -c "source $(PETALINUX_PATH)/settings.sh; cd $(AIE_DRIVER_PARENT_DIC); \
 	         make -C aie-rt/driver/src -s libs                                  \
 	          \"SHELL=/bin/sh\"                                                 \
-	          \"COMPILER=aarch64-none-elf-gcc\"                                 \
-	          \"ASSEMBLER=aarch64-none-elf-as\"                                 \
-	          \"ARCHIVER=aarch64-none-elf-ar\"                                  \
-	          \"COMPILER_FLAGS= -O2 -c $(ENABLE_AIE_RT_DEBUG) $(ENABLE_AIE_DEBUG_BACKEND) -DAIE_GEN=$(AIE_GEN)\"      \
-	          \"EXTRA_COMPILER_FLAGS=-g -Wall -Wextra -Dversal -DARMA72_EL3     \
+	          \"COMPILER=$(APU_TOOL_PREFIX)gcc\"                                 \
+	          \"ASSEMBLER=$(APU_TOOL_PREFIX)as\"                                 \
+	          \"ARCHIVER=$(APU_TOOL_PREFIX)ar\"                                  \
+	          \"COMPILER_FLAGS= -O2 -c $(ENABLE_AIE_RT_DEBUG) $(ENABLE_AIE_DEBUG_BACKEND) $(XAIE_FUSA_FLAG) -DAIE_GEN=$(AIE_GEN)\"      \
+	          \"EXTRA_COMPILER_FLAGS=$(EXTRA_COMPILER_FLAGS) -g -Wall -Wextra -Dversal -DARMA72_EL3     \
 	                                 -fno-tree-loop-distribute-patterns\";"
 	mv $(AIE_DRIVER_PARENT_DIC)/lib/libxil.a $(AIELIBAPU_ALIB)
 	bash -c "source $(PETALINUX_PATH)/settings.sh; \
 		cp $(ARCH_APU_A72_ARC_LIB)/origin/libxil.a $(ARCH_APU_A72_ARC_LIB)/libxil.a; \
-		(echo \"OPEN $(ARCH_APU_A72_ARC_LIB)/libxil.a\"; echo \"ADDLIB $(AIELIBAPU_ALIB)\"; echo \"SAVE\"; echo \"END\") | aarch64-none-elf-ar -M;"
+		(echo \"OPEN $(ARCH_APU_A72_ARC_LIB)/libxil.a\"; echo \"ADDLIB $(AIELIBAPU_ALIB)\"; echo \"SAVE\"; echo \"END\") | $(APU_TOOL_PREFIX)ar -M;"
 
 apu78hw:  $(AIELIB)
 	bash -c "make clean -C $(AIE_DRIVER_PARENT_DIC)/aie-rt/driver/src/"
@@ -385,16 +410,16 @@ apu78hw:  $(AIELIB)
 	bash -c "source $(PETALINUX_PATH)/settings.sh; cd $(AIE_DRIVER_PARENT_DIC); \
 	         make -C aie-rt/driver/src -s libs                                  \
 	          \"SHELL=/bin/sh\"                                                 \
-	          \"COMPILER=aarch64-none-elf-gcc\"                                 \
-	          \"ASSEMBLER=aarch64-none-elf-as\"                                 \
-	          \"ARCHIVER=aarch64-none-elf-ar\"                                  \
-	          \"COMPILER_FLAGS= -O2 -c -DXAIE_DEBUG -DAIE_GEN=$(AIE_GEN)\"      \
-	          \"EXTRA_COMPILER_FLAGS=-g -Wall -Wextra -Dversal -DARMA72_EL3     \
+	          \"COMPILER=$(APU_TOOL_PREFIX)gcc\"                                 \
+	          \"ASSEMBLER=$(APU_TOOL_PREFIX)as\"                                 \
+	          \"ARCHIVER=$(APU_TOOL_PREFIX)ar\"                                  \
+	          \"COMPILER_FLAGS= -O2 -c -DXAIE_DEBUG $(XAIE_FUSA_FLAG) -DAIE_GEN=$(AIE_GEN)\"      \
+	          \"EXTRA_COMPILER_FLAGS=$(EXTRA_COMPILER_FLAGS) -g -Wall -Wextra -Dversal -DARMA72_EL3     \
 	                                 -fno-tree-loop-distribute-patterns\";"
 	mv $(AIE_DRIVER_PARENT_DIC)/lib/libxil.a $(AIELIBAPU78_ALIB)
 	bash -c "source $(PETALINUX_PATH)/settings.sh;"
 #	cp $(ARCH_APU_A78_ARC_LIB)/origin/libxil.a $(ARCH_APU_A72_ARC_LIB)/libxil.a; \
-		(echo \"OPEN $(ARCH_APU_A78_ARC_LIB)/libxil.a\"; echo \"ADDLIB $(AIELIBAPU78_ALIB)\"; echo \"SAVE\"; echo \"END\") | aarch64-none-elf-ar -M;"
+		(echo \"OPEN $(ARCH_APU_A78_ARC_LIB)/libxil.a\"; echo \"ADDLIB $(AIELIBAPU78_ALIB)\"; echo \"SAVE\"; echo \"END\") | $(APU_TOOL_PREFIX)ar -M;"
 
 
 $(AIELIBRPU_ALIB): $(AIE_CONTROL_JSON)
@@ -416,7 +441,7 @@ rpuhw: $(AIELIB)
 	          \"COMPILER=armr5-none-eabi-gcc\"                                   \
 	          \"ASSEMBLER=armr5-none-eabi-as\"                                   \
 	          \"ARCHIVER=armr5-none-eabi-ar\"                                    \
-	          \"COMPILER_FLAGS= -D__AIEBAREMETAL__ $(ENABLE_AIE_DEBUG_BACKEND)   \
+	          \"COMPILER_FLAGS= -D__AIEBAREMETAL__ $(ENABLE_AIE_DEBUG_BACKEND) $(XAIE_FUSA_FLAG) \
 	                            -O2 -c -mcpu=cortex-r5 -DAIE_GEN=$(AIE_GEN)\"    \
 	          \"EXTRA_COMPILER_FLAGS=-g -DARMR5 -Wall -Wextra -mfloat-abi=hard   \
 	                                 -mfpu=vfpv3-d16                             \
@@ -440,7 +465,7 @@ rpuhw_r52: $(AIELIB)
 	          \"COMPILER=armr5-none-eabi-gcc\"                                   \
 	          \"ASSEMBLER=armr5-none-eabi-as\"                                   \
 	          \"ARCHIVER=armr5-none-eabi-ar\"                                    \
-	          \"COMPILER_FLAGS= -D__AIEBAREMETAL__ $(ENABLE_AIE_DEBUG_BACKEND)   \
+	          \"COMPILER_FLAGS= -D__AIEBAREMETAL__ $(ENABLE_AIE_DEBUG_BACKEND) $(XAIE_FUSA_FLAG) \
 	                            -O2 -c -mcpu=cortex-r52 -DAIE_GEN=$(AIE_GEN)	\
 				    -D_RPU_\"    \
 	          \"EXTRA_COMPILER_FLAGS=-g -DARMR5 -Wall -Wextra -mfloat-abi=hard   \
@@ -458,7 +483,7 @@ rpuexample: $(AIELIBRPU_ALIB)
 ####
 
 $(AIE_BARMETALDATA): $(AIE_CONTROL_JSON)
-	python3  $(AIE_METADATATOOL) $(AIE_CONTROL_JSON) $(AIE_PARTITION_JSON)
+	env -u PYTHONHOME -u PYTHONPATH $(PYTHON) $(AIE_METADATATOOL) $(AIE_CONTROL_JSON) $(AIE_PARTITION_JSON)
 	mv baremetal_metadata.cpp $(BUILD)/
 
 ####

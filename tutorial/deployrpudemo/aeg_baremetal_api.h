@@ -1,1 +1,0 @@
-../../src/include/aeg_baremetal_api.h

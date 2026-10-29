@@ -1,21 +1,12 @@
 // Copyright (C) 2025 - 2026 Advanced Micro Devices, Inc.
 // SPDX-License-Identifier: Apache-2.0
-#if (defined(__AIESIM__) || defined(__ADF_FRONTEND__))
+#include "aiebaremetal.h"
+#include "aeg_platform.h"
+#if defined(__ADF_FRONTEND__)
 #include "graph.h"
 mygraph gradf;
-#else
-#include "xil_cache.h"
-#include "xil_io.h"
-#include "xil_printf.h"
-
-#if __AIE_ARCH__ == 22
-#include "xiltimer.h"
-#else
-#include "xtime_l.h"
-#endif
 #endif
 
-#include "aiebaremetal.h"
 #include <fstream>
 #include <xaiengine.h>
 
@@ -29,22 +20,15 @@ AbrGraph gr("gradf");
 #define N 32
 
 #define P 12
-int main() {
+int main(int argc, char **argv) {
 
-#if defined(__AIESIM__) || defined(__ADF_FRONTEND__)
-    // std::cout << "gradf.a  =" << gradf.a << std::endl;
-    gradf.init();
-#else
+#if defined(AEG_HARDWARE)
     Xil_DCacheDisable();
     Xil_ICacheDisable();
-
-    // get time
-    XTime tStart, tEnd;
-
-    // init_platform();
-
-    XTime_GetTime(&tStart);
 #endif
+
+    XTime tStart, tEnd;
+    XTime_GetTime(&tStart);
 
     gr.init();
 
@@ -116,12 +100,9 @@ int main() {
 
     gr.end();
 
-#if !defined(__AIESIM__) && !defined(__ADF_FRONTEND__)
     XTime_GetTime(&tEnd);
-
     printf("Output took %llu clock cycles.\n", 2 * (tEnd - tStart));
     printf("Output took %.2f us.\n", 1.0 * (tEnd - tStart) / (COUNTS_PER_SECOND / 1000000));
-#endif
 
     for (int i = M; i < M + P; i++) {
         gr.free(inBOMap[i]);

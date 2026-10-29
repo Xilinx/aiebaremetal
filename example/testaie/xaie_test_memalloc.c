@@ -110,7 +110,7 @@ int xaie_test_memalloc(XAie_DevInst *DevInst)
 
 } /* extern "C" */
 
-static int xaie_test_memsync_vaddr(XAieMem &mem, void *addr, uint64_t size)
+static int xaie_test_memsync_vaddr(xaiemem::XAieMem &mem, void *addr, uint64_t size)
 {
 	u_int8_t *buf;
 	int ret = 420;
@@ -177,7 +177,7 @@ ret:
 
 int xaie_test_xaiemem(XAie_DevInst *DevInst)
 {
-	XAieMem mem(DevInst);
+	xaiemem::XAieMem mem(DevInst);
 	int ret;
 
 	aielog("xaie_test_xaiemem:\n");

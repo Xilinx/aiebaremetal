@@ -1,25 +1,20 @@
-#if (defined(__AIESIM__) || defined(__ADF_FRONTEND__))
+// Copyright (C) 2025 - 2026 Advanced Micro Devices, Inc.
+// SPDX-License-Identifier: Apache-2.0
+#include "aiebaremetal.h"
+#include "aeg_platform.h"
+#if defined(__ADF_FRONTEND__)
 #include "graph.h"
 myGraph gradf;
-#else
-#include "xil_printf.h"
-#include "xil_io.h"
-#include "xil_cache.h"
 #endif
 
 #include <fstream>
 #include <xaiengine.h>
-#include "aiebaremetal.h"
 
 
 AbrGraph gr("gradf");
 
 int main(int argc, char ** argv)
 {
-
-#if (defined(__AIESIM__) || defined(__ADF_FRONTEND__))
- gradf.init();
-#endif
 
 	gr.getaiedevinst();
 	gr.init();

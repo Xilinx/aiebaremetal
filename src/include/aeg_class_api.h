@@ -15,8 +15,8 @@
  * -->
  */
 
-#ifndef __AEG_CLASS_API_H__
-#define __AEG_CLASS_API_H__
+#ifndef AEG_CLASS_API_H
+#define AEG_CLASS_API_H
 
 #include "aeg_baremetal_api.h"
 #include "common_layer/aeg_api_config.h"
@@ -26,4 +26,4 @@
 #include "aeg_baremetal_graph_sim_base.h"
 #endif
 
-#endif // __AEG_CLASS_API_H__
+#endif // AEG_CLASS_API_H

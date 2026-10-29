@@ -22,8 +22,13 @@ OBJ="${1:-graph.o}"
 echo $OBJ
 _saved_argv=("$@")
 set --  # clears $1..$n for the current shell
-# Source the environment
-source /proj/petalinux/2023.2/petalinux-v2023.2_daily_latest/tool/petalinux-v2023.2-final/settings.sh
+_TUTORIAL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck disable=SC1091
+source "${_TUTORIAL_DIR}/vitis_env.sh"
+if ! command -v aarch64-none-elf-gcc &>/dev/null; then
+    echo "Error: aarch64-none-elf-gcc not found. Source Vitis settings64.sh first." >&2
+    exit 1
+fi
 
 # Sanity check
 if [[ ! -f "$OBJ" ]]; then

@@ -1,3 +1,5 @@
+; Copyright (C) 2025 - 2026 Advanced Micro Devices, Inc.
+; SPDX-License-Identifier: Apache-2.0
 .include test0.asm
 .include test1.asm
 .include test2.asm

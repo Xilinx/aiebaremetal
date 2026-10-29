@@ -6,9 +6,9 @@
 #ifndef XGEMM_CONFIG_H
 #define XGEMM_CONFIG_H
 
-#define _AIE_GEN1_ 10
-#define AIEML 20
-#define AIE2PS 22
+#define ARCH_AIE 10
+#define ARCH_AIEML 20
+#define ARCH_AIE2PS 22
 
 // #define _PALMYRA_
 
@@ -16,9 +16,9 @@
 //  Below configuration works for both APU and RPU
 #ifdef _APURPU_
 #define NUM_HW_COLS 30
-#if (__AIE_ARCH__ == AIE2PS)
+#if (__AIE_ARCH__ == ARCH_AIE2PS)
 #define NUM_HW_ROWS 4
-#else //(__AIE_ARCH__ == AIEML||_AIE_GEN1_)
+#else //(__AIE_ARCH__ == ARCH_AIEML||ARCH_AIE)
 #define NUM_HW_ROWS 8
 #endif
 #define MAT_SIZE 480
@@ -26,12 +26,12 @@
 
 // Below configuration works for APU only
 #else
-#if (__AIE_ARCH__ == _AIE_GEN1_)
+#if (__AIE_ARCH__ == ARCH_AIE)
 #define NUM_HW_COLS 50
 #define NUM_HW_ROWS 8
 #define MAT_SIZE 1200
 #define WIN_SIZE 600
-#elif (__AIE_ARCH__ == AIEML)
+#elif (__AIE_ARCH__ == ARCH_AIEML)
 #define NUM_HW_COLS 38
 #define NUM_HW_ROWS 8
 #define MAT_SIZE 608
