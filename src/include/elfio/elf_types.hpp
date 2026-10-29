@@ -25,6 +25,14 @@ THE SOFTWARE.
 
 #include <stdint.h>
 
+/* Resolve conflicts with Linux kernel headers that define these macros */
+#ifdef EM_LOONGARCH
+#undef EM_LOONGARCH
+#endif
+#ifdef NT_RISCV_CSR
+#undef NT_RISCV_CSR
+#endif
+
 #ifdef __cplusplus
 namespace ELFIO {
 #endif

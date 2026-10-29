@@ -1,11 +1,19 @@
+// Copyright (C) 2025 - 2026 Advanced Micro Devices, Inc.
+// SPDX-License-Identifier: Apache-2.0
 #include "stub_cert_elf_loader.h"
 #include "cert_elf_loader.h"
 
-/* Dummy globals referenced by cert_host.cc */
+#ifdef CERT_ELF_SYMBOLS_FROM_OTHER_MOCK
 extern "C" {
-unsigned char cert_elf[] = { 0x7f, 'E', 'L', 'F' };
-unsigned int  cert_elf_len = sizeof(cert_elf);
+extern unsigned char cert_elf[];
+extern unsigned int cert_elf_len;
 }
+#else
+extern "C" {
+unsigned char cert_elf[] = {0x7f, 'E', 'L', 'F'};
+unsigned int cert_elf_len = sizeof(cert_elf);
+}
+#endif
 
 static struct ccode g_layout;
 
@@ -21,8 +29,8 @@ void StubCertElfLoader_SetColsLayout(unsigned int count,
     }
 }
 
-cert_elf_loader::cert_elf_loader(char *ctrl_elf, unsigned int ctrl_elf_len,
-                                 std::map<std::string_view, uint64_t> &symbol)
+cert_elf_loader::cert_elf_loader(const char *ctrl_elf, uint32_t ctrl_elf_len,
+		        const std::map<std::string_view, uint64_t> &symbol)
 {
     (void)ctrl_elf;
     (void)ctrl_elf_len;

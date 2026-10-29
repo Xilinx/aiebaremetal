@@ -62,6 +62,15 @@ To compile a `BOOT.BIN` file that can be directly loaded on a machine, the user 
 The user can specify the AIE generation: 1 as vck190 and 2 as vek280.
 The generated file will be under `build/` such as `build/Vck190PLIOBOOT.BIN` or `build/Vek280PLIOBOOT.BIN`.
 
+> **`build.sh` vs. `buildall.sh`**: `build.sh` only builds `libaiebaremetal.so` for simulation (see "Compile for Simulation" above) — it does not run bootgen and never produces a `.BIN` file, and it does not understand `-new_api`. To produce a `BOOT.BIN`, always use `buildall.sh`.
+>
+> `buildall.sh` also accepts a `-new_api` flag to build the host application from `src/graph_new_api.cpp` (the typed AEG API, using `aeg::pl_kernel` to start/wait/stop the PL kernels) instead of the legacy `src/graph.cpp`:
+>
+> ```bash
+> # vek280, new AEG API path
+> source ./buildall.sh 2 -new_api
+> ```
+
 The command performs the following two steps:
 
 Step | Action                        | Main Input File                                                                                                           | Main Output File                                                                                                            | Compile Script

@@ -1,34 +1,22 @@
 // Copyright (C) 2025 - 2026 Advanced Micro Devices, Inc.
 // SPDX-License-Identifier: Apache-2.0
-#if (defined(__AIESIM__) || defined(__ADF_FRONTEND__))
+#include "aiebaremetal.h"
+#include "aeg_platform.h"
+
+#if defined(__ADF_FRONTEND__)
 #include "graph.h"
 mygraph EG;
-#else
-#include "xil_cache.h"
-#include "xil_io.h"
-#include "xil_printf.h"
-#if __AIE_ARCH__ == 22
-#include "xiltimer.h"
-#else
-#include "xtime_l.h"
 #endif
-#endif
-
-#include "aiebaremetal.h"
 #include <fstream>
 #include <xaiengine.h>
 
 AbrGraph gr("EG");
 
-int main() {
-#if (defined(__AIESIM__) || defined(__ADF_FRONTEND__))
-    EG.init();
-#else
+int main(int argc, char **argv) {
 #ifdef _RPU_
     // RPU need to disable data cache, without cache diable app will stuck
     Xil_DCacheDisable();
 // Xil_ICacheDisable();
-#endif
 #endif
 
     uint32_t *inputArray = (uint32_t *)gr.malloc(128 * sizeof(uint32_t));

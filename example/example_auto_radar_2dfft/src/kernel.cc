@@ -35,12 +35,12 @@
 //////////////////////////////////////////////////////////////
 void c16toc32(input_window<cint16> *in, output_window<cint32> *out) {
     for (unsigned int i = 0; i < 8; i++) {
-        printf("Entering c16toc32 kernel \n");
+        // printf("Entering c16toc32 kernel \n");
         aie::vector<cint16, 8> data1 = window_readincr_v8(in);
 
         v8cint32 outData = srs_to_v8cint32(ups_to_v8cacc64(data1, 0), 0);
 
         window_writeincr(out, outData);
-        printf("Exiting c16toc32 kernel \n");
+        // printf("Exiting c16toc32 kernel \n");
     }
 }

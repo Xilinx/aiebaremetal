@@ -6,12 +6,18 @@
 This tutorial demonstrates deploying an AIE bare-metal application on the **ARM Cortex-R5 (RPU)** of the VEK280 board.
 All scripts use the `armr5-none-eabi` toolchain and RPU-specific compiler flags (`-mcpu=cortex-r5 -mfloat-abi=hard -mfpu=vfpv3-d16 -DARMR5`).
 
+Source the Vitis you are testing **before** running any tutorial script. The scripts read `XILINX_VITIS` from the environment and do not pin 2026.1, 2026.2, or HEAD.
+
+```bash
+source /path/to/Vitis/settings64.sh
+```
+
 ## Build Dependency Files
 
 ### Build AIE app JSON files and CDO
 
 ```bash
-source /proj/xbuilds/HEAD_daily_latest/installs/lin64/HEAD/Vitis/settings64.sh
+source /path/to/Vitis/settings64.sh
 pushd dependency/aie
 make compile
 popd
@@ -102,7 +108,7 @@ The graph class and port members are generated from the ADF graph metadata and c
 ## Build AIE routing/kernel and generate `generated_graphs.h`
 
 ```bash
-source /proj/xbuilds/HEAD_daily_latest/installs/lin64/HEAD/Vitis/settings64.sh
+source /path/to/Vitis/settings64.sh
 pushd dependency/aie
 make compile
 popd
@@ -130,7 +136,7 @@ vim generated_graphs.h
 ```bash
 source ./buildmeta.sh
 source ./buildmain.sh -new_api
-source ./buildlocalbspelf.sh -new_api
+source ./buildsdtbspelf.sh -new_api
 ```
 
 ## Run on board

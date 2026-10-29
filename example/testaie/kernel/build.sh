@@ -38,11 +38,17 @@ echo ${AIE_GEN}
 source $CURRDIR/../../../script/settings.sh 1
 
 if [ $AIE_GEN == 5 ]; then
-	$CURRDIR/../../../script/compile.sh --runtime_source_file ./src/graph.cpp --partition_option "--enable-partition=0:12:pr0" --aie_version ${AIE_GEN} ${RPUFLAG} ${BOOTGEN}
+	$CURRDIR/../../../script/compile.sh --runtime_source_file ./src/graph.cpp               \
+            --partition_option "--enable-partition=0:12:pr0"                                    \
+            --aie_version ${AIE_GEN} ${RPUFLAG} ${BOOTGEN}
 	check_status $? "compile.sh with AIE_GEN=${AIE_GEN}, BOOTGEN=${BOOTGEN}, RPUFLAG=${RPUFLAG}"
 else
-	$CURRDIR/../../../script/compile.sh --runtime_source_file ./src/graph.cpp --aie_version ${AIE_GEN} ${RPUFLAG} ${BOOTGEN}
+	$CURRDIR/../../../script/compile.sh --runtime_source_file ./src/graph.cpp               \
+            --aie_version ${AIE_GEN} ${RPUFLAG} ${BOOTGEN}
 	check_status $? "compile.sh with AIE_GEN=${AIE_GEN}, BOOTGEN=${BOOTGEN}, RPUFLAG=${RPUFLAG}"
 fi
+
+build_sim.sh --runtime_source_file ./src/graph.cpp
+check_status $? "build_sim.sh"
 
 echo "Build completed successfully with AIE_GEN=${AIE_GEN}, BOOTGEN=${BOOTGEN}, RPUFLAG=${RPUFLAG}"

@@ -1,9 +1,10 @@
+// Copyright (C) 2025 - 2026 Advanced Micro Devices, Inc.
+// SPDX-License-Identifier: Apache-2.0
 #include "CppUTest/TestHarness.h"
 #include "CppUTest/CommandLineTestRunner.h"
 #include "CppUTestExt/MockSupport_c.h"
-// Include REAL header for the Unit Under Test (UUT)
-#include "xaiengine.h"
 
+#include "xaiengine.h"
 
 void u8Copier(void* dst, const void* src);
 int XAie_LockComparator(const void* object1, const void* object2);

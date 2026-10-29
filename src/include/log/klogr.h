@@ -4,9 +4,17 @@
 #define _KLOG_R_
 #include "kcommon.h"
 #include <unistd.h>
+// xaie_helper.h has no extern "C" guard but xaie_helper.c is plain C;
+// wrap it so C++ callers here (e.g. aier() below) link correctly.
+#ifdef __cplusplus
+extern "C" {
+#endif
 #include <xaiengine/xaie_helper.h>
+#ifdef __cplusplus
+}
+#endif
 static uint64_t _get_log_address(uint64_t inst) {
-#if defined(_AIE_LOG_LOCAL_TEST_) || defined(__ADF_FRONTEND__) || defined(__AIESIM__)
+#if defined(_AIE_LOG_LOCAL_TEST_) || defined(__ADF_FRONTEND__)
     return AIEML_CORE_LOG_DM_REALADDR;
 #else
     XAie_DevInst *g_Inst = (XAie_DevInst *)(inst);
@@ -20,7 +28,7 @@ static uint64_t _get_log_address(uint64_t inst) {
 static char *_rlog(int r, int c, uint64_t inst, Read32BitDataFunc func) {
     uint64_t address = _get_log_address(inst); // AIEML_HOST_VIEW_DM_ADDR(r,c);
     uint32_t data;
-#if !defined(__AIESIM__)
+#if !defined(__AIESIM__) && !defined(__ZEPHYR__)
     usleep(1);
 #endif
     printf("r log address = %lx\n", address);
@@ -74,7 +82,7 @@ static char *_rlog(int r, int c, uint64_t inst, Read32BitDataFunc func) {
     }
     return str_log;
 }
-#if !defined(_AIE_LOG_LOCAL_TEST_) && !defined(__ADF_FRONTEND__) && !defined(__AIESIM__)
+#if !defined(_AIE_LOG_LOCAL_TEST_) && !defined(__ADF_FRONTEND__)
 static uint32_t aier(int r, int c, uint64_t daddr, uint64_t inst) {
     XAie_DevInst *g_Inst = (XAie_DevInst *)(inst);
 

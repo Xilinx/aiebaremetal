@@ -1,37 +1,21 @@
 // Copyright (C) 2026 Advanced Micro Devices, Inc.
 // SPDX-License-Identifier: Apache-2.0
-#if defined(__AEG_METADATA_ONLY__)
+
+#if defined(__AEG_METADATA_ONLY__) || defined(__ADF_FRONTEND__)
 #include "graph.h"
 myGraph gradf2;
-int main(int argc, char **argv) {
-    gradf2.init();
-    return 0;
-}
 #else
-#include "aiebaremetal.h"
+#include "aeg_baremetal_api_pl.h"
 #include "common.h"
 #include "log/klogr.h"
 #include <fstream>
 #include <xaiengine.h>
-#if defined(__AIESIM__) || defined(__ADF_FRONTEND__)
-#include "graph.h"
-myGraph gradf2;
-#else
-#include "xil_cache.h"
-#include "xil_io.h"
-#include "xil_printf.h"
-#include "xparameters.h"
-
-#if __AIE_ARCH__ != 22
-#include "xtime_l.h"
-#else
-#include "xiltimer.h"
-#endif
-#endif
+#include "aiebaremetal.h"
+#include "aeg_platform.h"
 
 AEGGraph<aeg::gradf2> gr;
 
-#if defined(__AIESIM__) || defined(__ADF_FRONTEND__)
+#if 0
 void adf_run() {
     int32_t *inputArray = (int32_t *)GMIO::malloc(256 * sizeof(int32_t));
     int32_t *outputArray = (int32_t *)GMIO::malloc(256 * sizeof(int32_t));
@@ -53,6 +37,7 @@ void adf_run() {
 // MM2S_BASE: 0xA4050000   / 0xA4010000
 // S2MM_BASE: 0xA4060000   / 0XA4020000
 
+#if !(defined(__AIESIM__) || defined(__ADF_FRONTEND__))
 #if __AIE_ARCH__ != 22
 #define MM2S_BASE XPAR_XMM2S_0_S_AXI_CONTROL_BASEADDR
 #define S2MM_BASE XPAR_XS2MM_0_S_AXI_CONTROL_BASEADDR
@@ -62,55 +47,52 @@ void adf_run() {
 #define S2MM_BASE XPAR_XS2MM_0_BASEADDR
 #endif
 
-#define CTRL_OFFSET 0x0
-#define SIZE_OFFSET 0x1C
+// HLS s_axilite argument offsets for the kernels in pl_kernels/{mm2s,s2mm}.cpp:
+//   void mm2s(int* mem, int size); void s2mm(int* mem, int size);
+// Layout per the HLS-generated driver header:
+//   0x10  mem  (low 32 bits)   <- m_axi pointer arg
+//   0x14  mem  (high 32 bits)
+//   0x1C  size                 <- 32-bit scalar arg
 #define MEM_OFFSET 0x10
+#define SIZE_OFFSET 0x1C
+
+aeg::pl_kernel mm2s_kernel(MM2S_BASE);
+aeg::pl_kernel s2mm_kernel(S2MM_BASE);
+#endif
+
 void start_pl(uint32_t *in, uint32_t *out, int len) {
-#if not defined(__AIESIM__) && not defined(__ADF_FRONTEND__)
-
-    int i;
-    int errCount = 0;
-    uint64_t memAddr = (uint64_t)in;
-    uint64_t mem_outAddr = (uint64_t)out;
-
+#if !(defined(__AIESIM__) || defined(__ADF_FRONTEND__))
     printf("Starting test w/ cu\n");
     printf("Starting mm2s & s2mm - %x\n  ", MM2S_BASE);
-    Xil_Out32(MM2S_BASE + MEM_OFFSET, (uint32_t)memAddr);
-    u32 reg_val;
-    reg_val = Xil_In32(MM2S_BASE + MEM_OFFSET);
-    printf(" reg_val %x, memAddr %x \n", reg_val, (uint32_t)memAddr);
 
-    Xil_Out32(MM2S_BASE + MEM_OFFSET + 4, 0);
-    Xil_Out32(S2MM_BASE + MEM_OFFSET, (uint32_t)mem_outAddr);
-    Xil_Out32(S2MM_BASE + MEM_OFFSET + 4, 0);
-    Xil_Out32(MM2S_BASE + SIZE_OFFSET, len);
-    Xil_Out32(S2MM_BASE + SIZE_OFFSET, len);
-    Xil_Out32(MM2S_BASE + CTRL_OFFSET, 1);
-    Xil_Out32(S2MM_BASE + CTRL_OFFSET, 1);
+    mm2s_kernel.set_arg(MEM_OFFSET, in);
+    mm2s_kernel.set_arg(SIZE_OFFSET, len);
+    s2mm_kernel.set_arg(MEM_OFFSET, out);
+    s2mm_kernel.set_arg(SIZE_OFFSET, len);
+    mm2s_kernel.start();
+    s2mm_kernel.start();
+#else
+    (void)in;
+    (void)out;
+    (void)len;
 #endif
 }
 
 void wait_s2mm() {
-#if not defined(__AIESIM__) && not defined(__ADF_FRONTEND__)
-    while (1) {
-        uint32_t v = Xil_In32(S2MM_BASE + CTRL_OFFSET);
-        if (v & 6) {
-            break;
-        }
-        // printf("wait_s2mm\n");
-    }
+#if !(defined(__AIESIM__) || defined(__ADF_FRONTEND__))
+    s2mm_kernel.wait();
 #endif
 }
 
 int main(int argc, char **argv) {
-#if defined(__AIESIM__) || defined(__ADF_FRONTEND__)
+#if defined(__ADF_FRONTEND__)
     std::cout << "gradf2.a  =" << gradf2.a << std::endl;
     gradf2.init();
-#else
+#elif defined(AEG_HARDWARE)
     Xil_DCacheDisable();
     Xil_ICacheDisable();
-    XTime tStart, tEnd;
 #endif
+    XTime tStart, tEnd;
     uint32_t indata[SQUARE_BUF_LEN], outdata[SQUARE_BUF_LEN];
     bool test_passed = true;
 
@@ -196,12 +178,12 @@ int main(int argc, char **argv) {
     }
 #endif
 
-    gr.end();
     if (handle0 != -1) {
         long long cycle_count0 = gr.read_profiling(handle0);
         gr.stop_profiling(handle0);
         printf("cycle_count0 = %lld\n", cycle_count0);
     }
+    gr.end();
 
 #if not defined(__AIESIM__) && not defined(__ADF_FRONTEND__)
     if (test_passed) {
@@ -213,4 +195,4 @@ int main(int argc, char **argv) {
     return 0;
 #endif
 }
-#endif /* !__AEG_METADATA_ONLY__ */
+#endif /* !__AEG_METADATA_ONLY__ && !__ADF_FRONTEND__ */

@@ -1,19 +1,11 @@
 // Copyright (C) 2025 - 2026 Advanced Micro Devices, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-#include "xil_printf.h"
-#include "xil_io.h"
-#include "xil_cache.h"
-
-#if __AIE_ARCH__ == 22
-#include "xiltimer.h"
-#else
-#include "xtime_l.h"
-#endif
+#include "aiebaremetal.h"
+#include "aeg_platform.h"
 
 #include <fstream>
 #include <xaiengine.h>
-#include "aiebaremetal.h"
 
 
 AbrGraph gr0("pr0_gradf");
@@ -31,10 +23,12 @@ int main(int argc, char ** argv)
 	//Xil_ICacheDisable();
 #endif
 
+#if defined(AEG_HARDWARE)
     Xil_DCacheDisable();
+#endif
 	gr0.init();
 	gr1.init();
-		
+
 	int32_t* inputArray0 = (int32_t*)gr0.malloc(DATA_LENGTH*sizeof(int32_t));
 	int32_t* outputArray0 = (int32_t*)gr0.malloc(DATA_LENGTH*sizeof(int32_t));
 
@@ -42,7 +36,7 @@ int main(int argc, char ** argv)
 	int32_t* outputArray1 = (int32_t*)gr1.malloc(DATA_LENGTH*sizeof(int32_t));
 
   	int32_t* outputArray_gold = (int32_t*)gr1.malloc(DATA_LENGTH*sizeof(int32_t));
-   
+
 	gr0.run(1);
 	gr1.run(1);
 	printf("************Testing both partition***************\n");
@@ -52,20 +46,20 @@ int main(int argc, char ** argv)
 		outputArray_gold[i] = inputArray1[i]*inputArray1[i];
 	}
 	gr0.gm2aie("pr0_gradf.in",reinterpret_cast<char*>(&inputArray0[0]), DATA_LENGTH*sizeof(int32_t));
-	
+
 	gr0.aie2gm_nb("pr0_gradf.out",reinterpret_cast<char*>(&outputArray0[0]), DATA_LENGTH*sizeof(int32_t));
 	gr0.gmio_wait("pr0_gradf.out"); //assuming data from gm1 are processed by the graph and output to gm2
 
 	gr1.gm2aie_nb("pr1_gradf.in",reinterpret_cast<char*>(&inputArray1[0]), DATA_LENGTH*sizeof(int32_t));
 	gr1.aie2gm_nb("pr1_gradf.out",reinterpret_cast<char*>(&outputArray1[0]), DATA_LENGTH*sizeof(int32_t));
 	gr1.gmio_wait("pr1_gradf.out"); //assuming data from gm1 are processed by the graph and output to gm2
-	
+
 	gr0.wait();
 	gr0.end();
 
 	gr1.wait();
 	gr1.end();
-	
+
 
 	for (int i=0; i<DATA_LENGTH; i++)
 	{
@@ -77,15 +71,15 @@ int main(int argc, char ** argv)
 	}
 
 	std::cout<<"\n"<<"Test Passed\n";
-	
+
 	gr0.free(inputArray0);
 	gr0.free(outputArray0);
-	
+
 	gr1.free(inputArray1);
 	gr1.free(outputArray1);
 	gr1.free(outputArray_gold);
 
-	
+
 
   return 0;
 }

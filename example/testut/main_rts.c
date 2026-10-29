@@ -8,13 +8,23 @@
 //typedef unsigned long long uint64;
 extern "C" {
 	void ess_Write32(unsigned long long Addr, u_int32_t Data){
-		printf("strong ess_Write32_\n");
+		//printf("--strong ess_Write32_\n");
 	}
 	u_int32_t ess_Read32(unsigned long long Addr) {
-		printf("strong ess_Read32_\n");
+		//printf("--strong ess_Read32_\n");
 	}
 
 	void ess_WriteCmd(unsigned char Command, unsigned char ColId, unsigned char RowId, unsigned int CmdWd0, unsigned int CmdWd1, unsigned char *CmdStr) {
-		printf("strong ess_WriteCmd\n");
+		//printf("--strong ess_WriteCmd\n");
+	}
+}
+
+// Mock of the simulator-host PLIO start hook. The real definition lives in the
+// aiesimulator runtime (sim_stub/app_elf_stub.cpp / src/ipc backend); the unit
+// test does not run a simulator, so provide a no-op to satisfy the reference
+// in libaiebaremetal_sim.so (AIEGraphSim::run under __AIESIM__).
+namespace aiesim {
+	void StartPlios() {
+		printf("mock aiesim::StartPlios\n");
 	}
 }

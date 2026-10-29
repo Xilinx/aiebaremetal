@@ -1,582 +1,836 @@
-/**
- * @file test_aeg_profiling_api.cpp
- * @brief Unit tests for the AIE profiling API
- *
- * This file contains unit tests for the AIE profiling API, which provides profiling
- * functionality for stream monitoring, performance counters, and timing analysis.
- *
- * Copyright (C) 2026 Advanced Micro Devices, Inc.
- */
+/******************************************************************************
+* (c) Copyright 2022 Xilinx, Inc. All rights reserved.
+* (c) Copyright 2022-2026 Advanced Micro Devices, Inc. All Rights Reserved.
+*
+* This file contains confidential and proprietary information
+* of Xilinx, Inc. and is protected under U.S. and
+* international copyright and other intellectual property
+* laws.
+*
+* DISCLAIMER
+* This disclaimer is not a license and does not grant any
+* rights to the materials distributed herewith. Except as
+* otherwise provided in a valid license issued to you by
+* Xilinx, and to the maximum extent permitted by applicable
+* law: (1) THESE MATERIALS ARE MADE AVAILABLE "AS IS" AND
+* WITH ALL FAULTS, AND XILINX HEREBY DISCLAIMS ALL WARRANTIES
+* AND CONDITIONS, EXPRESS, IMPLIED, OR STATUTORY, INCLUDING
+* BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, NON-
+* INFRINGEMENT, OR FITNESS FOR ANY PARTICULAR PURPOSE; and
+* (2) Xilinx shall not be liable (whether in contract or tort,
+* including negligence, or under any other theory of
+* liability) for any loss or damage of any kind or nature
+* related to, arising under or in connection with these
+* materials, including for any direct, or any indirect,
+* special, incidental, or consequential loss or damage
+* (including loss of data, profits, goodwill, or any type of
+* loss or damage suffered as a result of any action brought
+* by a third party) even if such damage or loss was
+* reasonably foreseeable or Xilinx had been advised of the
+* possibility of the same.
+*
+* CRITICAL APPLICATIONS
+* Xilinx products are not designed or intended to be fail-
+* safe, or for use in any application requiring fail-safe
+* performance, such as life-support or safety devices or
+* systems, Class III medical devices, nuclear facilities,
+* applications related to the deployment of airbags, or any
+* other applications that could lead to death, personal
+* injury, or severe property or environmental damage
+* (individually and collectively, "Critical
+* Applications"). Customer assumes the sole risk and
+* liability of any use of Xilinx products in Critical
+* Applications, subject only to applicable laws and
+* regulations governing limitations on product liability.
+*
+* THIS COPYRIGHT NOTICE AND DISCLAIMER MUST BE RETAINED AS
+* PART OF THIS FILE AT ALL TIMES.
+******************************************************************************/
 
-#include <algorithm>
+/*****************************************************************************/
+/**
+*
+* @file test_aeg_profiling_api.cpp
+*  This file contains test cases of AEG Profiling API functions
+*
+* <pre>
+* MODIFICATION HISTORY:
+*
+* * Ver	  Who	   Date		Changes
+* ----- -------- -------- ---------------------------------
+* 1.0	 Veera      05/03/2026  Initial creation
+* 1.1	 Veera      20/04/2026  Added test cases for AEG Profiling API functions
+* 1.2	 Veera      10/05/2026  updated comment section for AEG Profiling API functions
+* 1.3	 Veera      26/05/2026  updated timing analysis for AEG Profiling API functions
+* </pre>
+*
+******************************************************************************/
+
+/*****************************************************************************/
+/**
+*
+* TEST SPECIFCIATION:
+* Source code version: <2026.1>
+* Verification Environment1:
+	Testing Tool: LDRA
+	Platform: Silicon
+	Target: APU
+	Compiler1: gcc
+* Verification Environment2:
+	Testing Tool: CPPUTEST
+	Platform: Host
+	Target: x86
+    Compiler2: gcc
+* Verification Method:By Specification of test cases
+* Test Procedure: The test execution procedure is same for all the test cases.
+* After the tests have been specified, the test procedure involves:
+*   - building the tests cases for the selected environment
+*   - execution of the binary executable in the selected environment
+*   - recording the results of execution
+*
+/*****************************************************************************/
+/***************************** Include Files *********************************/
 #include "aeg_profiling_api.h"
-#include "profiling_stubs/xaiengine/xaiegbl.h"
 #include "profiling_stubs/fal_stubs.h"
-#include "CppUTest/TestHarness.h"
+#include "profiling_stubs/xaiengine/xaiegbl.h"
+#include <algorithm>
 #include "CppUTest/CommandLineTestRunner.h"
+#include "CppUTest/TestHarness.h"
 #include "CppUTestExt/MockSupport.h"
 #include "CppUTestExt/MockSupport_c.h"
-
+#include <chrono>
+#include <iostream>
 using namespace abr;
 using namespace stub_controls;
 
-/**
- * @brief Helper function to create a nominal shim configuration
- *
- * Creates a shim_config structure with default values for testing.
- */
-static shim_config make_nominal_cfg(int shimCol = 1, int streamPort = 2, u8 slaveOrMaster = 0)
-{
-    shim_config cfg{};
-    cfg.shimColumn    = shimCol;
-    cfg.streamPortId  = streamPort;
-    cfg.slaveOrMaster = slaveOrMaster;
-    return cfg;
+
+static shim_config make_nominal_cfg(int shimCol = 1, int streamPort = 2, u8 slaveOrMaster = 0) {
+	shim_config cfg{};
+	cfg.shimColumn = shimCol;
+	cfg.streamPortId = streamPort;
+	cfg.slaveOrMaster = slaveOrMaster;
+	return cfg;
 }
 
-/**
- * @brief Test group for shim_config structure
- *
- * This test group verifies the functionality of the shim_config structure,
- * including default construction and construction from gmio_config and plio_config.
- */
-TEST_GROUP(ShimConfigTests)
-{
-	/**
-	 * @brief Set up test fixtures before each test
-	 */
-	void setup()
-	{
-	}
-
-	/**
-	 * @brief Clean up test fixtures after each test
-	 */
-	void teardown()
-	{
-		mock_c()->clear();
+TEST_GROUP(ShimConfigTests){
+	void setup(){}
+	void teardown(){mock_c()->clear();
 	}
 };
 
-/**
- * @brief TC_001: Verify shim_config default constructor
- *
- * This test verifies that the shim_config default constructor initializes
- * all fields with expected default values.
- */
-TEST(ShimConfigTests, TC_001_DefaultConstructor)
-{
-	// ARRANGE - Nothing to arrange, testing default constructor
-
-	// ACT - Instantiate with default constructor
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_001_DefaultConstructor
+*		Function Name: shim_config config
+*		Input: None
+*		Expectation: config.shimColumn == -1, config.slaveOrMaster == 0, config.streamPortId == -1
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ShimConfigTests, TC_001_DefaultConstructor) {
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
 	shim_config config;
-
-	// ASSERT - Verify expected default values
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by shim_config default constructor: " << total_clock_enable_us << " microseconds" << std::endl;
 	CHECK_EQUAL(-1, config.shimColumn);
 	CHECK_EQUAL(0, config.slaveOrMaster);
 	CHECK_EQUAL(-1, config.streamPortId);
 }
 
-/**
- * @brief TC_002: Verify shim_config constructor with gmio_config for aie2gm type
- *
- * This test verifies that the shim_config constructor correctly initializes
- * fields from a gmio_config structure when the type is aie2gm (AIE to memory).
- * The slaveOrMaster field should be set to 1 for aie2gm transfers.
- */
-TEST(ShimConfigTests, TC_002_GmioConstructorAie2gm)
-{
-	// ARRANGE - Create a gmio_config with aie2gm type
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_002_GmioConstructorAie2gm
+*		Function Name: shim_config config
+*		Input: gmioConfig.shimColumn = 5, gmioConfig.type = gmio_config::aie2gm, gmioConfig.streamId = 3
+*		Expectation: config.shimColumn == 5, config.slaveOrMaster == 1, config.streamPortId == 3
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ShimConfigTests, TC_002_GmioConstructorAie2gm) {
 	gmio_config gmioConfig;
 	gmioConfig.shimColumn = 5;
 	gmioConfig.type = gmio_config::aie2gm;
 	gmioConfig.streamId = 3;
 
-	// ACT - Instantiate with gmio_config
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
 	shim_config config(&gmioConfig);
-
-	// ASSERT - Verify expected values
-	CHECK_EQUAL(5, config.shimColumn);
-	CHECK_EQUAL(1, config.slaveOrMaster); // aie2gm should set slaveOrMaster to 1
-	CHECK_EQUAL(3, config.streamPortId);
-}
-
-/**
- * @brief TC_003: Verify shim_config constructor with gmio_config for gm2aie type
- *
- * This test verifies that the shim_config constructor correctly initializes
- * fields from a gmio_config structure when the type is gm2aie (memory to AIE).
- * The slaveOrMaster field should be set to 0 for gm2aie transfers.
- */
-TEST(ShimConfigTests, TC_003_GmioConstructorGm2aie)
-{
-	// ARRANGE - Create a gmio_config with gm2aie type
-	gmio_config gmioConfig;
-	gmioConfig.shimColumn = 5;
-	gmioConfig.type = gmio_config::gm2aie;
-	gmioConfig.streamId = 3;
-
-	// ACT - Instantiate with gmio_config
-	shim_config config(&gmioConfig);
-
-	// ASSERT - Verify expected values
-	CHECK_EQUAL(5, config.shimColumn);
-	CHECK_EQUAL(0, config.slaveOrMaster); // gm2aie should set slaveOrMaster to 0
-	CHECK_EQUAL(3, config.streamPortId);
-}
-
-/**
- * @brief TC_004: Verify shim_config constructor with plio_config
- *
- * This test verifies that the shim_config constructor correctly initializes
- * all fields from a plio_config structure, including shimColumn, slaveOrMaster,
- * and streamPortId.
- */
-TEST(ShimConfigTests, TC_004_PlioConstructor)
-{
-	// ARRANGE - Create a plio_config
-	plio_config plioConfig;
-	plioConfig.shimColumn = 5;
-	plioConfig.slaveOrMaster = 1;
-	plioConfig.streamId = 3;
-
-	// ACT - Instantiate with plio_config
-	shim_config config(&plioConfig);
-
-	// ASSERT - Verify expected values
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by shim_config constructor: " << total_clock_enable_us << " microseconds" << std::endl;
 	CHECK_EQUAL(5, config.shimColumn);
 	CHECK_EQUAL(1, config.slaveOrMaster);
 	CHECK_EQUAL(3, config.streamPortId);
 }
 
-/**
- * @brief TC_005: Verify shim_config constructors handle null pointers correctly
- *
- * This test verifies that the shim_config constructors properly handle null
- * pointer inputs for both gmio_config and plio_config, initializing fields
- * with default values instead of dereferencing the null pointer.
- */
-TEST(ShimConfigTests, TC_005_NullPointers)
-{
-	// ARRANGE & ACT - Instantiate with null pointers
-	shim_config configGmio((gmio_config*)nullptr);
-	shim_config configPlio((plio_config*)nullptr);
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_003_GmioConstructorGm2aie
+*		Function Name: shim_config config
+*		Input: gmioConfig.shimColumn = 5, gmioConfig.type = gmio_config::gm2aie, gmioConfig.streamId = 3
+*		Expectation: config.shimColumn == 5, config.slaveOrMaster == 0, config.streamPortId == 3
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ShimConfigTests, TC_003_GmioConstructorGm2aie) {
+	gmio_config gmioConfig;
+	gmioConfig.shimColumn = 5;
+	gmioConfig.type = gmio_config::gm2aie;
+	gmioConfig.streamId = 3;
 
-	// ASSERT - Verify expected default values
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	shim_config config(&gmioConfig);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by shim_config constructor: " << total_clock_enable_us << " microseconds" << std::endl;
+
+	CHECK_EQUAL(5, config.shimColumn);
+	CHECK_EQUAL(0, config.slaveOrMaster);
+	CHECK_EQUAL(3, config.streamPortId);
+}
+
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_004_PlioConstructor
+*		Function Name: shim_config config
+*		Input: plioConfig.shimColumn = 5, plioConfig.slaveOrMaster = 1, plioConfig.streamId = 3
+*		Expectation: config.shimColumn == 5, config.slaveOrMaster == 1, config.streamPortId == 3
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ShimConfigTests, TC_004_PlioConstructor) {
+	plio_config plioConfig;
+	plioConfig.shimColumn = 5;
+	plioConfig.slaveOrMaster = 1;
+	plioConfig.streamId = 3;
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	shim_config config(&plioConfig);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by shim_config constructor: " << total_clock_enable_us << " microseconds" << std::endl;
+
+	CHECK_EQUAL(5, config.shimColumn);
+	CHECK_EQUAL(1, config.slaveOrMaster);
+	CHECK_EQUAL(3, config.streamPortId);
+}
+
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_005_NullPointers
+*		Function Name: shim_config configGmio, configPlio
+*		Input: nullptr
+*		Expectation: config.shimColumn == -1, config.slaveOrMaster == 0, config.streamPortId == -1
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ShimConfigTests, TC_005_NullPointers) {
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	shim_config configGmio((gmio_config *)nullptr);
+	shim_config configPlio((plio_config *)nullptr);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by shim_config constructor: " << total_clock_enable_us << " microseconds" << std::endl;
 	CHECK_EQUAL(-1, configGmio.shimColumn);
 	CHECK_EQUAL(0, configGmio.slaveOrMaster);
 	CHECK_EQUAL(-1, configGmio.streamPortId);
-
 	CHECK_EQUAL(-1, configPlio.shimColumn);
 	CHECK_EQUAL(0, configPlio.slaveOrMaster);
 	CHECK_EQUAL(-1, configPlio.streamPortId);
 }
 
-/**
- * @brief Test group for profile_stream_running_to_idle_cycles functionality
- *
- * This test group verifies the functionality of profile_stream_running_to_idle_cycles,
- * which measures the number of clock cycles from when a stream becomes running
- * until it transitions to idle state.
- */
-TEST_GROUP(ProfileStreamRunningToIdleCyclesTests)
-{
-	/**
-	 * @brief Set up test fixtures before each test
-	 *
-	 * Resets all stub controls and initializes the device wrapper and
-	 * device instance pointer to prevent null pointer dereferences.
-	 */
-	void setup()
-	{
-		ResetAll();
-		// Initialize the device wrapper to prevent null pointer dereference
+TEST_GROUP(ProfileStreamRunningToIdleCyclesTests){
+	void setup(){ResetAll();
 		static fal_util::DevWrapper devWrapper;
 		fal_util::s_pXAieDev = &devWrapper;
-		// Initialize the device instance pointer
 		abr::config_manager::s_pDevInst = &stub_controls::g_stubDevInst;
 	}
 
-	void teardown()
-	{
+	void teardown() {
 		fal_util::s_pXAieDev = nullptr;
 		abr::config_manager::s_pDevInst = nullptr;
 		mock_c()->clear();
 	}
 };
 
-/**
- * @brief TC_102: Verify error handling for invalid tile location
- *
- * This test verifies that profile_stream_running_to_idle_cycles correctly
- * returns an internal_error when provided with an invalid shim column
- * (negative value), preventing invalid hardware access.
- */
-TEST(ProfileStreamRunningToIdleCyclesTests, TC_102_InvalidTileLocation)
-{
-	// ARRANGE
-	// Invalid shim config (negative shimColumn)
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_001_InvalidTileLocation
+*		Function Name: profile_stream_running_to_idle_cycles
+*		Input: config.shimColumn = -1, config.slaveOrMaster = 0, config.streamPortId = 3 , acquiredResources
+*		Expectation: result == internal_error
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfileStreamRunningToIdleCyclesTests, TC_001_InvalidTileLocation) {
 	shim_config config;
 	config.shimColumn = -1;
 	config.slaveOrMaster = 0;
 	config.streamPortId = 3;
 
 	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
-
-	// ACT
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
 	err_code result = profiling::profile_stream_running_to_idle_cycles(config, acquiredResources);
-
-	// ASSERT
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profile_stream_running_to_idle_cycles function: " << total_clock_enable_us << " microseconds" << std::endl;
 	CHECK_EQUAL(static_cast<int>(err_code::internal_error), static_cast<int>(result));
-    acquiredResources.clear();
-}
-
-/**
- * @brief TC_001: Verify successful profiling with nominal configuration
- *
- * This test verifies that profile_stream_running_to_idle_cycles successfully
- * acquires resources and configures profiling for a valid stream configuration.
- * Verifies that 2 resources are acquired (stream port select and performance counter).
- */
-TEST(ProfileStreamRunningToIdleCyclesTests, TC_001_NominalSuccess)
-{
-    shim_config cfg{};
-    cfg.shimColumn    = 1;
-    cfg.streamPortId  = 2;
-    cfg.slaveOrMaster = 0; // slave
-
-    // Stub configuration per rubric
-    FalUtil_SetRequestResults({0, 1}); // eventPortId, counterId
-    XAie_SetEventSelectResult(XAIE_OK);
-    XAie_SetPerfCounterControlResult(XAIE_OK);
-    ErrorMsg_Reset();
-	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
-    err_code rc = profiling::profile_stream_running_to_idle_cycles(cfg, acquiredResources);
-
-    CHECK_TRUE(rc == err_code::ok);
 	acquiredResources.clear();
 }
 
-/**
- * @brief TC_004: Verify error handling when stream switch port request fails
- *
- * This test verifies that profile_stream_running_to_idle_cycles correctly
- * returns resource_unavailable error when the stream switch port resource
- * cannot be requested/allocated.
- */
-TEST(ProfileStreamRunningToIdleCyclesTests, TC_004_StreamSwitchRequestFails)
-{
-    shim_config cfg{};
-    cfg.shimColumn    = 1;
-    cfg.streamPortId  = 2;
-    cfg.slaveOrMaster = 0;
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_002_NominalSuccess
+*		Function Name: profile_stream_running_to_idle_cycles
+*		Input: cfg.shimColumn = 1, cfg.streamPortId = 2, cfg.slaveOrMaster = 0, acquiredResources
+*		Expectation: rc == ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfileStreamRunningToIdleCyclesTests, TC_002_NominalSuccess) {
+	shim_config cfg{};
+	cfg.shimColumn = 1;
+	cfg.streamPortId = 2;
+	cfg.slaveOrMaster = 0;
 
-    FalUtil_SetRequestResults({-1}); // first request fails
-
-    XAie_SetEventSelectResult(XAIE_OK);
-    XAie_SetPerfCounterControlResult(XAIE_OK);
-    ErrorMsg_Reset();
+	FalUtil_SetRequestResults({0, 1});
+	XAie_SetEventSelectResult(XAIE_OK);
+	XAie_SetPerfCounterControlResult(XAIE_OK);
+	ErrorMsg_Reset();
 	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
-    err_code rc = profiling::profile_stream_running_to_idle_cycles(cfg, acquiredResources);
-
-    CHECK_TRUE(rc == err_code::resource_unavailable);
-	 acquiredResources.clear();
-}
-
-/**
- * @brief TC_005: Verify error handling when performance counter request fails
- *
- * This test verifies that profile_stream_running_to_idle_cycles correctly
- * returns resource_unavailable error when the performance counter resource
- * cannot be requested/allocated, even if the stream switch port was successful.
- */
-TEST(ProfileStreamRunningToIdleCyclesTests, TC_005_PerfCounterRequestFails)
-{
-    shim_config cfg{};
-    cfg.shimColumn    = 1;
-    cfg.streamPortId  = 2;
-    cfg.slaveOrMaster = 1; // master
-
-    FalUtil_SetRequestResults({0, -1}); // sswitch ok, counter fails
-    XAie_SetEventSelectResult(XAIE_OK);
-    XAie_SetPerfCounterControlResult(XAIE_OK);
-    ErrorMsg_Reset();
-	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
-    err_code rc = profiling::profile_stream_running_to_idle_cycles(cfg, acquiredResources);
-
-    CHECK_TRUE(rc == err_code::resource_unavailable);
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rc = profiling::profile_stream_running_to_idle_cycles(cfg, acquiredResources);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profile_stream_running_to_idle_cycles function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_TRUE(rc == err_code::ok);
 	acquiredResources.clear();
 }
 
-/**
- * @brief TC_006: Verify error handling when XAie_EventSelectStrmPort fails
- *
- * This test verifies that profile_stream_running_to_idle_cycles correctly
- * returns aie_driver_error when the underlying AIE driver function
- * XAie_EventSelectStrmPort fails during stream port event selection.
- */
-TEST(ProfileStreamRunningToIdleCyclesTests, TC_006_EventSelectFails)
-{
-    shim_config cfg{};
-    cfg.shimColumn    = 1;
-    cfg.streamPortId  = 2;
-    cfg.slaveOrMaster = 0;
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_003_StreamSwitchRequestFails
+*		Function Name: profile_stream_running_to_idle_cycles
+*		Input: cfg.shimColumn = 1, cfg.streamPortId = 2, cfg.slaveOrMaster = 0, acquiredResources
+*		Expectation: rc == resource_unavailable
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfileStreamRunningToIdleCyclesTests, TC_003_StreamSwitchRequestFails) {
+	shim_config cfg{};
+	cfg.shimColumn = 1;
+	cfg.streamPortId = 2;
+	cfg.slaveOrMaster = 0;
 
-    FalUtil_SetRequestResults({0, 1});
-    XAie_SetEventSelectResult(1);        // non-zero => failure
-    XAie_SetPerfCounterControlResult(XAIE_OK);
-    ErrorMsg_Reset();
+	FalUtil_SetRequestResults({-1});
+
+	XAie_SetEventSelectResult(XAIE_OK);
+	XAie_SetPerfCounterControlResult(XAIE_OK);
+	ErrorMsg_Reset();
 	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
-    err_code rc = profiling::profile_stream_running_to_idle_cycles(cfg, acquiredResources);
-    CHECK_TRUE(rc == err_code::aie_driver_error);
-    acquiredResources.clear();
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rc = profiling::profile_stream_running_to_idle_cycles(cfg, acquiredResources);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profile_stream_running_to_idle_cycles function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_TRUE(rc == err_code::resource_unavailable);
+	acquiredResources.clear();
 }
 
-/**
- * @brief TC_007: Verify error handling when XAie_PerfCounterControlSet fails
- *
- * This test verifies that profile_stream_running_to_idle_cycles correctly
- * returns aie_driver_error when the underlying AIE driver function
- * XAie_PerfCounterControlSet fails during performance counter configuration.
- */
-TEST(ProfileStreamRunningToIdleCyclesTests, TC_007_PerfCounterControlFails)
-{
-    shim_config cfg{};
-    cfg.shimColumn    = 1;
-    cfg.streamPortId  = 2;
-    cfg.slaveOrMaster = 1;
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_004_PerfCounterRequestFails
+*		Function Name: profile_stream_running_to_idle_cycles
+*		Input: cfg.shimColumn = 1, cfg.streamPortId = 2, cfg.slaveOrMaster = 0, acquiredResources
+*		Expectation: rc == resource_unavailable
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfileStreamRunningToIdleCyclesTests, TC_004_PerfCounterRequestFails) {
+	shim_config cfg{};
+	cfg.shimColumn = 1;
+	cfg.streamPortId = 2;
+	cfg.slaveOrMaster = 1;
 
-    FalUtil_SetRequestResults({0, 1});
-    XAie_SetEventSelectResult(XAIE_OK);
-    XAie_SetPerfCounterControlResult(2); // non-zero => failure
-    ErrorMsg_Reset();
+	FalUtil_SetRequestResults({0, -1});
+	XAie_SetEventSelectResult(XAIE_OK);
+	XAie_SetPerfCounterControlResult(XAIE_OK);
+	ErrorMsg_Reset();
 	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
-    err_code rc = profiling::profile_stream_running_to_idle_cycles(cfg, acquiredResources);
-    CHECK_TRUE(rc == err_code::aie_driver_error);
-    acquiredResources.clear();
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rc = profiling::profile_stream_running_to_idle_cycles(cfg, acquiredResources);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profile_stream_running_to_idle_cycles function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_TRUE(rc == err_code::resource_unavailable);
+	acquiredResources.clear();
+}
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_005_EventSelectFails
+*		Function Name: profile_stream_running_to_idle_cycles
+*		Input: cfg.shimColumn = 1, cfg.streamPortId = 2, cfg.slaveOrMaster = 0, acquiredResources
+*		Expectation: rc == aie_driver_error
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfileStreamRunningToIdleCyclesTests, TC_005_EventSelectFails) {
+	shim_config cfg{};
+	cfg.shimColumn = 1;
+	cfg.streamPortId = 2;
+	cfg.slaveOrMaster = 0;
+
+	FalUtil_SetRequestResults({0, 1});
+	XAie_SetEventSelectResult(1);
+	XAie_SetPerfCounterControlResult(XAIE_OK);
+	ErrorMsg_Reset();
+	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rc = profiling::profile_stream_running_to_idle_cycles(cfg, acquiredResources);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profile_stream_running_to_idle_cycles function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_TRUE(rc == err_code::aie_driver_error);
+	acquiredResources.clear();
 }
 
-/**
- * @brief Test group for profile_stream_running_event_count functionality
- *
- * This test group verifies the functionality of profile_stream_running_event_count,
- * which counts the number of stream running events using performance counters.
- */
-TEST_GROUP(ProfilingStreamRunningEventCount)
-{
-	/**
-	 * @brief Set up test fixtures before each test
-	 *
-	 * Resets all stub controls and initializes the device wrapper and
-	 * device instance pointer to prevent null pointer dereferences.
-	 */
-	void setup()
-	{
-		ResetAll();
-		// Initialize the device wrapper to prevent null pointer dereference
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_006_PerfCounterControlFails
+*		Function Name: profile_stream_running_to_idle_cycles
+*		Input: cfg.shimColumn = 1, cfg.streamPortId = 2, cfg.slaveOrMaster = 1, acquiredResources
+*		Expectation: rc == aie_driver_error
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfileStreamRunningToIdleCyclesTests, TC_006_PerfCounterControlFails) {
+	shim_config cfg{};
+	cfg.shimColumn = 1;
+	cfg.streamPortId = 2;
+	cfg.slaveOrMaster = 1;
+
+	FalUtil_SetRequestResults({0, 1});
+	XAie_SetEventSelectResult(XAIE_OK);
+	XAie_SetPerfCounterControlResult(2);
+	ErrorMsg_Reset();
+	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rc = profiling::profile_stream_running_to_idle_cycles(cfg, acquiredResources);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profile_stream_running_to_idle_cycles function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_TRUE(rc == err_code::aie_driver_error);
+	acquiredResources.clear();
+}
+
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_007_NominalSuccessMaster
+*		Function Name: profile_stream_running_to_idle_cycles
+*		Input: cfg.shimColumn = 1, cfg.streamPortId = 2, cfg.slaveOrMaster = 1, acquiredResources
+*		Expectation: result == ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfileStreamRunningToIdleCyclesTests, TC_007_NominalSuccessMaster) {
+	double total_clock_enable_us = 0.0;
+
+	shim_config cfg = make_nominal_cfg(1, 2, 1);
+
+	FalUtil_SetRequestResults({0, 1});
+	XAie_SetEventSelectResult(XAIE_OK);
+	XAie_SetPerfCounterControlResult(XAIE_OK);
+	ErrorMsg_Reset();
+	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rc = profiling::profile_stream_running_to_idle_cycles(cfg, acquiredResources);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profiling profile_stream_running_to_idle_cycles function: " << total_clock_enable_us << " microseconds" << std::endl;
+
+	CHECK_TRUE(rc == err_code::ok);
+	acquiredResources.clear();
+}
+
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_008_NegativeShimColumnIsolated
+*		Function Name: profile_stream_running_to_idle_cycles
+*		Input: cfg.shimColumn = -2, cfg.streamPortId = 2, cfg.slaveOrMaster = 0, acquiredResources
+*		Expectation: result == internal_error
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfileStreamRunningToIdleCyclesTests, TC_008_NegativeShimColumnIsolated) {
+	double total_clock_enable_us = 0.0;
+
+	shim_config cfg{}; cfg.shimColumn = -2; cfg.streamPortId = 2; cfg.slaveOrMaster = 0;
+	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	CHECK_EQUAL((int)err_code::internal_error,
+	            (int)profiling::profile_stream_running_to_idle_cycles(cfg, acquiredResources));
+
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profiling profile_stream_running_to_idle_cycles function: " << total_clock_enable_us << " microseconds" << std::endl;
+}
+
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_009_NegativeStreamPortIdIsolated
+*		Function Name: profile_stream_running_to_idle_cycles
+*		Input: cfg.shimColumn = 1, cfg.streamPortId = -1, cfg.slaveOrMaster = 0, acquiredResources
+*		Expectation: result == internal_error
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfileStreamRunningToIdleCyclesTests, TC_009_NegativeStreamPortIdIsolated) {
+	double total_clock_enable_us = 0.0;
+
+	shim_config cfg{}; cfg.shimColumn = 1; cfg.streamPortId = -1; cfg.slaveOrMaster = 0;
+	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	CHECK_EQUAL((int)err_code::internal_error,
+	            (int)profiling::profile_stream_running_to_idle_cycles(cfg, acquiredResources));
+
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profiling profile_stream_running_to_idle_cycles function: " << total_clock_enable_us << " microseconds" << std::endl;
+}
+
+TEST_GROUP(ProfilingStreamRunningEventCount){
+
+	void setup(){ResetAll();
+
 		static fal_util::DevWrapper devWrapper;
 		fal_util::s_pXAieDev = &devWrapper;
-		// Initialize the device instance pointer
 		abr::config_manager::s_pDevInst = &stub_controls::g_stubDevInst;
 	}
-
-	/**
-	 * @brief Clean up test fixtures after each test
-	 *
-	 * Clears device pointers and mock expectations to prepare for the next test.
-	 */
-	void teardown()
-	{
+	void teardown() {
 		fal_util::s_pXAieDev = nullptr;
 		abr::config_manager::s_pDevInst = nullptr;
 		mock_c()->clear();
 	}
 };
 
-/**
- * @brief TC_201: Verify successful event count profiling with nominal configuration
- *
- * This test verifies that profile_stream_running_event_count successfully
- * acquires resources and configures profiling when all resource requests
- * and driver calls succeed.
- */
-TEST(ProfilingStreamRunningEventCount, TC_201_NominalSuccess)
-{
-    shim_config cfg =  make_nominal_cfg(1, 2, 0); // slave
+//*********************************************************************************/
+/*
+*		Unique test case ID: EventCount_TC_001_NominalSuccess
+*		Function Name: profile_stream_running_event_count
+*		Input: cfg.shimColumn = 1, cfg.streamPortId = 2, cfg.slaveOrMaster = 0, acquiredResources
+*		Expectation: rc == ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStreamRunningEventCount, EventCount_TC_001_NominalSuccess) {
+	shim_config cfg = make_nominal_cfg(1, 2, 0);
 
-    FalUtil_SetRequestResults({0, 1}); // eventPortId, counterId
-    XAie_SetEventSelectResult(XAIE_OK);
-    XAie_SetPerfCounterControlResult(XAIE_OK);
-    ErrorMsg_Reset();
+	FalUtil_SetRequestResults({0, 1});
+	XAie_SetEventSelectResult(XAIE_OK);
+	XAie_SetPerfCounterControlResult(XAIE_OK);
+	ErrorMsg_Reset();
 	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
-    err_code rc =  profiling::profile_stream_running_event_count(cfg, acquiredResources);
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rc = profiling::profile_stream_running_event_count(cfg, acquiredResources);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profile_stream_running_event_count function: " << total_clock_enable_us << " microseconds" << std::endl;
 
-    CHECK_TRUE(rc == err_code::ok);
-
+	CHECK_TRUE(rc == err_code::ok);
 }
 
-/**
- * @brief TC_003: Verify error handling for invalid stream port ID
- *
- * This test verifies that profile_stream_running_event_count correctly
- * returns internal_error when provided with an invalid stream port ID
- * (negative value).
- */
-TEST(ProfilingStreamRunningEventCount, TC_003_InvalidStreamPortId)
-{
-	// ARRANGE: Set up invalid streamPortId parameter
+//*********************************************************************************/
+/*
+*		Unique test case ID: EventCount_TC_002_InvalidStreamPortId
+*		Function Name: profile_stream_running_event_count
+*		Input: cfg.shimColumn = 1, cfg.streamPortId = -1, cfg.slaveOrMaster = 0, acquiredResources
+*		Expectation: rc == internal_error
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStreamRunningEventCount, EventCount_TC_002_InvalidStreamPortId) {
 	abr::shim_config shimConfig;
 	shimConfig.shimColumn = 1;
-	shimConfig.streamPortId = -1; // Invalid
+	shimConfig.streamPortId = -1;
 	shimConfig.slaveOrMaster = 0;
 
 	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
 
-	// ACT: Call the real production function
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
 	abr::err_code result = abr::profiling::profile_stream_running_event_count(shimConfig, acquiredResources);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profile_stream_running_event_count function: " << total_clock_enable_us << " microseconds" << std::endl;
 
-	// ASSERT: Verify the outcome is as expected
 	CHECK_EQUAL(static_cast<int>(abr::err_code::internal_error), static_cast<int>(result));
 }
 
-/**
- * @brief TC_204: Verify error handling when stream switch request fails
- *
- * This test verifies that profile_stream_running_event_count correctly
- * returns resource_unavailable error when the stream switch port resource
- * cannot be requested/allocated.
- */
-TEST(ProfilingStreamRunningEventCount, TC_204_StreamSwitchRequestFails)
-{
-    shim_config cfg =  make_nominal_cfg(1, 2, 0);
+//*********************************************************************************/
+/*
+*		Unique test case ID: EventCount_TC_003_StreamSwitchRequestFails
+*		Function Name: profile_stream_running_event_count
+*		Input: cfg.shimColumn = 1, cfg.streamPortId = 2, cfg.slaveOrMaster = 0, acquiredResources
+*		Expectation: rc == resource_unavailable
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStreamRunningEventCount, EventCount_TC_003_StreamSwitchRequestFails) {
+	shim_config cfg = make_nominal_cfg(1, 2, 0);
 
-    FalUtil_SetRequestResults({-1}); // first request fails
-    XAie_SetEventSelectResult(XAIE_OK);
-    XAie_SetPerfCounterControlResult(XAIE_OK);
-    ErrorMsg_Reset();
+	FalUtil_SetRequestResults({-1});
+	XAie_SetEventSelectResult(XAIE_OK);
+	XAie_SetPerfCounterControlResult(XAIE_OK);
+	ErrorMsg_Reset();
 	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
-    err_code rc =  profiling::profile_stream_running_event_count(cfg, acquiredResources);
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rc = profiling::profile_stream_running_event_count(cfg, acquiredResources);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profile_stream_running_event_count function: " << total_clock_enable_us << " microseconds" << std::endl;
 
-    CHECK_TRUE(rc == err_code::resource_unavailable);
-
+	CHECK_TRUE(rc == err_code::resource_unavailable);
 }
 
-/**
- * @brief TC_205: Verify error handling when performance counter request fails
- *
- * This test verifies that profile_stream_running_event_count correctly
- * returns resource_unavailable error when the performance counter resource
- * cannot be requested/allocated.
- */
-TEST(ProfilingStreamRunningEventCount, TC_205_PerfCounterRequestFails)
-{
-    shim_config cfg =  make_nominal_cfg(1, 2, 1); // master
+//*********************************************************************************/
+/*
+*		Unique test case ID: EventCount_TC_004_PerfCounterRequestFails
+*		Function Name: profile_stream_running_event_count
+*		Input: cfg.shimColumn = 1, cfg.streamPortId = 2, cfg.slaveOrMaster = 0, acquiredResources
+*		Expectation: rc == resource_unavailable
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStreamRunningEventCount, EventCount_TC_004_PerfCounterRequestFails) {
+	shim_config cfg = make_nominal_cfg(1, 2, 1);
 
-    FalUtil_SetRequestResults({0, -1}); // event ok, counter fails
-    XAie_SetEventSelectResult(XAIE_OK);
-    XAie_SetPerfCounterControlResult(XAIE_OK);
-    ErrorMsg_Reset();
+	FalUtil_SetRequestResults({0, -1});
+	XAie_SetEventSelectResult(XAIE_OK);
+	XAie_SetPerfCounterControlResult(XAIE_OK);
+	ErrorMsg_Reset();
 	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
-    err_code rc =  profiling::profile_stream_running_event_count(cfg, acquiredResources);
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rc = profiling::profile_stream_running_event_count(cfg, acquiredResources);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profile_stream_running_event_count function: " << total_clock_enable_us << " microseconds" << std::endl;
 
-    CHECK_TRUE(rc == err_code::resource_unavailable);
+	CHECK_TRUE(rc == err_code::resource_unavailable);
+}
+//*********************************************************************************/
+/*
+*		Unique test case ID: EventCount_TC_005_EventSelectFails
+*		Function Name: profile_stream_running_event_count
+*		Input: cfg.shimColumn = 1, cfg.streamPortId = 2, cfg.slaveOrMaster = 0, acquiredResources
+*		Expectation: rc == aie_driver_error
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStreamRunningEventCount, EventCount_TC_005_EventSelectFails) {
+	shim_config cfg = make_nominal_cfg(1, 2, 0);
 
+	FalUtil_SetRequestResults({0, 1});
+	XAie_SetEventSelectResult(1);
+	XAie_SetPerfCounterControlResult(XAIE_OK);
+	ErrorMsg_Reset();
+	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rc = profiling::profile_stream_running_event_count(cfg, acquiredResources);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profile_stream_running_event_count function: " << total_clock_enable_us << " microseconds" << std::endl;
+
+	CHECK_TRUE(rc == err_code::aie_driver_error);
 }
 
-/**
- * @brief TC_206: Verify error handling when XAie_EventSelectStrmPort fails
- *
- * This test verifies that profile_stream_running_event_count correctly
- * returns aie_driver_error when the underlying AIE driver function
- * XAie_EventSelectStrmPort fails during stream port event selection.
- */
-TEST(ProfilingStreamRunningEventCount, TC_206_EventSelectFails)
-{
-    shim_config cfg =  make_nominal_cfg(1, 2, 0);
+//*********************************************************************************/
+/*
+*		Unique test case ID: EventCount_TC_006_PerfCounterControlFails
+*		Function Name: profile_stream_running_event_count
+*		Input: cfg.shimColumn = 1, cfg.streamPortId = 2, cfg.slaveOrMaster = 1, acquiredResources
+*		Expectation: rc == aie_driver_error
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStreamRunningEventCount, EventCount_TC_006_PerfCounterControlFails) {
+	shim_config cfg = make_nominal_cfg(1, 2, 1);
 
-    FalUtil_SetRequestResults({0, 1});
-    XAie_SetEventSelectResult(1); // non-zero => failure
-    XAie_SetPerfCounterControlResult(XAIE_OK);
-    ErrorMsg_Reset();
+	FalUtil_SetRequestResults({0, 1});
+	XAie_SetEventSelectResult(XAIE_OK);
+	XAie_SetPerfCounterControlResult(3);
+	ErrorMsg_Reset();
 	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
-    err_code rc =  profiling::profile_stream_running_event_count(cfg, acquiredResources);
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rc = profiling::profile_stream_running_event_count(cfg, acquiredResources);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profile_stream_running_event_count function: " << total_clock_enable_us << " microseconds" << std::endl;
 
-    CHECK_TRUE(rc == err_code::aie_driver_error);
-
+	CHECK_TRUE(rc == err_code::aie_driver_error);
 }
 
-/**
- * @brief TC_207: Verify error handling when XAie_PerfCounterControlSet fails
- *
- * This test verifies that profile_stream_running_event_count correctly
- * returns aie_driver_error when the underlying AIE driver function
- * XAie_PerfCounterControlSet fails during performance counter configuration.
- */
-TEST(ProfilingStreamRunningEventCount, TC_207_PerfCounterControlFails)
-{
-    shim_config cfg =  make_nominal_cfg(1, 2, 1);
+//*********************************************************************************/
+/*
+*		Unique test case ID: EventCount_TC_007_NominalSuccessMaster
+*		Function Name: profile_stream_running_event_count
+*		Input: cfg.shimColumn = 1, cfg.streamPortId = 2, cfg.slaveOrMaster = 1, acquiredResources
+*		Expectation: result == ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStreamRunningEventCount, EventCount_TC_007_NominalSuccessMaster) {
+	double total_clock_enable_us = 0.0;
 
-    FalUtil_SetRequestResults({0, 1});
-    XAie_SetEventSelectResult(XAIE_OK);
-    XAie_SetPerfCounterControlResult(3); // non-zero => failure
-    ErrorMsg_Reset();
+	shim_config cfg = make_nominal_cfg(1, 2, 1);
+
+	FalUtil_SetRequestResults({0, 1});
+	XAie_SetEventSelectResult(XAIE_OK);
+	XAie_SetPerfCounterControlResult(XAIE_OK);
+	ErrorMsg_Reset();
 	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
-    err_code rc =  profiling::profile_stream_running_event_count(cfg, acquiredResources);
-
-    CHECK_TRUE(rc == err_code::aie_driver_error);
-
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rc = profiling::profile_stream_running_event_count(cfg, acquiredResources);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profiling profile_stream_running_event_count function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_TRUE(rc == err_code::ok);
+	acquiredResources.clear();
 }
 
-/**
- * @brief Test group for profile_start_time_difference_btw_two_streams functionality
- *
- * This test group verifies the functionality of profile_start_time_difference_btw_two_streams,
- * which measures the time difference between start times of two different streams using
- * broadcast resources for synchronization.
- */
-TEST_GROUP(ProfilingStartTimeDifferenceBtw2Streams)
-{
-	/**
-	 * @brief Set up test fixtures before each test
-	 *
-	 * Resets all stub controls and initializes the device wrapper and
-	 * device instance pointer to prevent null pointer dereferences.
-	 */
-	void setup()
-	{
-		ResetAll();
-		// Initialize the device wrapper to prevent null pointer dereference
+//*********************************************************************************/
+/*
+*		Unique test case ID: EventCount_TC_008_NegativeShimColumnIsolated
+*		Function Name: profile_stream_running_event_count
+*		Input: cfg.shimColumn = -2, cfg.streamPortId = 2, cfg.slaveOrMaster = 0, acquiredResources
+*		Expectation: result == internal_error
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStreamRunningEventCount, EventCount_TC_008_NegativeShimColumnIsolated) {
+	double total_clock_enable_us = 0.0;
+
+	shim_config cfg{}; cfg.shimColumn = -2; cfg.streamPortId = 2; cfg.slaveOrMaster = 0;
+	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	CHECK_EQUAL((int)err_code::internal_error,
+	            (int)profiling::profile_stream_running_event_count(cfg, acquiredResources));
+
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profiling profile_stream_running_event_count function: " << total_clock_enable_us << " microseconds" << std::endl;
+}
+
+//*********************************************************************************/
+/*
+*		Unique test case ID: EventCount_TC_009_ShimColumnMinusOneTriggersColInvalid
+*		Function Name: profile_stream_running_event_count
+*		Input: cfg.shimColumn = -1, cfg.streamPortId = 2, cfg.slaveOrMaster = 0, acquiredResources
+*		Expectation: result == internal_error
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStreamRunningEventCount, EventCount_TC_009_ShimColumnMinusOneTriggersColInvalid) {
+	double total_clock_enable_us = 0.0;
+
+	shim_config cfg{}; cfg.shimColumn = -1; cfg.streamPortId = 2; cfg.slaveOrMaster = 0;
+	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	CHECK_EQUAL((int)err_code::internal_error,
+	            (int)profiling::profile_stream_running_event_count(cfg, acquiredResources));
+
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profiling profile_stream_running_event_count function: " << total_clock_enable_us << " microseconds" << std::endl;
+}
+
+TEST_GROUP(ProfilingStartTimeDifferenceBtw2Streams){
+	void setup(){ResetAll();
 		static fal_util::DevWrapper devWrapper;
 		fal_util::s_pXAieDev = &devWrapper;
-		// Initialize the device instance pointer
 		abr::config_manager::s_pDevInst = &stub_controls::g_stubDevInst;
 	}
-
-	/**
-	 * @brief Clean up test fixtures after each test
-	 *
-	 * Clears device pointers and mock expectations to prepare for the next test.
-	 */
-	void teardown()
-	{
+	void teardown() {
 		fal_util::s_pXAieDev = nullptr;
 		abr::config_manager::s_pDevInst = nullptr;
 		mock_c()->clear();
 	}
 };
 
-/**
- * @brief TC_004: Verify error handling for invalid shim column in first config
- *
- * This test verifies that profile_start_time_difference_btw_two_streams correctly
- * returns internal_error when the first shim configuration has an invalid
- * column number (negative value).
- */
-TEST(ProfilingStartTimeDifferenceBtw2Streams, TC_004_InvalidShimColumn1)
-{
-	// ARRANGE
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_001_InvalidShimColumn1
+*		Function Name: profile_start_time_difference_btw_two_streams
+*		Input: shimConfig1.shimColumn = -1, shimConfig1.streamPortId = 0, shimConfig1.slaveOrMaster = 0, shimConfig2.shimColumn = 5, shimConfig2.streamPortId = 1, shimConfig2.slaveOrMaster = 1, acquiredResources
+*		Expectation: rc == internal_error
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStartTimeDifferenceBtw2Streams, TC_001_InvalidShimColumn1) {
 	abr::shim_config shimConfig1;
-	shimConfig1.shimColumn = -1; // Invalid column
+	shimConfig1.shimColumn = -1;
 	shimConfig1.streamPortId = 0;
 	shimConfig1.slaveOrMaster = 0;
 
@@ -587,925 +841,1790 @@ TEST(ProfilingStartTimeDifferenceBtw2Streams, TC_004_InvalidShimColumn1)
 
 	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
 
-	// ACT
-	abr::err_code result = abr::profiling::profile_start_time_difference_btw_two_streams(shimConfig1, shimConfig2, acquiredResources);
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code result =	abr::profiling::profile_start_time_difference_btw_two_streams(shimConfig1, shimConfig2, acquiredResources);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profile_start_time_difference_btw_two_streams function: " << total_clock_enable_us << " microseconds" << std::endl;
 
-	// ASSERT
 	CHECK_EQUAL((int)abr::err_code::internal_error, (int)result);
-
-
 }
 
-/**
- * @brief TC_301: Verify successful time difference profiling for same tile
- *
- * This test verifies that profile_start_time_difference_btw_two_streams successfully
- * measures start time difference when both streams are on the same tile,
- * without requiring broadcast resources.
- */
-TEST(ProfilingStartTimeDifferenceBtw2Streams, TC_301_SameTileNominalSuccess)
-{
-    shim_config cfg1 = make_nominal_cfg(1, 2, 0); // slave
-    shim_config cfg2 = make_nominal_cfg(1, 3, 1); // master, same column
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_002_SameTileNominalSuccess
+*		Function Name: profile_start_time_difference_btw_two_streams
+*		Input: cfg1.shimColumn = 1, cfg1.streamPortId = 2, cfg1.slaveOrMaster = 0, cfg2.shimColumn = 1, cfg2.streamPortId = 3, cfg2.slaveOrMaster = 1, acquiredResources
+*		Expectation: rc == ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStartTimeDifferenceBtw2Streams, TC_002_SameTileNominalSuccess) {
+	shim_config cfg1 = make_nominal_cfg(1, 2, 0);
+	shim_config cfg2 = make_nominal_cfg(1, 3, 1);
 
-    // Request order in UUT: SS1, PC1, SS2, PC2 (no broadcast)
-    FalUtil_SetRequestResults({0, 1, 2, 3});
-    XAie_SetEventSelectResult(XAIE_OK);
-    XAie_SetPerfCounterControlResult(XAIE_OK);
-    ErrorMsg_Reset();
+	FalUtil_SetRequestResults({0, 1, 2, 3});
+	XAie_SetEventSelectResult(XAIE_OK);
+	XAie_SetPerfCounterControlResult(XAIE_OK);
+	ErrorMsg_Reset();
 	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
-    err_code rc = profiling::profile_start_time_difference_btw_two_streams(
-        cfg1, cfg2, acquiredResources);
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rc = profiling::profile_start_time_difference_btw_two_streams(cfg1, cfg2, acquiredResources);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profile_start_time_difference_btw_two_streams function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_TRUE(rc == err_code::ok);
+	CHECK_EQUAL(4U, acquiredResources.size());
+	for (size_t i = 0; i < acquiredResources.size(); ++i)
+		CHECK_TRUE(acquiredResources[i] != nullptr);
 
-    CHECK_TRUE(rc == err_code::ok);
-    CHECK_EQUAL(4U, acquiredResources.size());
-    for (size_t i = 0; i < acquiredResources.size(); ++i)
-        CHECK_TRUE(acquiredResources[i] != nullptr);
-
-    CHECK_EQUAL(4, FalUtil_GetRequestCallCount());
-    // Two tiles, each configured with EventSelect and PerfCounterControl
-    CHECK_EQUAL(2, XAie_GetEventSelectCallCount());
-    CHECK_EQUAL(2, XAie_GetPerfCounterControlCallCount());
+	CHECK_EQUAL(4, FalUtil_GetRequestCallCount());
+	CHECK_EQUAL(2, XAie_GetEventSelectCallCount());
+	CHECK_EQUAL(2, XAie_GetPerfCounterControlCallCount());
 }
 
-/**
- * @brief TC_302: Verify successful time difference profiling for different tiles
- *
- * This test verifies that profile_start_time_difference_btw_two_streams successfully
- * measures start time difference when streams are on different tiles,
- * using broadcast resources for synchronization.
- */
-TEST(ProfilingStartTimeDifferenceBtw2Streams, TC_302_DifferentTileNominalSuccess)
-{
-    shim_config cfg1 = make_nominal_cfg(1, 2, 0);
-    shim_config cfg2 = make_nominal_cfg(3, 4, 1); // different column
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_003_DifferentTileNominalSuccess
+*		Function Name: profile_start_time_difference_btw_two_streams
+*		Input: cfg1.shimColumn = 1, cfg1.streamPortId = 2, cfg1.slaveOrMaster = 0, cfg2.shimColumn = 3, cfg2.streamPortId = 4, cfg2.slaveOrMaster = 1, acquiredResources
+*		Expectation: rc == ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStartTimeDifferenceBtw2Streams, TC_003_DifferentTileNominalSuccess) {
+	shim_config cfg1 = make_nominal_cfg(1, 2, 0);
+	shim_config cfg2 = make_nominal_cfg(3, 4, 1);
 
-    // Request order: SS1, PC1, SS2, PC2, broadcast
-    FalUtil_SetRequestResults({0, 1, 2, 3, 4});
-    XAie_SetEventSelectResult(XAIE_OK);
-    XAie_SetPerfCounterControlResult(XAIE_OK);
-    ErrorMsg_Reset();
+	FalUtil_SetRequestResults({0, 1, 2, 3, 4});
+	XAie_SetEventSelectResult(XAIE_OK);
+	XAie_SetPerfCounterControlResult(XAIE_OK);
+	ErrorMsg_Reset();
 	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
-    err_code rc = profiling::profile_start_time_difference_btw_two_streams(
-        cfg1, cfg2, acquiredResources);
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rc = profiling::profile_start_time_difference_btw_two_streams(cfg1, cfg2, acquiredResources);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profile_start_time_difference_btw_two_streams function: " << total_clock_enable_us << " microseconds" << std::endl;
 
-    CHECK_TRUE(rc == err_code::ok);
-    CHECK_EQUAL(5U, acquiredResources.size());
-    for (size_t i = 0; i < acquiredResources.size(); ++i)
-        CHECK_TRUE(acquiredResources[i] != nullptr);
+	CHECK_TRUE(rc == err_code::ok);
+	CHECK_EQUAL(5U, acquiredResources.size());
+	for (size_t i = 0; i < acquiredResources.size(); ++i)
+		CHECK_TRUE(acquiredResources[i] != nullptr);
 
-    CHECK_EQUAL(5, FalUtil_GetRequestCallCount());
-    // Two tiles, plus broadcast configuration in the different-tile path
-    CHECK_TRUE(XAie_GetEventSelectCallCount() >= 2);
-    CHECK_TRUE(XAie_GetPerfCounterControlCallCount() >= 2);
+	CHECK_EQUAL(5, FalUtil_GetRequestCallCount());
+	CHECK_TRUE(XAie_GetEventSelectCallCount() >= 2);
+	CHECK_TRUE(XAie_GetPerfCounterControlCallCount() >= 2);
 }
 
-/**
- * @brief TC_304: Verify error handling for invalid second stream configuration
- *
- * This test verifies that profile_start_time_difference_btw_two_streams correctly
- * returns internal_error when the second stream configuration contains
- * an invalid stream port ID (negative value).
- */
-TEST(ProfilingStartTimeDifferenceBtw2Streams, TC_304_InvalidSecondConfig)
-{
-    shim_config cfg1 = make_nominal_cfg(1, 2, 0);
-    shim_config cfg2 = make_nominal_cfg(1, -1, 1); // invalid port
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_004_InvalidSecondConfig
+*		Function Name: profile_start_time_difference_btw_two_streams
+*		Input: shimConfig1.shimColumn = -1, shimConfig1.streamPortId = 0, shimConfig1.slaveOrMaster = 0, shimConfig2.shimColumn = 1, shimConfig2.streamPortId = -1, shimConfig2.slaveOrMaster = 1, acquiredResources
+*		Expectation: rc == internal_error
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStartTimeDifferenceBtw2Streams, TC_004_InvalidSecondConfig) {
+	shim_config cfg1 = make_nominal_cfg(1, 2, 0);
+	shim_config cfg2 = make_nominal_cfg(1, -1, 1);
 
-    FalUtil_SetRequestResults({});
-    XAie_SetEventSelectResult(XAIE_OK);
-    XAie_SetPerfCounterControlResult(XAIE_OK);
-    ErrorMsg_Reset();
+	FalUtil_SetRequestResults({});
+	XAie_SetEventSelectResult(XAIE_OK);
+	XAie_SetPerfCounterControlResult(XAIE_OK);
+	ErrorMsg_Reset();
 	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
-    err_code rc = profiling::profile_start_time_difference_btw_two_streams(
-        cfg1, cfg2, acquiredResources);
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rc = profiling::profile_start_time_difference_btw_two_streams(cfg1, cfg2, acquiredResources);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profile_start_time_difference_btw_two_streams function: " << total_clock_enable_us << " microseconds" << std::endl;
 
-    CHECK_TRUE(rc == err_code::internal_error);
-    CHECK_EQUAL(0, FalUtil_GetRequestCallCount());
-    CHECK_EQUAL(0, XAie_GetEventSelectCallCount());
-    CHECK_EQUAL(0, XAie_GetPerfCounterControlCallCount());
-    CHECK_EQUAL(0U, acquiredResources.size());
+	CHECK_TRUE(rc == err_code::internal_error);
+	CHECK_EQUAL(0, FalUtil_GetRequestCallCount());
+	CHECK_EQUAL(0, XAie_GetEventSelectCallCount());
+	CHECK_EQUAL(0, XAie_GetPerfCounterControlCallCount());
+	CHECK_EQUAL(0U, acquiredResources.size());
 }
 
-/**
- * @brief TC_305: Verify error handling when first stream switch request fails
- *
- * This test verifies that profile_start_time_difference_btw_two_streams correctly
- * returns resource_unavailable error when the first stream switch port resource
- * cannot be requested/allocated.
- */
-TEST(ProfilingStartTimeDifferenceBtw2Streams, TC_305_StreamSwitch1RequestFails)
-{
-    shim_config cfg1 = make_nominal_cfg(1, 2, 0);
-    shim_config cfg2 = make_nominal_cfg(1, 3, 1);
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_005_StreamSwitch1RequestFails
+*		Function Name: profile_start_time_difference_btw_two_streams
+*		Input: cfg1.shimColumn = 1, cfg1.streamPortId = 2, cfg1.slaveOrMaster = 0, cfg2.shimColumn = 1, cfg2.streamPortId = 3, cfg2.slaveOrMaster = 1, acquiredResources
+*		Expectation: rc == resource_unavailable
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStartTimeDifferenceBtw2Streams, TC_005_StreamSwitch1RequestFails) {
+	shim_config cfg1 = make_nominal_cfg(1, 2, 0);
+	shim_config cfg2 = make_nominal_cfg(1, 3, 1);
 
-    FalUtil_SetRequestResults({-1}); // first request fails
-    XAie_SetEventSelectResult(XAIE_OK);
-    XAie_SetPerfCounterControlResult(XAIE_OK);
-    ErrorMsg_Reset();
+	FalUtil_SetRequestResults({-1});
+	XAie_SetEventSelectResult(XAIE_OK);
+	XAie_SetPerfCounterControlResult(XAIE_OK);
+	ErrorMsg_Reset();
 	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
-    err_code rc = profiling::profile_start_time_difference_btw_two_streams(
-        cfg1, cfg2, acquiredResources);
-
-    CHECK_TRUE(rc == err_code::resource_unavailable);
-    CHECK_EQUAL(1, FalUtil_GetRequestCallCount());
-    CHECK_EQUAL(0, XAie_GetEventSelectCallCount());
-    CHECK_EQUAL(0, XAie_GetPerfCounterControlCallCount());
-    CHECK_EQUAL(0U, acquiredResources.size());
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rc = profiling::profile_start_time_difference_btw_two_streams(cfg1, cfg2, acquiredResources);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profile_start_time_difference_btw_two_streams function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_TRUE(rc == err_code::resource_unavailable);
+	CHECK_EQUAL(1, FalUtil_GetRequestCallCount());
+	CHECK_EQUAL(0, XAie_GetEventSelectCallCount());
+	CHECK_EQUAL(0, XAie_GetPerfCounterControlCallCount());
+	CHECK_EQUAL(0U, acquiredResources.size());
 }
 
-/**
- * @brief TC_306: Verify error handling when first performance counter request fails
- *
- * This test verifies that profile_start_time_difference_btw_two_streams correctly
- * returns resource_unavailable error when the first performance counter resource
- * cannot be requested/allocated.
- */
-TEST(ProfilingStartTimeDifferenceBtw2Streams, TC_306_PerfCounter1RequestFails)
-{
-    shim_config cfg1 = make_nominal_cfg(1, 2, 0);
-    shim_config cfg2 = make_nominal_cfg(1, 3, 1);
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_006_PerfCounter1RequestFails
+*		Function Name: profile_start_time_difference_btw_two_streams
+*		Input: cfg1.shimColumn = 1, cfg1.streamPortId = 2, cfg1.slaveOrMaster = 0, cfg2.shimColumn = 1, cfg2.streamPortId = 3, cfg2.slaveOrMaster = 1, acquiredResources
+*		Expectation: rc == resource_unavailable
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStartTimeDifferenceBtw2Streams, TC_006_PerfCounter1RequestFails) {
+	shim_config cfg1 = make_nominal_cfg(1, 2, 0);
+	shim_config cfg2 = make_nominal_cfg(1, 3, 1);
 
-    FalUtil_SetRequestResults({0, -1}); // SS1 ok, PC1 fails
-    XAie_SetEventSelectResult(XAIE_OK);
-    XAie_SetPerfCounterControlResult(XAIE_OK);
-    ErrorMsg_Reset();
+	FalUtil_SetRequestResults({0, -1});
+	XAie_SetEventSelectResult(XAIE_OK);
+	XAie_SetPerfCounterControlResult(XAIE_OK);
+	ErrorMsg_Reset();
 	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
-    err_code rc = profiling::profile_start_time_difference_btw_two_streams(
-        cfg1, cfg2, acquiredResources);
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rc = profiling::profile_start_time_difference_btw_two_streams(cfg1, cfg2, acquiredResources);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profile_start_time_difference_btw_two_streams function: " << total_clock_enable_us << " microseconds" << std::endl;
 
-    CHECK_TRUE(rc == err_code::resource_unavailable);
-    CHECK_EQUAL(2, FalUtil_GetRequestCallCount());
-    CHECK_EQUAL(0, XAie_GetEventSelectCallCount());
-    CHECK_EQUAL(0, XAie_GetPerfCounterControlCallCount());
-    CHECK_EQUAL(0U, acquiredResources.size());
+	CHECK_TRUE(rc == err_code::resource_unavailable);
+	CHECK_EQUAL(2, FalUtil_GetRequestCallCount());
+	CHECK_EQUAL(0, XAie_GetEventSelectCallCount());
+	CHECK_EQUAL(0, XAie_GetPerfCounterControlCallCount());
+	CHECK_EQUAL(0U, acquiredResources.size());
 }
 
-/**
- * @brief TC_307: Verify error handling when second stream switch request fails
- *
- * This test verifies that profile_start_time_difference_btw_two_streams correctly
- * returns resource_unavailable error when the second stream switch port resource
- * cannot be requested/allocated.
- */
-TEST(ProfilingStartTimeDifferenceBtw2Streams, TC_307_StreamSwitch2RequestFails)
-{
-    shim_config cfg1 = make_nominal_cfg(1, 2, 0);
-    shim_config cfg2 = make_nominal_cfg(1, 3, 1);
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_007_StreamSwitch2RequestFails
+*		Function Name: profile_start_time_difference_btw_two_streams
+*		Input: cfg1.shimColumn = 1, cfg1.streamPortId = 2, cfg1.slaveOrMaster = 0, cfg2.shimColumn = 1, cfg2.streamPortId = 3, cfg2.slaveOrMaster = 1, acquiredResources
+*		Expectation: rc == resource_unavailable
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStartTimeDifferenceBtw2Streams, TC_007_StreamSwitch2RequestFails) {
+	shim_config cfg1 = make_nominal_cfg(1, 2, 0);
+	shim_config cfg2 = make_nominal_cfg(1, 3, 1);
 
-    FalUtil_SetRequestResults({0, 1, -1}); // SS1 ok, PC1 ok, SS2 fails
-    XAie_SetEventSelectResult(XAIE_OK);
-    XAie_SetPerfCounterControlResult(XAIE_OK);
-    ErrorMsg_Reset();
+	FalUtil_SetRequestResults({0, 1, -1});
+	XAie_SetEventSelectResult(XAIE_OK);
+	XAie_SetPerfCounterControlResult(XAIE_OK);
+	ErrorMsg_Reset();
 	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
-    err_code rc = profiling::profile_start_time_difference_btw_two_streams(
-        cfg1, cfg2, acquiredResources);
-
-    CHECK_TRUE(rc == err_code::resource_unavailable);
-    CHECK_EQUAL(3, FalUtil_GetRequestCallCount());
-    CHECK_EQUAL(0, XAie_GetEventSelectCallCount());
-    CHECK_EQUAL(0, XAie_GetPerfCounterControlCallCount());
-    CHECK_EQUAL(0U, acquiredResources.size());
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rc = profiling::profile_start_time_difference_btw_two_streams(cfg1, cfg2, acquiredResources);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profile_start_time_difference_btw_two_streams function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_TRUE(rc == err_code::resource_unavailable);
+	CHECK_EQUAL(3, FalUtil_GetRequestCallCount());
+	CHECK_EQUAL(0, XAie_GetEventSelectCallCount());
+	CHECK_EQUAL(0, XAie_GetPerfCounterControlCallCount());
+	CHECK_EQUAL(0U, acquiredResources.size());
 }
 
-/**
- * @brief TC_308: Verify error handling when second performance counter request fails
- *
- * This test verifies that profile_start_time_difference_btw_two_streams correctly
- * returns resource_unavailable error when the second performance counter resource
- * cannot be requested/allocated.
- */
-TEST(ProfilingStartTimeDifferenceBtw2Streams, TC_308_PerfCounter2RequestFails)
-{
-    shim_config cfg1 = make_nominal_cfg(1, 2, 0);
-    shim_config cfg2 = make_nominal_cfg(1, 3, 1);
+	//*********************************************************************************/
+	/*
+	*		Unique test case ID: TC_008_PerfCounter2RequestFails
+*		Function Name: profile_start_time_difference_btw_two_streams
+	*		Input: cfg1.shimColumn = 1, cfg1.streamPortId = 2, cfg1.slaveOrMaster = 0, cfg2.shimColumn = 1, cfg2.streamPortId = 3, cfg2.slaveOrMaster = 1, acquiredResources
+	*		Expectation: rc == resource_unavailable
+	*		Test Method: Unit testing
+	*     	Methods for deriving test case: Analysis of requirement
+	*     	Test Environment: 2
+	*/
+	/*********************************************************************************/
+TEST(ProfilingStartTimeDifferenceBtw2Streams, TC_008_PerfCounter2RequestFails) {
+	shim_config cfg1 = make_nominal_cfg(1, 2, 0);
+	shim_config cfg2 = make_nominal_cfg(1, 3, 1);
 
-    FalUtil_SetRequestResults({0, 1, 2, -1}); // SS1, PC1, SS2 ok, PC2 fails
-    XAie_SetEventSelectResult(XAIE_OK);
-    XAie_SetPerfCounterControlResult(XAIE_OK);
-    ErrorMsg_Reset();
+	FalUtil_SetRequestResults({0, 1, 2, -1});
+	XAie_SetEventSelectResult(XAIE_OK);
+	XAie_SetPerfCounterControlResult(XAIE_OK);
+	ErrorMsg_Reset();
 	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
-    err_code rc = profiling::profile_start_time_difference_btw_two_streams(
-        cfg1, cfg2, acquiredResources);
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rc = profiling::profile_start_time_difference_btw_two_streams(cfg1, cfg2, acquiredResources);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profile_start_time_difference_btw_two_streams function: " << total_clock_enable_us << " microseconds" << std::endl;
 
-    CHECK_TRUE(rc == err_code::resource_unavailable);
-    CHECK_EQUAL(4, FalUtil_GetRequestCallCount());
-    CHECK_EQUAL(0, XAie_GetEventSelectCallCount());
-    CHECK_EQUAL(0, XAie_GetPerfCounterControlCallCount());
-    CHECK_EQUAL(0U, acquiredResources.size());
+	CHECK_TRUE(rc == err_code::resource_unavailable);
+	CHECK_EQUAL(4, FalUtil_GetRequestCallCount());
+	CHECK_EQUAL(0, XAie_GetEventSelectCallCount());
+	CHECK_EQUAL(0, XAie_GetPerfCounterControlCallCount());
+	CHECK_EQUAL(0U, acquiredResources.size());
 }
 
-/**
- * @brief TC_309: Verify error handling when broadcast request fails for different tiles
- *
- * This test verifies that profile_start_time_difference_btw_two_streams correctly
- * returns resource_unavailable error when the broadcast resource cannot be requested
- * during different-tile stream profiling setup.
- */
-TEST(ProfilingStartTimeDifferenceBtw2Streams, TC_309_BroadcastRequestFails)
-{
-    shim_config cfg1 = make_nominal_cfg(1, 2, 0);
-    shim_config cfg2 = make_nominal_cfg(3, 4, 1); // different column -> broadcast path
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_009_BroadcastRequestFails
+*		Function Name: profile_start_time_difference_btw_two_streams
+*		Input: cfg1.shimColumn = 1, cfg1.streamPortId = 2, cfg1.slaveOrMaster = 0, cfg2.shimColumn = 3, cfg2.streamPortId = 4, cfg2.slaveOrMaster = 1, broadcast column = 0, acquiredResources
+*		Expectation: rc == resource_unavailable
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStartTimeDifferenceBtw2Streams, TC_009_BroadcastRequestFails) {
+	shim_config cfg1 = make_nominal_cfg(1, 2, 0);
+	shim_config cfg2 = make_nominal_cfg(3, 4, 1);
 
-    // SS1, PC1, SS2, PC2 ok; broadcast request fails
-    FalUtil_SetRequestResults({0, 1, 2, 3, -1});
-    XAie_SetEventSelectResult(XAIE_OK);
-    XAie_SetPerfCounterControlResult(XAIE_OK);
-    ErrorMsg_Reset();
+	FalUtil_SetRequestResults({0, 1, 2, 3, -1});
+	XAie_SetEventSelectResult(XAIE_OK);
+	XAie_SetPerfCounterControlResult(XAIE_OK);
+	ErrorMsg_Reset();
 	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
-    err_code rc = profiling::profile_start_time_difference_btw_two_streams(
-        cfg1, cfg2, acquiredResources);
-
-    CHECK_TRUE(rc == err_code::resource_unavailable);
-    CHECK_EQUAL(5, FalUtil_GetRequestCallCount());
-    // UUT may attempt releases on failure, but should not configure driver
-    CHECK_EQUAL(0, XAie_GetEventSelectCallCount());
-    CHECK_EQUAL(0, XAie_GetPerfCounterControlCallCount());
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rc = profiling::profile_start_time_difference_btw_two_streams(cfg1, cfg2, acquiredResources);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profile_start_time_difference_btw_two_streams function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_TRUE(rc == err_code::resource_unavailable);
+	CHECK_EQUAL(5, FalUtil_GetRequestCallCount());
+	CHECK_EQUAL(0, XAie_GetEventSelectCallCount());
+	CHECK_EQUAL(0, XAie_GetPerfCounterControlCallCount());
 }
 
-/**
- * @brief TC_310: Verify error handling when broadcast request and release both fail
- *
- * This test verifies that profile_start_time_difference_btw_two_streams correctly
- * returns resource_unavailable error when both the broadcast resource request fails
- * and subsequent release operations also fail.
- */
-TEST(ProfilingStartTimeDifferenceBtw2Streams, TC_310_BroadcastRequestReleaseFails)
-{
-    shim_config cfg1 = make_nominal_cfg(1, 2, 0);
-    shim_config cfg2 = make_nominal_cfg(3, 4, 1); // different column -> broadcast path
 
-    // SS1, PC1, SS2, PC2 ok; broadcast request fails
-    FalUtil_SetRequestResults({0, 1, 2, 3, -1});
-    FalUtil_SetReleaseResult(false); // make release fail
-    XAie_SetEventSelectResult(XAIE_OK);
-    XAie_SetPerfCounterControlResult(XAIE_OK);
-    ErrorMsg_Reset();
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_010_BroadcastRequestReleaseFails
+*		Function Name: profile_start_time_difference_btw_two_streams
+*		Input: cfg1.shimColumn = 1, cfg1.streamPortId = 2, cfg1.slaveOrMaster = 0, cfg2.shimColumn = 3, cfg2.streamPortId = 4, cfg2.slaveOrMaster = 1, broadcast column = 0, acquiredResources
+*		Expectation: rc == resource_unavailable
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStartTimeDifferenceBtw2Streams, TC_010_BroadcastRequestReleaseFails) {
+	shim_config cfg1 = make_nominal_cfg(1, 2, 0);
+	shim_config cfg2 = make_nominal_cfg(3, 4, 1);
+
+	FalUtil_SetRequestResults({0, 1, 2, 3, -1});
+	FalUtil_SetReleaseResult(false);
+	XAie_SetEventSelectResult(XAIE_OK);
+	XAie_SetPerfCounterControlResult(XAIE_OK);
+	ErrorMsg_Reset();
 	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
-    err_code rc = profiling::profile_start_time_difference_btw_two_streams(
-        cfg1, cfg2, acquiredResources);
-
-    CHECK_TRUE(rc == err_code::resource_unavailable);
-    CHECK_EQUAL(5, FalUtil_GetRequestCallCount());
-    // UUT may attempt releases on failure, but should not configure driver
-    CHECK_EQUAL(0, XAie_GetEventSelectCallCount());
-    CHECK_EQUAL(0, XAie_GetPerfCounterControlCallCount());
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rc = profiling::profile_start_time_difference_btw_two_streams(cfg1, cfg2, acquiredResources);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profile_start_time_difference_btw_two_streams function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_TRUE(rc == err_code::resource_unavailable);
+	CHECK_EQUAL(5, FalUtil_GetRequestCallCount());
+	CHECK_EQUAL(0, XAie_GetEventSelectCallCount());
+	CHECK_EQUAL(0, XAie_GetPerfCounterControlCallCount());
 }
 
-/**
- * @brief TC_311: Verify error handling when XAie_EventSelectStrmPort fails (same tile)
- *
- * This test verifies that profile_start_time_difference_btw_two_streams correctly
- * returns aie_driver_error when the underlying AIE driver function
- * XAie_EventSelectStrmPort fails during stream port event selection for same-tile configuration.
- */
-TEST(ProfilingStartTimeDifferenceBtw2Streams, TC_311_EventSelectFailureSameTile)
-{
-    shim_config cfg1 = make_nominal_cfg(1, 2, 0);
-    shim_config cfg2 = make_nominal_cfg(1, 3, 1);
 
-    FalUtil_SetRequestResults({0, 1, 2, 3});
-    XAie_SetEventSelectResult(1); // non-zero => failure
-    XAie_SetPerfCounterControlResult(XAIE_OK);
-    ErrorMsg_Reset();
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_011_EventSelectFailureSameTile
+*		Function Name: profile_start_time_difference_btw_two_streams
+*		Input: cfg1.shimColumn = 1, cfg1.streamPortId = 2, cfg1.slaveOrMaster = 0, cfg2.shimColumn = 1, cfg2.streamPortId = 3, cfg2.slaveOrMaster = 1, acquiredResources
+*		Expectation: rc == aie_driver_error
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStartTimeDifferenceBtw2Streams, TC_011_EventSelectFailureSameTile) {
+	shim_config cfg1 = make_nominal_cfg(1, 2, 0);
+	shim_config cfg2 = make_nominal_cfg(1, 3, 1);
+
+	FalUtil_SetRequestResults({0, 1, 2, 3});
+	XAie_SetEventSelectResult(1);
+	XAie_SetPerfCounterControlResult(XAIE_OK);
+	ErrorMsg_Reset();
 	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
-    err_code rc = profiling::profile_start_time_difference_btw_two_streams(
-        cfg1, cfg2, acquiredResources);
-
-    CHECK_TRUE(rc == err_code::aie_driver_error);
-    CHECK_EQUAL(4, FalUtil_GetRequestCallCount());
-    CHECK_TRUE(XAie_GetEventSelectCallCount() >= 1);
-    CHECK_TRUE(XAie_GetPerfCounterControlCallCount() >= 2);
-    CHECK_EQUAL(4U, acquiredResources.size());
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rc = profiling::profile_start_time_difference_btw_two_streams(cfg1, cfg2, acquiredResources);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profile_start_time_difference_btw_two_streams function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_TRUE(rc == err_code::aie_driver_error);
+	CHECK_EQUAL(4, FalUtil_GetRequestCallCount());
+	CHECK_TRUE(XAie_GetEventSelectCallCount() >= 1);
+	CHECK_TRUE(XAie_GetPerfCounterControlCallCount() >= 2);
+	CHECK_EQUAL(4U, acquiredResources.size());
 }
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_012_PerfCounterControlFailureDifferentTiles
+*		Function Name: profile_start_time_difference_btw_two_streams
+*		Input: cfg1.shimColumn = 1, cfg1.streamPortId = 2, cfg1.slaveOrMaster = 0, cfg2.shimColumn = 1, cfg2.streamPortId = 3, cfg2.slaveOrMaster = 1, acquiredResources
+*		Expectation: rc == aie_driver_error
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
 
-/**
- * @brief TC_312: Verify error handling when XAie_PerfCounterControlSet fails (different tiles)
- *
- * This test verifies that profile_start_time_difference_btw_two_streams correctly
- * returns aie_driver_error when the underlying AIE driver function
- * XAie_PerfCounterControlSet fails during performance counter configuration for different-tile configuration.
- */
-TEST(ProfilingStartTimeDifferenceBtw2Streams, TC_312_PerfCounterControlFailureDifferentTiles)
-{
-    shim_config cfg1 = make_nominal_cfg(1, 2, 0);
-    shim_config cfg2 = make_nominal_cfg(3, 4, 1);
+TEST(ProfilingStartTimeDifferenceBtw2Streams, TC_012_PerfCounterControlFailureDifferentTiles) {
+	shim_config cfg1 = make_nominal_cfg(1, 2, 0);
+	shim_config cfg2 = make_nominal_cfg(3, 4, 1);
 
-    FalUtil_SetRequestResults({0, 1, 2, 3, 4});
-    XAie_SetEventSelectResult(XAIE_OK);
-    XAie_SetPerfCounterControlResult(1); // non-zero => failure for one or more controls
-    ErrorMsg_Reset();
+	FalUtil_SetRequestResults({0, 1, 2, 3, 4});
+	XAie_SetEventSelectResult(XAIE_OK);
+	XAie_SetPerfCounterControlResult(1);
+	ErrorMsg_Reset();
 	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
-    err_code rc = profiling::profile_start_time_difference_btw_two_streams(
-        cfg1, cfg2, acquiredResources);
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rc = profiling::profile_start_time_difference_btw_two_streams(cfg1, cfg2, acquiredResources);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profile_start_time_difference_btw_two_streams function: " << total_clock_enable_us << " microseconds" << std::endl;
 
-    CHECK_TRUE(rc == err_code::aie_driver_error);
-    CHECK_EQUAL(5, FalUtil_GetRequestCallCount());
-    CHECK_TRUE(XAie_GetEventSelectCallCount() >= 2);
-    CHECK_TRUE(XAie_GetPerfCounterControlCallCount() >= 2);
-    CHECK_EQUAL(5U, acquiredResources.size());
+	CHECK_TRUE(rc == err_code::aie_driver_error);
+	CHECK_EQUAL(5, FalUtil_GetRequestCallCount());
+	CHECK_TRUE(XAie_GetEventSelectCallCount() >= 2);
+	CHECK_TRUE(XAie_GetPerfCounterControlCallCount() >= 2);
+	CHECK_EQUAL(5U, acquiredResources.size());
 }
 
-TEST_GROUP(ProfileStreamStartToTransferComplete)
-{
-	void setup()
-	{
-		ResetAll();
-		// Initialize the device wrapper to prevent null pointer dereference
-		static fal_util::DevWrapper devWrapper;
-		fal_util::s_pXAieDev = &devWrapper;
-		// Initialize the device instance pointer
-		abr::config_manager::s_pDevInst = &stub_controls::g_stubDevInst;
-	}
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_013_SameTileBothMaster
+*		Function Name: profile_start_time_difference_btw_two_streams
+*		Input: cfg1.shimColumn = 1, cfg1.streamPortId = 2, cfg1.slaveOrMaster = 1, cfg2.shimColumn = 1, cfg2.streamPortId = 3, cfg2.slaveOrMaster = 1, acquiredResources
+*		Expectation: result == ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStartTimeDifferenceBtw2Streams, TC_013_SameTileBothMaster) {
+	double total_clock_enable_us = 0.0;
 
-	void teardown()
-	{
-		fal_util::s_pXAieDev = nullptr;
-		abr::config_manager::s_pDevInst = nullptr;
-		mock_c()->clear();
-	}
+	shim_config cfg1 = make_nominal_cfg(1, 2, 1);
+	shim_config cfg2 = make_nominal_cfg(1, 3, 1);
+
+	FalUtil_SetRequestResults({0, 1, 2, 3});
+	XAie_SetEventSelectResult(XAIE_OK);
+	XAie_SetPerfCounterControlResult(XAIE_OK);
+	ErrorMsg_Reset();
+	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rc = profiling::profile_start_time_difference_btw_two_streams(cfg1, cfg2, acquiredResources);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profiling profile_start_time_difference_btw_two_streams function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_TRUE(rc == err_code::ok);
+	acquiredResources.clear();
+}
+
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_014_DifferentTileBothMasterReversedColumns
+*		Function Name: profile_start_time_difference_btw_two_streams
+*		Input: cfg1.shimColumn = 3, cfg1.streamPortId = 2, cfg1.slaveOrMaster = 1, cfg2.shimColumn = 1, cfg2.streamPortId = 4, cfg2.slaveOrMaster = 1, acquiredResources
+*		Expectation: result == ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStartTimeDifferenceBtw2Streams, TC_014_DifferentTileBothMasterReversedColumns) {
+	double total_clock_enable_us = 0.0;
+
+	shim_config cfg1 = make_nominal_cfg(3, 2, 1);
+	shim_config cfg2 = make_nominal_cfg(1, 4, 1);
+
+	FalUtil_SetRequestResults({0, 1, 2, 3, 4});
+	XAie_SetEventSelectResult(XAIE_OK);
+	XAie_SetPerfCounterControlResult(XAIE_OK);
+	ErrorMsg_Reset();
+	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rc = profiling::profile_start_time_difference_btw_two_streams(cfg1, cfg2, acquiredResources);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profiling profile_start_time_difference_btw_two_streams function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_TRUE(rc == err_code::ok);
+	acquiredResources.clear();
+}
+
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_015_Stream1NegativeShimColumnIsolated
+*		Function Name: profile_start_time_difference_btw_two_streams
+*		Input: cfg1.shimColumn = -2, cfg1.streamPortId = 0, cfg1.slaveOrMaster = 0, cfg2.shimColumn = 3, cfg2.streamPortId = 4, cfg2.slaveOrMaster = 1, acquiredResources
+*		Expectation: result == internal_error
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStartTimeDifferenceBtw2Streams, TC_015_Stream1NegativeShimColumnIsolated) {
+	double total_clock_enable_us = 0.0;
+
+	shim_config cfg1{}; cfg1.shimColumn = -2; cfg1.streamPortId = 0; cfg1.slaveOrMaster = 0;
+	shim_config cfg2 = make_nominal_cfg(3, 4, 1);
+	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	CHECK_EQUAL((int)err_code::internal_error,
+	            (int)profiling::profile_start_time_difference_btw_two_streams(cfg1, cfg2, acquiredResources));
+
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profiling profile_start_time_difference_btw_two_streams function: " << total_clock_enable_us << " microseconds" << std::endl;
+}
+
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_016_Stream1NegativeStreamPortIdIsolated
+*		Function Name: profile_start_time_difference_btw_two_streams
+*		Input: cfg1.shimColumn = 1, cfg1.streamPortId = -1, cfg1.slaveOrMaster = 0, cfg2.shimColumn = 3, cfg2.streamPortId = 4, cfg2.slaveOrMaster = 1, acquiredResources
+*		Expectation: result == internal_error
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStartTimeDifferenceBtw2Streams, TC_016_Stream1NegativeStreamPortIdIsolated) {
+	double total_clock_enable_us = 0.0;
+
+	shim_config cfg1{}; cfg1.shimColumn = 1; cfg1.streamPortId = -1; cfg1.slaveOrMaster = 0;
+	shim_config cfg2 = make_nominal_cfg(3, 4, 1);
+	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	CHECK_EQUAL((int)err_code::internal_error,
+	            (int)profiling::profile_start_time_difference_btw_two_streams(cfg1, cfg2, acquiredResources));
+
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profiling profile_start_time_difference_btw_two_streams function: " << total_clock_enable_us << " microseconds" << std::endl;
+}
+
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_017_Stream2InvalidCol
+*		Function Name: profile_start_time_difference_btw_two_streams
+*		Input: cfg1.shimColumn = 1, cfg1.streamPortId = 2, cfg1.slaveOrMaster = 0, cfg2.shimColumn = -1, cfg2.streamPortId = 4, cfg2.slaveOrMaster = 1, acquiredResources
+*		Expectation: result == internal_error
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStartTimeDifferenceBtw2Streams, TC_017_Stream2InvalidCol) {
+	double total_clock_enable_us = 0.0;
+
+	shim_config cfg1 = make_nominal_cfg(1, 2, 0);
+	shim_config cfg2{}; cfg2.shimColumn = -1; cfg2.streamPortId = 4; cfg2.slaveOrMaster = 1;
+	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	CHECK_EQUAL((int)err_code::internal_error,
+	            (int)profiling::profile_start_time_difference_btw_two_streams(cfg1, cfg2, acquiredResources));
+
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profiling profile_start_time_difference_btw_two_streams function: " << total_clock_enable_us << " microseconds" << std::endl;
+}
+
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_018_Stream2NegativeShimColumnIsolated
+*		Function Name: profile_start_time_difference_btw_two_streams
+*		Input: cfg1.shimColumn = 1, cfg1.streamPortId = 2, cfg1.slaveOrMaster = 0, cfg2.shimColumn = -2, cfg2.streamPortId = 4, cfg2.slaveOrMaster = 1, acquiredResources
+*		Expectation: result == internal_error
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStartTimeDifferenceBtw2Streams, TC_018_Stream2NegativeShimColumnIsolated) {
+	double total_clock_enable_us = 0.0;
+	shim_config cfg1 = make_nominal_cfg(1, 2, 0);
+	shim_config cfg2{}; cfg2.shimColumn = -2; cfg2.streamPortId = 4; cfg2.slaveOrMaster = 1;
+	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	CHECK_EQUAL((int)err_code::internal_error,
+	            (int)profiling::profile_start_time_difference_btw_two_streams(cfg1, cfg2, acquiredResources));
+
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profiling profile_start_time_difference_btw_two_streams function: " << total_clock_enable_us << " microseconds" << std::endl;
+}
+
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_019_Stream2NegativeStreamPortIdIsolated
+*		Function Name: profile_start_time_difference_btw_two_streams
+*		Input: cfg1.shimColumn = 1, cfg1.streamPortId = 2, cfg1.slaveOrMaster = 0, cfg2.shimColumn = 3, cfg2.streamPortId = -1, cfg2.slaveOrMaster = 1, acquiredResources
+*		Expectation: result == internal_error
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStartTimeDifferenceBtw2Streams, TC_019_Stream2NegativeStreamPortIdIsolated) {
+	double total_clock_enable_us = 0.0;
+	shim_config cfg1 = make_nominal_cfg(1, 2, 0);
+	shim_config cfg2{}; cfg2.shimColumn = 3; cfg2.streamPortId = -1; cfg2.slaveOrMaster = 1;
+	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	CHECK_EQUAL((int)err_code::internal_error,
+	            (int)profiling::profile_start_time_difference_btw_two_streams(cfg1, cfg2, acquiredResources));
+
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profiling profile_start_time_difference_btw_two_streams function: " << total_clock_enable_us << " microseconds" << std::endl;
+}
+
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_020_BroadcastFailThirdReleaseFails
+*		Function Name: profile_start_time_difference_btw_two_streams
+*		Input: cfg1.shimColumn = 1, cfg1.streamPortId = 2, cfg1.slaveOrMaster = 0, cfg2.shimColumn = 3, cfg2.streamPortId = 4, cfg2.slaveOrMaster = 1, acquiredResources
+*		Expectation: result == internal_error
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStartTimeDifferenceBtw2Streams, TC_020_BroadcastFailThirdReleaseFails) {
+	double total_clock_enable_us = 0.0;
+
+	shim_config cfg1 = make_nominal_cfg(1, 2, 0);
+	shim_config cfg2 = make_nominal_cfg(3, 4, 1);
+	FalUtil_SetRequestResults({0, 1, 2, 3, -1});
+	FalUtil_SetReleaseResults({true, true, false, true});
+	XAie_SetEventSelectResult(XAIE_OK);
+	XAie_SetPerfCounterControlResult(XAIE_OK);
+	ErrorMsg_Reset();
+	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	(void)profiling::profile_start_time_difference_btw_two_streams(cfg1, cfg2, acquiredResources);
+
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profiling profile_start_time_difference_btw_two_streams function: " << total_clock_enable_us << " microseconds" << std::endl;
+}
+
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_021_BroadcastFailFourthReleaseFails
+*		Function Name: profile_start_time_difference_btw_two_streams
+*		Input: cfg1.shimColumn = 1, cfg1.streamPortId = 2, cfg1.slaveOrMaster = 0, cfg2.shimColumn = 3, cfg2.streamPortId = 4, cfg2.slaveOrMaster = 1, acquiredResources
+*		Expectation: result == internal_error
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStartTimeDifferenceBtw2Streams, TC_021_BroadcastFailFourthReleaseFails) {
+	double total_clock_enable_us = 0.0;
+	shim_config cfg1 = make_nominal_cfg(1, 2, 0);
+	shim_config cfg2 = make_nominal_cfg(3, 4, 1);
+	FalUtil_SetRequestResults({0, 1, 2, 3, -1});
+	FalUtil_SetReleaseResults({true, true, true, false});
+	XAie_SetEventSelectResult(XAIE_OK);
+	XAie_SetPerfCounterControlResult(XAIE_OK);
+	ErrorMsg_Reset();
+	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	(void)profiling::profile_start_time_difference_btw_two_streams(cfg1, cfg2, acquiredResources);
+
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profiling profile_start_time_difference_btw_two_streams function: " << total_clock_enable_us << " microseconds" << std::endl;
+}
+
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_022_BroadcastRequestFailsAllCleanupReleases
+*		Function Name: profile_start_time_difference_btw_two_streams
+*		Input: cfg1.shimColumn = 1, cfg1.streamPortId = 2, cfg1.slaveOrMaster = 0, cfg2.shimColumn = 3, cfg2.streamPortId = 4, cfg2.slaveOrMaster = 1, acquiredResources
+*		Expectation: result == resource_unavailable
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStartTimeDifferenceBtw2Streams, TC_022_BroadcastRequestFailsAllCleanupReleases) {
+	double total_clock_enable_us = 0.0;
+	shim_config cfg1 = make_nominal_cfg(1, 2, 0);
+	shim_config cfg2 = make_nominal_cfg(3, 4, 1);
+	FalUtil_SetRequestResults({0, 1, 2, 3, -1});
+	FalUtil_SetReleaseResults({true, true, true, true});
+	XAie_SetEventSelectResult(XAIE_OK);
+	XAie_SetPerfCounterControlResult(XAIE_OK);
+	ErrorMsg_Reset();
+	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rc = profiling::profile_start_time_difference_btw_two_streams(cfg1, cfg2, acquiredResources);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profiling profile_start_time_difference_btw_two_streams function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_TRUE(rc == err_code::resource_unavailable);
+}
+
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_023_BroadcastFailSecondReleaseFails
+*		Function Name: profile_start_time_difference_btw_two_streams
+*		Input: cfg1.shimColumn = 1, cfg1.streamPortId = 2, cfg1.slaveOrMaster = 0, cfg2.shimColumn = 3, cfg2.streamPortId = 4, cfg2.slaveOrMaster = 1, acquiredResources
+*		Expectation: result == resource_unavailable
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStartTimeDifferenceBtw2Streams, TC_023_BroadcastFailSecondReleaseFails) {
+	double total_clock_enable_us = 0.0;
+	shim_config cfg1 = make_nominal_cfg(1, 2, 0);
+	shim_config cfg2 = make_nominal_cfg(3, 4, 1);
+	FalUtil_SetRequestResults({0, 1, 2, 3, -1});
+	FalUtil_SetReleaseResults({true, false, true, true});
+	XAie_SetEventSelectResult(XAIE_OK);
+	XAie_SetPerfCounterControlResult(XAIE_OK);
+	ErrorMsg_Reset();
+	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rc = profiling::profile_start_time_difference_btw_two_streams(cfg1, cfg2, acquiredResources);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profiling profile_start_time_difference_btw_two_streams function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_TRUE(rc == err_code::resource_unavailable);
+}
+
+TEST_GROUP(ProfileStreamStartToTransferComplete){void setup(){ResetAll();
+
+	static fal_util::DevWrapper devWrapper;
+	fal_util::s_pXAieDev = &devWrapper;
+
+	abr::config_manager::s_pDevInst = &stub_controls::g_stubDevInst;
+}
+
+void teardown() {
+	fal_util::s_pXAieDev = nullptr;
+	abr::config_manager::s_pDevInst = nullptr;
+	mock_c()->clear();
+}
 };
 
-/**
- * @brief TC_002: Verify error handling for invalid shim column
- *
- * This test verifies that profile_stream_start_to_transfer_complete correctly
- * returns internal_error when provided with an invalid shim column (negative value).
- */
-TEST(ProfileStreamStartToTransferComplete, TC_002_InvalidShimColumn)
-{
-	// ARRANGE
+//*********************************************************************************/
+/*
+*		Unique test case ID: StartTransfer_TC_001_InvalidShimColumn
+*		Function Name: profile_stream_start_to_transfer_complete_cycles
+*		Input: cfg.shimColumn = -1, cfg.streamPortId = 2, cfg.slaveOrMaster = 0, acquiredResources, numBytes
+*		Expectation: result == internal_error
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfileStreamStartToTransferComplete, StartTransfer_TC_001_InvalidShimColumn) {
 	abr::shim_config shimConfig;
-	shimConfig.shimColumn = -1; // Invalid
+	shimConfig.shimColumn = -1;
 	shimConfig.streamPortId = 2;
 	shimConfig.slaveOrMaster = 0;
 
 	uint32_t numBytes = 1024;
 	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
 
-	// ACT
-	abr::err_code result = abr::profiling::profile_stream_start_to_transfer_complete_cycles(
-			shimConfig, numBytes, acquiredResources);
-
-	// ASSERT
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	abr::err_code result =
+		abr::profiling::profile_stream_start_to_transfer_complete_cycles(shimConfig, numBytes, acquiredResources);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profile_stream_start_to_transfer_complete_cycles function: " << total_clock_enable_us << " microseconds" << std::endl;
 	CHECK_EQUAL(static_cast<int>(abr::err_code::internal_error), static_cast<int>(result));
-
 }
 
-/**
- * @brief TC_103: Verify error handling for invalid stream port ID
- *
- * This test verifies that profile_stream_start_to_transfer_complete_cycles correctly
- * returns internal_error when provided with an invalid stream port ID (negative value).
- */
-TEST(ProfileStreamStartToTransferComplete, TC_103_InvalidStreamPortId)
-{
-    shim_config cfg = make_nominal_cfg(1, -1, 0); // invalid port
-    uint32_t numBytes = 256;
+//*********************************************************************************/
+/*
+*		Unique test case ID: StartTransfer_TC_002_InvalidStreamPortId
+*		Function Name: profile_stream_start_to_transfer_complete_cycles
+*		Input: cfg.shimColumn = 1, cfg.streamPortId = -1, cfg.slaveOrMaster = 0, acquiredResources, numBytes
+*		Expectation: result == internal_error
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfileStreamStartToTransferComplete, StartTransfer_TC_002_InvalidStreamPortId) {
+	shim_config cfg = make_nominal_cfg(1, -1, 0);
+	uint32_t numBytes = 256;
 
-    FalUtil_SetRequestResults({});
-    XAie_SetEventSelectResult(XAIE_OK);
-    XAie_SetPerfCounterControlResult(XAIE_OK);
-    ErrorMsg_Reset();
+	FalUtil_SetRequestResults({});
+	XAie_SetEventSelectResult(XAIE_OK);
+	XAie_SetPerfCounterControlResult(XAIE_OK);
+	ErrorMsg_Reset();
 	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
-    err_code rc = profiling::profile_stream_start_to_transfer_complete_cycles(
-        cfg, numBytes, acquiredResources);
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rc = profiling::profile_stream_start_to_transfer_complete_cycles(cfg, numBytes, acquiredResources);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profile_stream_start_to_transfer_complete_cycles function: " << total_clock_enable_us << " microseconds" << std::endl;
 
-    CHECK_TRUE(rc == err_code::internal_error);
-    CHECK_EQUAL(0, FalUtil_GetRequestCallCount());
-    CHECK_EQUAL(0, XAie_GetEventSelectCallCount());
-    CHECK_EQUAL(0, XAie_GetPerfCounterControlCallCount());
-    CHECK_EQUAL(0U, acquiredResources.size());
+	CHECK_TRUE(rc == err_code::internal_error);
+	CHECK_EQUAL(0, FalUtil_GetRequestCallCount());
+	CHECK_EQUAL(0, XAie_GetEventSelectCallCount());
+	CHECK_EQUAL(0, XAie_GetPerfCounterControlCallCount());
+	CHECK_EQUAL(0U, acquiredResources.size());
 }
 
-/**
- * @brief TC_104: Verify error handling when stream switch request fails
- *
- * This test verifies that profile_stream_start_to_transfer_complete_cycles correctly
- * returns resource_unavailable error when the stream switch port resource
- * cannot be requested/allocated.
- */
-TEST(ProfileStreamStartToTransferComplete, TC_104_StreamSwitchRequestFails)
-{
-    shim_config cfg = make_nominal_cfg(1, 2, 0);
-    uint32_t numBytes = 512;
+//*********************************************************************************/
+/*
+*		Unique test case ID: StartTransfer_TC_003_StreamSwitchRequestFails
+*		Function Name: profile_stream_start_to_transfer_complete_cycles
+*		Input: cfg.shimColumn = 1, cfg.streamPortId = 2, cfg.slaveOrMaster = 0, acquiredResources, numBytes
+*		Expectation: result == resource_unavailable
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfileStreamStartToTransferComplete, StartTransfer_TC_003_StreamSwitchRequestFails) {
+	shim_config cfg = make_nominal_cfg(1, 2, 0);
+	uint32_t numBytes = 512;
 
-    FalUtil_SetRequestResults({-1}); // first request fails
-    XAie_SetEventSelectResult(XAIE_OK);
-    XAie_SetPerfCounterControlResult(XAIE_OK);
-    ErrorMsg_Reset();
+	FalUtil_SetRequestResults({-1});
+	XAie_SetEventSelectResult(XAIE_OK);
+	XAie_SetPerfCounterControlResult(XAIE_OK);
+	ErrorMsg_Reset();
 	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
-    err_code rc = profiling::profile_stream_start_to_transfer_complete_cycles(
-        cfg, numBytes, acquiredResources);
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rc = profiling::profile_stream_start_to_transfer_complete_cycles(cfg, numBytes, acquiredResources);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profile_stream_start_to_transfer_complete_cycles function: " << total_clock_enable_us << " microseconds" << std::endl;
 
-    CHECK_TRUE(rc == err_code::resource_unavailable);
-    CHECK_EQUAL(1, FalUtil_GetRequestCallCount());
-    CHECK_EQUAL(0, XAie_GetEventSelectCallCount());
-    CHECK_EQUAL(0, XAie_GetPerfCounterControlCallCount());
-    CHECK_EQUAL(0U, acquiredResources.size());
+	CHECK_TRUE(rc == err_code::resource_unavailable);
+	CHECK_EQUAL(1, FalUtil_GetRequestCallCount());
+	CHECK_EQUAL(0, XAie_GetEventSelectCallCount());
+	CHECK_EQUAL(0, XAie_GetPerfCounterControlCallCount());
+	CHECK_EQUAL(0U, acquiredResources.size());
 }
 
-/**
- * @brief TC_105: Verify error handling when first performance counter request fails
- *
- * This test verifies that profile_stream_start_to_transfer_complete_cycles correctly
- * returns resource_unavailable error when the first performance counter resource
- * cannot be requested/allocated.
- */
-TEST(ProfileStreamStartToTransferComplete, TC_105_FirstPerfCounterRequestFails)
-{
-    shim_config cfg = make_nominal_cfg(1, 2, 1); // master
-    uint32_t numBytes = 512;
 
-    // eventPort ok, counter0 fails
-    FalUtil_SetRequestResults({0, -1});
-    XAie_SetEventSelectResult(XAIE_OK);
-    XAie_SetPerfCounterControlResult(XAIE_OK);
-    ErrorMsg_Reset();
+//*********************************************************************************/
+/*
+*		Unique test case ID: StartTransfer_TC_004_FirstPerfCounterRequestFails
+*		Function Name: profile_stream_start_to_transfer_complete_cycles
+*		Input: cfg.shimColumn = 1, cfg.streamPortId = 2, cfg.slaveOrMaster = 1, acquiredResources, numBytes
+*		Expectation: result == resource_unavailable
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfileStreamStartToTransferComplete, StartTransfer_TC_004_FirstPerfCounterRequestFails) {
+	shim_config cfg = make_nominal_cfg(1, 2, 1);
+	uint32_t numBytes = 512;
+
+	FalUtil_SetRequestResults({0, -1});
+	XAie_SetEventSelectResult(XAIE_OK);
+	XAie_SetPerfCounterControlResult(XAIE_OK);
+	ErrorMsg_Reset();
 	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
-    err_code rc = profiling::profile_stream_start_to_transfer_complete_cycles(
-        cfg, numBytes, acquiredResources);
-
-    CHECK_TRUE(rc == err_code::resource_unavailable);
-    CHECK_EQUAL(2, FalUtil_GetRequestCallCount());
-    CHECK_EQUAL(0, XAie_GetEventSelectCallCount());
-    CHECK_EQUAL(0, XAie_GetPerfCounterControlCallCount());
-    CHECK_EQUAL(0U, acquiredResources.size());
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rc = profiling::profile_stream_start_to_transfer_complete_cycles(cfg, numBytes, acquiredResources);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profile_stream_start_to_transfer_complete_cycles function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_TRUE(rc == err_code::resource_unavailable);
+	CHECK_EQUAL(2, FalUtil_GetRequestCallCount());
+	CHECK_EQUAL(0, XAie_GetEventSelectCallCount());
+	CHECK_EQUAL(0, XAie_GetPerfCounterControlCallCount());
+	CHECK_EQUAL(0U, acquiredResources.size());
 }
 
-/**
- * @brief TC_106: Verify error handling when second performance counter request fails
- *
- * This test verifies that profile_stream_start_to_transfer_complete_cycles correctly
- * returns resource_unavailable error when the second performance counter resource
- * cannot be requested/allocated.
- */
-TEST(ProfileStreamStartToTransferComplete, TC_106_SecondPerfCounterRequestFails)
-{
-    shim_config cfg = make_nominal_cfg(1, 2, 0);
-    uint32_t numBytes = 512;
+//*********************************************************************************/
+/*
+*		Unique test case ID: StartTransfer_TC_005_SecondPerfCounterRequestFails
+*		Function Name: profile_stream_start_to_transfer_complete_cycles
+*		Input: cfg.shimColumn = 1, cfg.streamPortId = 2, cfg.slaveOrMaster = 1, acquiredResources, numBytes
+*		Expectation: result == resource_unavailable
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
 
-    // eventPort ok, counter0 ok, counter1 fails
-    FalUtil_SetRequestResults({0, 1, -1});
-    XAie_SetEventSelectResult(XAIE_OK);
-    XAie_SetPerfCounterControlResult(XAIE_OK);
-    ErrorMsg_Reset();
+TEST(ProfileStreamStartToTransferComplete, StartTransfer_TC_005_SecondPerfCounterRequestFails) {
+	shim_config cfg = make_nominal_cfg(1, 2, 0);
+	uint32_t numBytes = 512;
+
+	FalUtil_SetRequestResults({0, 1, -1});
+	XAie_SetEventSelectResult(XAIE_OK);
+	XAie_SetPerfCounterControlResult(XAIE_OK);
+	ErrorMsg_Reset();
 	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
-    err_code rc = profiling::profile_stream_start_to_transfer_complete_cycles(
-        cfg, numBytes, acquiredResources);
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rc = profiling::profile_stream_start_to_transfer_complete_cycles(cfg, numBytes, acquiredResources);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profile_stream_start_to_transfer_complete_cycles function: " << total_clock_enable_us << " microseconds" << std::endl;
 
-    CHECK_TRUE(rc == err_code::resource_unavailable);
-    CHECK_EQUAL(3, FalUtil_GetRequestCallCount());
-    CHECK_EQUAL(0, XAie_GetEventSelectCallCount());
-    CHECK_EQUAL(0, XAie_GetPerfCounterControlCallCount());
-    CHECK_EQUAL(0U, acquiredResources.size());
+	CHECK_TRUE(rc == err_code::resource_unavailable);
+	CHECK_EQUAL(3, FalUtil_GetRequestCallCount());
+	CHECK_EQUAL(0, XAie_GetEventSelectCallCount());
+	CHECK_EQUAL(0, XAie_GetPerfCounterControlCallCount());
+	CHECK_EQUAL(0U, acquiredResources.size());
 }
 
-/**
- * @brief TC_107: Verify error handling when XAie_EventSelectStrmPort fails
- *
- * This test verifies that profile_stream_start_to_transfer_complete_cycles correctly
- * returns aie_driver_error when the underlying AIE driver function
- * XAie_EventSelectStrmPort fails during stream port event selection.
- */
-TEST(ProfileStreamStartToTransferComplete, TC_107_EventSelectFails)
-{
-    shim_config cfg = make_nominal_cfg(1, 2, 0);
-    uint32_t numBytes = 1024;
+//*********************************************************************************/
+/*
+*		Unique test case ID: StartTransfer_TC_006_EventSelectFails
+*		Function Name: profile_stream_start_to_transfer_complete_cycles
+*		Input: cfg.shimColumn = 1, cfg.streamPortId = 2, cfg.slaveOrMaster = 0, acquiredResources, numBytes
+*		Expectation: result == aie_driver_error
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfileStreamStartToTransferComplete, StartTransfer_TC_006_EventSelectFails) {
+	shim_config cfg = make_nominal_cfg(1, 2, 0);
+	uint32_t numBytes = 1024;
 
-    FalUtil_SetRequestResults({0, 1, 2});
-    XAie_SetEventSelectResult(1);         // non-zero => failure
-    XAie_SetPerfCounterControlResult(XAIE_OK);
-    ErrorMsg_Reset();
+	FalUtil_SetRequestResults({0, 1, 2});
+	XAie_SetEventSelectResult(1);
+	XAie_SetPerfCounterControlResult(XAIE_OK);
+	ErrorMsg_Reset();
 	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
-    err_code rc = profiling::profile_stream_start_to_transfer_complete_cycles(
-        cfg, numBytes, acquiredResources);
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rc = profiling::profile_stream_start_to_transfer_complete_cycles(cfg, numBytes, acquiredResources);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profile_stream_start_to_transfer_complete_cycles function: " << total_clock_enable_us << " microseconds" << std::endl;
 
-    CHECK_TRUE(rc == err_code::aie_driver_error);
-    CHECK_EQUAL(3, FalUtil_GetRequestCallCount());
-    CHECK_EQUAL(1, XAie_GetEventSelectCallCount());
-    CHECK_EQUAL(2, XAie_GetPerfCounterControlCallCount());
-    CHECK_EQUAL(3U, acquiredResources.size());
+	CHECK_TRUE(rc == err_code::aie_driver_error);
+	CHECK_EQUAL(3, FalUtil_GetRequestCallCount());
+	CHECK_EQUAL(1, XAie_GetEventSelectCallCount());
+	CHECK_EQUAL(2, XAie_GetPerfCounterControlCallCount());
+	CHECK_EQUAL(3U, acquiredResources.size());
 }
 
-/**
- * @brief TC_108: Verify error handling when XAie_PerfCounterControlSet fails for first counter
- *
- * This test verifies that profile_stream_start_to_transfer_complete_cycles correctly
- * returns aie_driver_error when the underlying AIE driver function
- * XAie_PerfCounterControlSet fails during first performance counter configuration.
- */
-TEST(ProfileStreamStartToTransferComplete, TC_108_PerfCounterControl0Fails)
-{
-    shim_config cfg = make_nominal_cfg(1, 2, 1);
-    uint32_t numBytes = 1024;
+//*********************************************************************************/
+/*
+*		Unique test case ID: StartTransfer_TC_007_PerfCounterControl0Fails
+*		Function Name: profile_stream_start_to_transfer_complete_cycles
+*		Input: cfg.shimColumn = 1, cfg.streamPortId = 2, cfg.slaveOrMaster = 1, acquiredResources, numBytes
+*		Expectation: result == aie_driver_error
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfileStreamStartToTransferComplete, StartTransfer_TC_007_PerfCounterControl0Fails) {
+	shim_config cfg = make_nominal_cfg(1, 2, 1);
+	uint32_t numBytes = 1024;
 
-    FalUtil_SetRequestResults({0, 1, 2});
-    XAie_SetEventSelectResult(XAIE_OK);
-    // We model both PerfCounterControlSet calls using the same control result
-    // function in stubs; return non-zero to force failure in driverStatus.
-    XAie_SetPerfCounterControlResult(1);
-    ErrorMsg_Reset();
+	FalUtil_SetRequestResults({0, 1, 2});
+	XAie_SetEventSelectResult(XAIE_OK);
+	XAie_SetPerfCounterControlResult(1);
+	ErrorMsg_Reset();
 	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
-    err_code rc = profiling::profile_stream_start_to_transfer_complete_cycles(
-        cfg, numBytes, acquiredResources);
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rc = profiling::profile_stream_start_to_transfer_complete_cycles(cfg, numBytes, acquiredResources);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profile_stream_start_to_transfer_complete_cycles function: " << total_clock_enable_us << " microseconds" << std::endl;
 
-    CHECK_TRUE(rc == err_code::aie_driver_error);
-    CHECK_EQUAL(3, FalUtil_GetRequestCallCount());
-    CHECK_EQUAL(1, XAie_GetEventSelectCallCount());
-    CHECK_EQUAL(2, XAie_GetPerfCounterControlCallCount());
-    CHECK_EQUAL(3U, acquiredResources.size());
+	CHECK_TRUE(rc == err_code::aie_driver_error);
+	CHECK_EQUAL(3, FalUtil_GetRequestCallCount());
+	CHECK_EQUAL(1, XAie_GetEventSelectCallCount());
+	CHECK_EQUAL(2, XAie_GetPerfCounterControlCallCount());
+	CHECK_EQUAL(3U, acquiredResources.size());
 }
 
-/**
- * @brief TC_109: Verify correct handling with zero event value boundary condition
- *
- * This test verifies that profile_stream_start_to_transfer_complete_cycles correctly
- * handles the boundary condition where numBytes/4 equals zero, ensuring
- * the function still behaves nominally with very small byte counts.
- */
-TEST(ProfileStreamStartToTransferComplete, TC_109_ZeroEventValueBoundary)
-{
-    shim_config cfg = make_nominal_cfg(1, 2, 0);
-    uint32_t numBytes = 0;  // numBytes/4 == 0
+//*********************************************************************************/
+/*
+*		Unique test case ID: StartTransfer_TC_008_ZeroEventValueBoundary
+*		Function Name: profile_stream_start_to_transfer_complete_cycles
+*		Input: cfg.shimColumn = 1, cfg.streamPortId = 2, cfg.slaveOrMaster = 0, numBytes = 0, acquiredResources
+*		Expectation: result == ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfileStreamStartToTransferComplete, StartTransfer_TC_008_ZeroEventValueBoundary) {
+	shim_config cfg = make_nominal_cfg(1, 2, 0);
+	uint32_t numBytes = 0;
 
-    FalUtil_SetRequestResults({0, 1, 2});
-    XAie_SetEventSelectResult(XAIE_OK);
-    XAie_SetPerfCounterControlResult(XAIE_OK);
-    ErrorMsg_Reset();
+	FalUtil_SetRequestResults({0, 1, 2});
+	XAie_SetEventSelectResult(XAIE_OK);
+	XAie_SetPerfCounterControlResult(XAIE_OK);
+	ErrorMsg_Reset();
 	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
-    err_code rc = profiling::profile_stream_start_to_transfer_complete_cycles(
-        cfg, numBytes, acquiredResources);
-
-    CHECK_TRUE(rc == err_code::ok);
-    CHECK_EQUAL(3, FalUtil_GetRequestCallCount());
-    CHECK_EQUAL(1, XAie_GetEventSelectCallCount());
-    CHECK_EQUAL(2, XAie_GetPerfCounterControlCallCount());
-    CHECK_EQUAL(3U, acquiredResources.size());
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rc = profiling::profile_stream_start_to_transfer_complete_cycles(cfg, numBytes, acquiredResources);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profile_stream_start_to_transfer_complete_cycles function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_TRUE(rc == err_code::ok);
+	CHECK_EQUAL(3, FalUtil_GetRequestCallCount());
+	CHECK_EQUAL(1, XAie_GetEventSelectCallCount());
+	CHECK_EQUAL(2, XAie_GetPerfCounterControlCallCount());
+	CHECK_EQUAL(3U, acquiredResources.size());
 }
 
+//*********************************************************************************/
+/*
+*		Unique test case ID: StartTransfer_TC_009_NominalSuccessMaster
+*		Function Name: profile_stream_start_to_transfer_complete_cycles
+*		Input: cfg.shimColumn = 1, cfg.streamPortId = 2, cfg.slaveOrMaster = 1, numBytes = 64, acquiredResources
+*		Expectation: result == ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfileStreamStartToTransferComplete, StartTransfer_TC_009_NominalSuccessMaster) {
+	double total_clock_enable_us = 0.0;
 
-TEST_GROUP(ProfilingStopTests)
-{
-	void setup()
-	{
-		ResetAll();
-		// Initialize the device wrapper to prevent null pointer dereference
-		static fal_util::DevWrapper devWrapper;
-		fal_util::s_pXAieDev = &devWrapper;
-		// Initialize the device instance pointer
-		abr::config_manager::s_pDevInst = &stub_controls::g_stubDevInst;
-	}
+	shim_config cfg = make_nominal_cfg(1, 2, 1);
 
-	void teardown()
-	{
-		fal_util::s_pXAieDev = nullptr;
-		abr::config_manager::s_pDevInst = nullptr;
-		FalUtil_SetReleaseResult(true); // Reset to default
-		mock().clear();
-		mock_c()->clear();
-	}
+	FalUtil_SetRequestResults({0, 1, 2});
+	XAie_SetEventSelectResult(XAIE_OK);
+	XAie_SetPerfCounterControlResult(XAIE_OK);
+	ErrorMsg_Reset();
+	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rc = profiling::profile_stream_start_to_transfer_complete_cycles(cfg, 64U, acquiredResources);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profiling profile_stream_start_to_transfer_complete_cycles function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_TRUE(rc == err_code::ok);
+	acquiredResources.clear();
+}
+
+//*********************************************************************************/
+/*
+*		Unique test case ID: StartTransfer_TC_010_NegativeShimColumnIsolated
+*		Function Name: profile_stream_start_to_transfer_complete_cycles
+*		Input: cfg.shimColumn = -2, cfg.streamPortId = 2, cfg.slaveOrMaster = 0, numBytes = 64, acquiredResources
+*		Expectation: result == internal_error
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfileStreamStartToTransferComplete, StartTransfer_TC_010_NegativeShimColumnIsolated) {
+	double total_clock_enable_us = 0.0;
+
+	shim_config cfg{}; cfg.shimColumn = -2; cfg.streamPortId = 2; cfg.slaveOrMaster = 0;
+	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	CHECK_EQUAL((int)err_code::internal_error,
+	            (int)profiling::profile_stream_start_to_transfer_complete_cycles(cfg, 64U, acquiredResources));
+
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profiling profile_stream_start_to_transfer_complete_cycles function: " << total_clock_enable_us << " microseconds" << std::endl;
+}
+
+//*********************************************************************************/
+/*
+*		Unique test case ID: StartTransfer_TC_011_NegativeStreamPortIdIsolated
+*		Function Name: profile_stream_start_to_transfer_complete_cycles
+*		Input: cfg.shimColumn = 1, cfg.streamPortId = -1, cfg.slaveOrMaster = 0, numBytes = 64, acquiredResources
+*		Expectation: result == internal_error
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfileStreamStartToTransferComplete, StartTransfer_TC_011_NegativeStreamPortIdIsolated) {
+	double total_clock_enable_us = 0.0;
+
+	shim_config cfg{}; cfg.shimColumn = 1; cfg.streamPortId = -1; cfg.slaveOrMaster = 0;
+	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	CHECK_EQUAL((int)err_code::internal_error,
+	            (int)profiling::profile_stream_start_to_transfer_complete_cycles(cfg, 64U, acquiredResources));
+
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profiling profile_stream_start_to_transfer_complete_cycles function: " << total_clock_enable_us << " microseconds" << std::endl;
+}
+
+TEST_GROUP(ProfilingStopTests){void setup(){ResetAll();
+
+	static fal_util::DevWrapper devWrapper;
+	fal_util::s_pXAieDev = &devWrapper;
+
+	abr::config_manager::s_pDevInst = &stub_controls::g_stubDevInst;
+}
+
+void teardown() {
+	fal_util::s_pXAieDev = nullptr;
+	abr::config_manager::s_pDevInst = nullptr;
+	FalUtil_SetReleaseResult(true);
+	mock().clear();
+	mock_c()->clear();
+}
 };
 
-/**
- * @brief TC_001: Verify successful stop with empty resources
- *
- * This test verifies that profiling::stop correctly handles the nominal case
- * with empty acquired resources and returns success status.
- */
-TEST(ProfilingStopTests, TC_001_ValidExecution)
-{
-
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_001_ValidExecution
+*		Function Name: stop
+*		Input: acquiredResources = empty, startTimeDifference = false
+*		Expectation: result == ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStopTests, TC_001_ValidExecution) {
 
 	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
 
 	bool startTimeDifference = false;
-
-	// ACT
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
 	err_code result = profiling::stop(acquiredResources, startTimeDifference);
-
-	// ASSERT
-	// ASSERT
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profile_stream_start_to_transfer_complete_cycles function: " << total_clock_enable_us << " microseconds" << std::endl;
 	CHECK_EQUAL(static_cast<int>(err_code::ok), static_cast<int>(result));
 }
 
-/**
- * @brief TC_501: Verify stop after profiling stream running-to-idle cycles
- *
- * This test verifies that profiling::stop correctly releases resources
- * acquired during profile_stream_running_to_idle_cycles without broadcast resources.
- */
-TEST(ProfilingStopTests, TC_501_StopAfterRunningToIdle)
-{
-    shim_config cfg =  make_nominal_cfg(1, 2, 0);
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_002_StopAfterRunningToIdle
+*		Function Name: stop
+*		Input: cfg.shimColumn = 1, cfg.streamPortId = 2, cfg.slaveOrMaster = 0, acquiredResources
+*		Expectation: result == ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStopTests, TC_002_StopAfterRunningToIdle) {
+	shim_config cfg = make_nominal_cfg(1, 2, 0);
 
-    FalUtil_SetRequestResults({0, 1});
-    XAie_SetEventSelectResult(XAIE_OK);
-    XAie_SetPerfCounterControlResult(XAIE_OK);
-    ErrorMsg_Reset();
+	FalUtil_SetRequestResults({0, 1});
+	XAie_SetEventSelectResult(XAIE_OK);
+	XAie_SetPerfCounterControlResult(XAIE_OK);
+	ErrorMsg_Reset();
 	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
-    err_code rcStart = profiling::profile_stream_running_to_idle_cycles(cfg, acquiredResources);
-    CHECK_TRUE(rcStart == err_code::ok);
-    CHECK_EQUAL(2U, acquiredResources.size());
-
-    err_code rcStop = profiling::stop(acquiredResources, false);
-    CHECK_TRUE(rcStop == err_code::ok);
+	err_code rcStart = profiling::profile_stream_running_to_idle_cycles(cfg, acquiredResources);
+	CHECK_TRUE(rcStart == err_code::ok);
+	CHECK_EQUAL(2U, acquiredResources.size());
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rcStop = profiling::stop(acquiredResources, false);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by stop function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_TRUE(rcStop == err_code::ok);
 }
 
-/**
- * @brief TC_501b: Verify stop with reversed resource order
- *
- * This test verifies that profiling::stop correctly handles StreamPortSelect cleanup
- * when resources are provided in reversed order (StreamPortSelect first).
- */
-TEST(ProfilingStopTests, TC_501b_StopWithStreamPortSelectFirst)
-{
-    shim_config cfg =  make_nominal_cfg(1, 2, 0);
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_003_StopWithStreamPortSelectFirst
+*		Function Name: stop
+*		Input: cfg.shimColumn = 1, cfg.streamPortId = 2, cfg.slaveOrMaster = 0, acquiredResources
+*		Expectation: result == ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStopTests, TC_003_StopWithStreamPortSelectFirst) {
+	shim_config cfg = make_nominal_cfg(1, 2, 0);
 
-    FalUtil_SetRequestResults({0, 1});
-    XAie_SetEventSelectResult(XAIE_OK);
-    XAie_SetPerfCounterControlResult(XAIE_OK);
-    ErrorMsg_Reset();
+	FalUtil_SetRequestResults({0, 1});
+	XAie_SetEventSelectResult(XAIE_OK);
+	XAie_SetPerfCounterControlResult(XAIE_OK);
+	ErrorMsg_Reset();
 	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
-    err_code rcStart = profiling::profile_stream_running_to_idle_cycles(cfg, acquiredResources);
-    CHECK_TRUE(rcStart == err_code::ok);
+	err_code rcStart = profiling::profile_stream_running_to_idle_cycles(cfg, acquiredResources);
+	CHECK_TRUE(rcStart == err_code::ok);
 
-    // Reverse the order so StreamPortSelect is first
-    std::reverse(acquiredResources.begin(), acquiredResources.end());
-
-    err_code rcStop = profiling::stop(acquiredResources, false);
-    CHECK_TRUE(rcStop == err_code::ok);
+	std::reverse(acquiredResources.begin(), acquiredResources.end());
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rcStop = profiling::stop(acquiredResources, false);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by stop function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_TRUE(rcStop == err_code::ok);
 }
 
-/**
- * @brief TC_501c: Verify stop after profiling stream running event count
- *
- * This test verifies that profiling::stop correctly cleans up StreamPortSelect resources
- * acquired during profile_stream_running_event_count.
- */
-TEST(ProfilingStopTests, TC_501c_StopAfterEventCount)
-{
-    shim_config cfg =  make_nominal_cfg(1, 2, 0);
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_004_StopAfterEventCount
+*		Function Name: stop
+*		Input: cfg.shimColumn = 1, cfg.streamPortId = 2, cfg.slaveOrMaster = 0, acquiredResources
+*		Expectation: result == ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStopTests, TC_004_StopAfterEventCount) {
+	shim_config cfg = make_nominal_cfg(1, 2, 0);
 
-    FalUtil_SetRequestResults({0, 1});
-    XAie_SetEventSelectResult(XAIE_OK);
-    XAie_SetPerfCounterControlResult(XAIE_OK);
-    ErrorMsg_Reset();
+	FalUtil_SetRequestResults({0, 1});
+	XAie_SetEventSelectResult(XAIE_OK);
+	XAie_SetPerfCounterControlResult(XAIE_OK);
+	ErrorMsg_Reset();
 	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
-    err_code rcStart = profiling::profile_stream_running_event_count(cfg, acquiredResources);
-    CHECK_TRUE(rcStart == err_code::ok);
-    CHECK_EQUAL(2U, acquiredResources.size()); // PerfCounter + StreamPortSelect
-
-    err_code rcStop = profiling::stop(acquiredResources, false);
-    CHECK_TRUE(rcStop == err_code::ok);
+	err_code rcStart = profiling::profile_stream_running_event_count(cfg, acquiredResources);
+	CHECK_TRUE(rcStart == err_code::ok);
+	CHECK_EQUAL(2U, acquiredResources.size());
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rcStop = profiling::stop(acquiredResources, false);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by stop function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_TRUE(rcStop == err_code::ok);
 }
 
-/**
- * @brief TC_501d: Verify stop with only StreamPortSelect resource
- *
- * This test verifies that profiling::stop correctly handles cleanup
- * when only a StreamPortSelect resource is present in acquired resources.
- */
-TEST(ProfilingStopTests, TC_501d_StopWithStreamPortSelectOnly)
-{
-    ErrorMsg_Reset();
-    std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
-
-    // Create a StreamPortSelect resource directly
-    auto pStreamPort = std::make_shared<xaiefal::XAieStreamPortSelect>();
-    StubXaieSingleTile_SetGetRscIdResult(pStreamPort, XAIE_OK, 5);
-    acquiredResources.push_back(pStreamPort);
-
-    err_code rcStop = profiling::stop(acquiredResources, false);
-    CHECK_TRUE(rcStop == err_code::ok);
-}
-
-/**
- * @brief TC_501e: Verify stop with only PCEvent resource
- *
- * This test verifies that profiling::stop correctly handles cleanup
- * when only a PCEvent (program counter event) resource is present in acquired resources.
- */
-TEST(ProfilingStopTests, TC_501e_StopWithPCEventOnly)
-{
-    ErrorMsg_Reset();
-    std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
-
-    // Create a PCEvent resource directly
-    auto pPCEvent = std::make_shared<xaiefal::XAiePCEvent>();
-    StubXaieSingleTile_SetGetRscIdResult(pPCEvent, XAIE_OK, 10);
-    acquiredResources.push_back(pPCEvent);
-
-    err_code rcStop = profiling::stop(acquiredResources, false);
-    CHECK_TRUE(rcStop == err_code::ok);
-}
-
-/**
- * @brief TC_502: Verify stop after profiling stream start-to-transfer-complete cycles
- *
- * This test verifies that profiling::stop correctly releases resources
- * acquired during profile_stream_start_to_transfer_complete_cycles without broadcast resources.
- */
-TEST(ProfilingStopTests, TC_502_StopAfterStartToTransferComplete)
-{
-    shim_config cfg =  make_nominal_cfg(1, 2, 0);
-    uint32_t numBytes = 1024;
-
-    FalUtil_SetRequestResults({0, 1, 2});
-    XAie_SetEventSelectResult(XAIE_OK);
-    XAie_SetPerfCounterControlResult(XAIE_OK);
-    ErrorMsg_Reset();
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_005_StopWithStreamPortSelectOnly
+*		Function Name: stop
+*		Input: cfg.shimColumn = 1, cfg.streamPortId = 2, cfg.slaveOrMaster = 0, acquiredResources
+*		Expectation: result == ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStopTests, TC_005_StopWithStreamPortSelectOnly) {
+	ErrorMsg_Reset();
 	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
-    err_code rcStart = profiling::profile_stream_start_to_transfer_complete_cycles(cfg, numBytes, acquiredResources);
-    CHECK_TRUE(rcStart == err_code::ok);
-    CHECK_EQUAL(3U, acquiredResources.size());
 
-    err_code rcStop = profiling::stop(acquiredResources, false);
-    CHECK_TRUE(rcStop == err_code::ok);
+
+	auto pStreamPort = std::make_shared<xaiefal::XAieStreamPortSelect>();
+	StubXaieSingleTile_SetGetRscIdResult(pStreamPort, XAIE_OK, 5);
+	acquiredResources.push_back(pStreamPort);
+
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rcStop = profiling::stop(acquiredResources, false);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by stop function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_TRUE(rcStop == err_code::ok);
 }
 
-/**
- * @brief TC_503: Verify stop after profiling stream running event count
- *
- * This test verifies that profiling::stop correctly releases resources
- * acquired during profile_stream_running_event_count without broadcast resources.
- */
-TEST(ProfilingStopTests, TC_503_StopAfterRunningEventCount)
-{
-    shim_config cfg =  make_nominal_cfg(1, 2, 0);
-
-    FalUtil_SetRequestResults({0, 1});
-    XAie_SetEventSelectResult(XAIE_OK);
-    XAie_SetPerfCounterControlResult(XAIE_OK);
-    ErrorMsg_Reset();
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_006_StopWithPCEventOnly
+*		Function Name: stop
+*		Input: cfg.shimColumn = 1, cfg.streamPortId = 2, cfg.slaveOrMaster = 0, acquiredResources
+*		Expectation: result == ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+//*********************************************************************************/
+TEST(ProfilingStopTests, TC_006_StopWithPCEventOnly) {
+	ErrorMsg_Reset();
 	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
-    err_code rcStart = profiling::profile_stream_running_event_count(cfg, acquiredResources);
-    CHECK_TRUE(rcStart == err_code::ok);
-    CHECK_EQUAL(2U, acquiredResources.size());
 
-    err_code rcStop = profiling::stop(acquiredResources, false);
-    CHECK_TRUE(rcStop == err_code::ok);
+
+	auto pPCEvent = std::make_shared<xaiefal::XAiePCEvent>();
+	StubXaieSingleTile_SetGetRscIdResult(pPCEvent, XAIE_OK, 10);
+	acquiredResources.push_back(pPCEvent);
+
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rcStop = profiling::stop(acquiredResources, false);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by stop function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_TRUE(rcStop == err_code::ok);
 }
 
-/**
- * @brief TC_504: Verify stop after profiling start time difference on same tile
- *
- * This test verifies that profiling::stop correctly releases resources
- * acquired during profile_start_time_difference_btw_two_streams when both streams
- * are on the same tile (no broadcast resource required).
- */
-TEST(ProfilingStopTests, TC_504_StopAfterStartTimeDiffSameTile)
-{
-    shim_config cfg1 =  make_nominal_cfg(1, 2, 0);
-    shim_config cfg2 =  make_nominal_cfg(1, 3, 1); // same column => no broadcast resource
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_007_StopAfterStartToTransferComplete
+*		Function Name: stop
+*		Input: cfg.shimColumn = 1, cfg.streamPortId = 2, cfg.slaveOrMaster = 0, acquiredResources, numBytes
+*		Expectation: result == ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStopTests, TC_007_StopAfterStartToTransferComplete) {
+	shim_config cfg = make_nominal_cfg(1, 2, 0);
+	uint32_t numBytes = 1024;
 
-    FalUtil_SetRequestResults({0, 1, 2, 3});
-    XAie_SetEventSelectResult(XAIE_OK);
-    XAie_SetPerfCounterControlResult(XAIE_OK);
-    ErrorMsg_Reset();
+	FalUtil_SetRequestResults({0, 1, 2});
+	XAie_SetEventSelectResult(XAIE_OK);
+	XAie_SetPerfCounterControlResult(XAIE_OK);
+	ErrorMsg_Reset();
 	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
-    err_code rcStart = profiling::profile_start_time_difference_btw_two_streams(cfg1, cfg2, acquiredResources);
-    CHECK_TRUE(rcStart == err_code::ok);
-    CHECK_EQUAL(4U, acquiredResources.size());
+	err_code rcStart = profiling::profile_stream_start_to_transfer_complete_cycles(cfg, numBytes, acquiredResources);
+	CHECK_TRUE(rcStart == err_code::ok);
+	CHECK_EQUAL(3U, acquiredResources.size());
 
-    err_code rcStop = profiling::stop(acquiredResources, true);
-    CHECK_TRUE(rcStop == err_code::ok);
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rcStop = profiling::stop(acquiredResources, false);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by stop function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_TRUE(rcStop == err_code::ok);
 }
 
-/**
- * @brief TC_505: Verify stop after profiling start time difference on different tiles
- *
- * This test verifies that profiling::stop correctly releases resources including
- * broadcast resource acquired during profile_start_time_difference_btw_two_streams
- * when streams are on different tiles.
- */
-TEST(ProfilingStopTests, TC_505_StopAfterStartTimeDiffDifferentTiles)
-{
-    shim_config cfg1 =  make_nominal_cfg(1, 2, 0);
-    shim_config cfg2 =  make_nominal_cfg(3, 4, 1); // different columns => broadcast allocated
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_008_StopAfterRunningEventCount
+*		Function Name: stop
+*		Input: cfg.shimColumn = 1, cfg.streamPortId = 2, cfg.slaveOrMaster = 0, acquiredResources
+*		Expectation: result == ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStopTests, TC_008_StopAfterRunningEventCount) {
+	shim_config cfg = make_nominal_cfg(1, 2, 0);
 
-    FalUtil_SetRequestResults({0, 1, 2, 3, 4});
-    XAie_SetEventSelectResult(XAIE_OK);
-    XAie_SetPerfCounterControlResult(XAIE_OK);
-    ErrorMsg_Reset();
+	FalUtil_SetRequestResults({0, 1});
+	XAie_SetEventSelectResult(XAIE_OK);
+	XAie_SetPerfCounterControlResult(XAIE_OK);
+	ErrorMsg_Reset();
 	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
-    err_code rcStart = profiling::profile_start_time_difference_btw_two_streams(cfg1, cfg2, acquiredResources);
-    CHECK_TRUE(rcStart == err_code::ok);
-    CHECK_EQUAL(5U, acquiredResources.size()); // includes broadcast resource
+	err_code rcStart = profiling::profile_stream_running_event_count(cfg, acquiredResources);
+	CHECK_TRUE(rcStart == err_code::ok);
+	CHECK_EQUAL(2U, acquiredResources.size());
 
-    err_code rcStop = profiling::stop(acquiredResources, true);
-    CHECK_TRUE(rcStop == err_code::ok);
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rcStop = profiling::stop(acquiredResources, false);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by stop function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_TRUE(rcStop == err_code::ok);
 }
 
-/**
- * @brief TC_505b: Verify stop with manually created broadcast resource
- *
- * This test verifies that profiling::stop correctly handles cleanup of
- * broadcast resources created manually with proper channel configuration.
- */
-TEST(ProfilingStopTests, TC_505b_StopWithBroadcastResource)
-{
-    ErrorMsg_Reset();
-    std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_009_StopAfterStartTimeDiffSameTile
+*		Function Name: stop
+*		Input: cfg1.shimColumn = 1, cfg1.streamPortId = 2, cfg1.slaveOrMaster = 0, cfg2.shimColumn = 1, cfg2.streamPortId = 3, cfg2.slaveOrMaster = 1, acquiredResources
+*		Expectation: result == ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStopTests, TC_009_StopAfterStartTimeDiffSameTile) {
+	shim_config cfg1 = make_nominal_cfg(1, 2, 0);
+	shim_config cfg2 = make_nominal_cfg(1, 3, 1); // same column => no broadcast resource
 
-    // Create a broadcast resource manually with proper channel configuration
-    auto pBroadcast = std::make_shared<xaiefal::XAieBroadcast>();
-    std::vector<XAie_LocType> locs;
-    locs.push_back(XAie_TileLoc(1, 0));
-    locs.push_back(XAie_TileLoc(2, 0));
-    locs.push_back(XAie_TileLoc(3, 0));
-    pBroadcast->setChannel(locs, XAIE_PL_MOD, XAIE_PL_MOD);
-    pBroadcast->setBc(2);
-    acquiredResources.push_back(pBroadcast);
-
-    err_code rcStop = profiling::stop(acquiredResources, true);
-    CHECK_TRUE(rcStop == err_code::ok);
-}
-
-/**
- * @brief TC_504b: Verify error handling when driver reset fails
- *
- * This test verifies that profiling::stop correctly returns aie_driver_error
- * when the underlying XAie_PerfCounterReset function fails during resource cleanup.
- */
-TEST(ProfilingStopTests, TC_504b_StopWithDriverError)
-{
-    ErrorMsg_Reset();
-    std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
-
-    // Create a PerfCounter resource that will fail reset
-    auto pPerfCounter = std::make_shared<xaiefal::XAiePerfCounter>();
-    Stub_XAiePerfCounter_SetGetRscIdResult(0, 0, 0, XAIE_PL_MOD, 5, XAIE_OK);
-    acquiredResources.push_back(pPerfCounter);
-
-    // Make the PerfCounterReset fail
-    XAie_SetPerfCounterResetResult(XAIE_ERR);
-
-    err_code rcStop = profiling::stop(acquiredResources, false);
-    CHECK_TRUE(rcStop == err_code::aie_driver_error);
-
-    // Reset for other tests
-    XAie_SetPerfCounterResetResult(XAIE_OK);
-}
-/**
- * @brief TC_508: Verify error handling when resource release fails
- *
- * This test verifies behavior when fal_util::release returns false during cleanup.
- * NOTE: Currently skipped because calling stop() with release failure causes
- * segfault in resource cleanup logic.
- */
-TEST(ProfilingStopTests, TC_508_ReleaseFailure)
-{
-    shim_config cfg = make_nominal_cfg(1, 2, 0);
-    FalUtil_SetRequestResults({0, 1});
-    XAie_SetEventSelectResult(XAIE_OK);
-    XAie_SetPerfCounterControlResult(XAIE_OK);
-    ErrorMsg_Reset();
+	FalUtil_SetRequestResults({0, 1, 2, 3});
+	XAie_SetEventSelectResult(XAIE_OK);
+	XAie_SetPerfCounterControlResult(XAIE_OK);
+	ErrorMsg_Reset();
 	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
-    err_code rcStart = profiling::profile_stream_running_to_idle_cycles(cfg, acquiredResources);
-    CHECK_TRUE(rcStart == err_code::ok);
+	err_code rcStart = profiling::profile_start_time_difference_btw_two_streams(cfg1, cfg2, acquiredResources);
+	CHECK_TRUE(rcStart == err_code::ok);
+	CHECK_EQUAL(4U, acquiredResources.size());
 
-    // Configure stub to succeed getRscId but fail release
-    Stub_XAiePerfCounter_SetGetRscIdResult(0, 1, 0, XAIE_PL_MOD, 1, XAIE_OK);
-    FalUtil_SetReleaseResult(false); // release will fail
-
-    err_code rcStop = profiling::stop(acquiredResources, true);
-    CHECK_TRUE(rcStop == err_code::aie_driver_error);
-    acquiredResources.clear();
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rcStop = profiling::stop(acquiredResources, true);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by stop function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_TRUE(rcStop == err_code::ok);
 }
 
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_010_StopAfterStartTimeDiffDifferentTiles
+*		Function Name: stop
+*		Input: cfg1.shimColumn = 1, cfg1.streamPortId = 2, cfg1.slaveOrMaster = 0, cfg2.shimColumn = 3, cfg2.streamPortId = 4, cfg2.slaveOrMaster = 1, acquiredResources
+*		Expectation: result == ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStopTests, TC_010_StopAfterStartTimeDiffDifferentTiles) {
+	shim_config cfg1 = make_nominal_cfg(1, 2, 0);
+	shim_config cfg2 = make_nominal_cfg(3, 4, 1);
 
-TEST_GROUP(ProfilingReadTests)
-{
-	void setup()
-	{
-		ResetAll();
-		static fal_util::DevWrapper devWrapper;
-		fal_util::s_pXAieDev = &devWrapper;
-		abr::config_manager::s_pDevInst = &stub_controls::g_stubDevInst;
+	FalUtil_SetRequestResults({0, 1, 2, 3, 4});
+	XAie_SetEventSelectResult(XAIE_OK);
+	XAie_SetPerfCounterControlResult(XAIE_OK);
+	ErrorMsg_Reset();
+	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
+	err_code rcStart = profiling::profile_start_time_difference_btw_two_streams(cfg1, cfg2, acquiredResources);
+	CHECK_TRUE(rcStart == err_code::ok);
+	CHECK_EQUAL(5U, acquiredResources.size());
+
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rcStop = profiling::stop(acquiredResources, true);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profile_stream_start_to_transfer_complete_cycles function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_TRUE(rcStop == err_code::ok);
+}
+
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_011_StopWithBroadcastResource
+*		Function Name: stop
+*		Input: acquiredResources = broadcast resource, acquiredResources
+*		Expectation: result == ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStopTests, TC_011_StopWithBroadcastResource) {
+	ErrorMsg_Reset();
+	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
+
+
+	auto pBroadcast = std::make_shared<xaiefal::XAieBroadcast>();
+	std::vector<XAie_LocType> locs;
+	locs.push_back(XAie_TileLoc(1, 0));
+	locs.push_back(XAie_TileLoc(2, 0));
+	locs.push_back(XAie_TileLoc(3, 0));
+	pBroadcast->setChannel(locs, XAIE_PL_MOD, XAIE_PL_MOD);
+	pBroadcast->setBc(2);
+	acquiredResources.push_back(pBroadcast);
+
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rcStop = profiling::stop(acquiredResources, true);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profile_stream_start_to_transfer_complete_cycles function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_TRUE(rcStop == err_code::ok);
+}
+
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_011a_StopWithBroadcastResourceNoStartTimeDifference
+*		Function Name: stop
+*		Input: acquiredResources = broadcast resource, startTimeDifference = false
+*		Expectation: result == ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStopTests, TC_011a_StopWithBroadcastResourceNoStartTimeDifference) {
+	ErrorMsg_Reset();
+	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
+	auto pBroadcast = std::make_shared<xaiefal::XAieBroadcast>();
+	std::vector<XAie_LocType> locs;
+	locs.push_back(XAie_TileLoc(1, 0));
+	locs.push_back(XAie_TileLoc(3, 0));
+	pBroadcast->setChannel(locs, XAIE_PL_MOD, XAIE_PL_MOD);
+	pBroadcast->setBc(2);
+	acquiredResources.push_back(pBroadcast);
+
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rcStop = profiling::stop(acquiredResources, false);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profiling stop function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_TRUE(rcStop == err_code::ok);
+}
+
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_011b_StopBroadcastNonPlEndModule
+*		Function Name: stop
+*		Input: acquiredResources = broadcast resource with non-PL end module, startTimeDifference = true
+*		Expectation: result == ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStopTests, TC_011b_StopBroadcastNonPlEndModule) {
+	ErrorMsg_Reset();
+	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
+	auto pBroadcast = std::make_shared<xaiefal::XAieBroadcast>();
+	std::vector<XAie_LocType> locs;
+	locs.push_back(XAie_TileLoc(1, 0));
+	locs.push_back(XAie_TileLoc(3, 0));
+	pBroadcast->setChannel(locs, XAIE_PL_MOD, static_cast<XAie_ModuleType>(1));
+	pBroadcast->setBc(2);
+	acquiredResources.push_back(pBroadcast);
+
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rcStop = profiling::stop(acquiredResources, true);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profiling stop function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_TRUE(rcStop == err_code::ok);
+}
+
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_012_StopWithDriverError
+*		Function Name: stop
+*		Input: acquiredResources = PerfCounter resource, acquiredResources
+*		Expectation: result == aie_driver_error
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStopTests, TC_012_StopWithDriverError) {
+	ErrorMsg_Reset();
+	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
+
+
+	auto pPerfCounter = std::make_shared<xaiefal::XAiePerfCounter>();
+	Stub_XAiePerfCounter_SetGetRscIdResult(0, 0, 0, XAIE_PL_MOD, 5, XAIE_OK);
+	acquiredResources.push_back(pPerfCounter);
+
+
+	XAie_SetPerfCounterResetResult(XAIE_ERR);
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rcStop = profiling::stop(acquiredResources, false);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by stop function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_TRUE(rcStop == err_code::aie_driver_error);
+
+
+	XAie_SetPerfCounterResetResult(XAIE_OK);
+}
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_013_ReleaseFailure
+*		Function Name: stop
+*		Input: cfg.shimColumn = 1, cfg.streamPortId = 2, cfg.slaveOrMaster = 0, acquiredResources
+*		Expectation: result == aie_driver_error
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStopTests, TC_013_ReleaseFailure) {
+	shim_config cfg = make_nominal_cfg(1, 2, 0);
+	FalUtil_SetRequestResults({0, 1});
+	XAie_SetEventSelectResult(XAIE_OK);
+	XAie_SetPerfCounterControlResult(XAIE_OK);
+	ErrorMsg_Reset();
+	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
+	err_code rcStart = profiling::profile_stream_running_to_idle_cycles(cfg, acquiredResources);
+	CHECK_TRUE(rcStart == err_code::ok);
+
+
+	Stub_XAiePerfCounter_SetGetRscIdResult(0, 1, 0, XAIE_PL_MOD, 1, XAIE_OK);
+	FalUtil_SetReleaseResult(false);
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rcStop = profiling::stop(acquiredResources, true);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by stop function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_TRUE(rcStop == err_code::aie_driver_error);
+	acquiredResources.clear();
+}
+
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_014_StopWithUnknownResource
+*		Function Name: stop
+*		Input: acquiredResources, isBroadcast = false
+*		Expectation: result == internal_error
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStopTests, TC_014_StopWithUnknownResource) {
+	double total_clock_enable_us = 0.0;
+
+	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
+	acquiredResources.push_back(std::make_shared<xaiefal::XAieRsc>());
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	(void)profiling::stop(acquiredResources, false);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profiling stop function: " << total_clock_enable_us << " microseconds" << std::endl;
+	acquiredResources.clear();
+}
+
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_014a_StopWithNullResource
+*		Function Name: stop
+*		Input: acquiredResources = {nullptr}, startTimeDifference = false
+*		Expectation: result == ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStopTests, TC_014a_StopWithNullResource) {
+	double total_clock_enable_us = 0.0;
+
+	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
+	acquiredResources.push_back(std::shared_ptr<xaiefal::XAieRsc>{});
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rcStop = profiling::stop(acquiredResources, false);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profiling stop function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_TRUE(rcStop == err_code::ok);
+	acquiredResources.clear();
+}
+
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_015_StopBroadcastReversedTileLocs
+*		Function Name: stop
+*		Input: acquiredResources, isBroadcast = true
+*		Expectation: result == ok
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStopTests, TC_015_StopBroadcastReversedTileLocs) {
+	double total_clock_enable_us = 0.0;
+
+	shim_config cfg1 = make_nominal_cfg(1, 2, 0);
+	shim_config cfg2 = make_nominal_cfg(3, 4, 1);
+	FalUtil_SetRequestResults({0, 1, 2, 3, 4});
+	XAie_SetEventSelectResult(XAIE_OK);
+	XAie_SetPerfCounterControlResult(XAIE_OK);
+	ErrorMsg_Reset();
+
+	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
+	CHECK_TRUE(profiling::profile_start_time_difference_btw_two_streams(cfg1, cfg2, acquiredResources)
+	           == err_code::ok);
+
+	for (auto &rsc : acquiredResources) {
+		if (auto pBcast = std::dynamic_pointer_cast<xaiefal::XAieBroadcast>(rsc)) {
+			std::vector<XAie_LocType> reversedLocs = {
+				XAie_TileLoc(5, 0),
+				XAie_TileLoc(4, 0),
+				XAie_TileLoc(3, 0),
+			};
+			pBcast->setChannel(reversedLocs, XAIE_PL_MOD, XAIE_PL_MOD);
+			break;
+		}
 	}
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rcStop = profiling::stop(acquiredResources, true);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	CHECK_TRUE(rcStop == err_code::ok);
+	acquiredResources.clear();
 
-	void teardown()
-	{
-		fal_util::s_pXAieDev = nullptr;
-		abr::config_manager::s_pDevInst = nullptr;
-		FalUtil_SetReleaseResult(true); // Reset to default
-		mock_c()->clear();
-	}
+
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profiling stop function: " << total_clock_enable_us << " microseconds" << std::endl;
+}
+
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_016_StopSingleTileGetRscIdFails
+*		Function Name: stop
+*		Input: acquiredResources, isBroadcast = false
+*		Expectation: result == aie_driver_error
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStopTests, TC_016_StopSingleTileGetRscIdFails) {
+	double total_clock_enable_us = 0.0;
+
+	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
+	auto pStreamPort = std::make_shared<xaiefal::XAieStreamPortSelect>();
+	StubXaieSingleTile_SetGetRscIdResult(pStreamPort, XAIE_ERR, 5);
+	acquiredResources.push_back(pStreamPort);
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rcStop = profiling::stop(acquiredResources, false);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profiling stop function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_TRUE(rcStop == err_code::aie_driver_error);
+	acquiredResources.clear();
+
+}
+
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_017_StopPerfCounterResetControlFails
+*		Function Name: stop
+*		Input: acquiredResources, isBroadcast = false
+*		Expectation: result == aie_driver_error
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStopTests, TC_017_StopPerfCounterResetControlFails) {
+	double total_clock_enable_us = 0.0;
+
+	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
+	acquiredResources.push_back(std::make_shared<xaiefal::XAiePerfCounter>());
+	Stub_XAiePerfCounter_SetGetRscIdResult(0, 1, 0, XAIE_PL_MOD, 1, XAIE_OK);
+	XAie_SetPerfCounterResetResult(XAIE_OK);
+	XAie_SetPerfCounterResetCtrlResult(XAIE_ERR);
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rcStop = profiling::stop(acquiredResources, false);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profiling stop function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_TRUE(rcStop == err_code::aie_driver_error);
+	XAie_SetPerfCounterResetCtrlResult(XAIE_OK);
+	acquiredResources.clear();
+
+}
+
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_018_StopStreamPortResetFails
+*		Function Name: stop
+*		Input: acquiredResources, isBroadcast = false
+*		Expectation: result == aie_driver_error
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStopTests, TC_018_StopStreamPortResetFails) {
+	double total_clock_enable_us = 0.0;
+
+	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
+	auto pStreamPort = std::make_shared<xaiefal::XAieStreamPortSelect>();
+	StubXaieSingleTile_SetGetRscIdResult(pStreamPort, XAIE_OK, 5);
+	acquiredResources.push_back(pStreamPort);
+	XAie_SetEventSelectStrmPortResetResult(XAIE_ERR);
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rcStop = profiling::stop(acquiredResources, false);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profiling stop function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_TRUE(rcStop == err_code::aie_driver_error);
+	XAie_SetEventSelectStrmPortResetResult(XAIE_OK);
+	acquiredResources.clear();
+
+}
+
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_019_StopPCEventResetFails
+*		Function Name: stop
+*		Input: acquiredResources, isBroadcast = false
+*		Expectation: result == aie_driver_error
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingStopTests, TC_019_StopPCEventResetFails) {
+	double total_clock_enable_us = 0.0;
+
+	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
+	auto pPCEvent = std::make_shared<xaiefal::XAiePCEvent>();
+	StubXaieSingleTile_SetGetRscIdResult(pPCEvent, XAIE_OK, 10);
+	acquiredResources.push_back(pPCEvent);
+	XAie_SetEventPCResetResult(XAIE_ERR);
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	err_code rcStop = profiling::stop(acquiredResources, false);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profiling stop function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_TRUE(rcStop == err_code::aie_driver_error);
+	XAie_SetEventPCResetResult(XAIE_OK);
+	acquiredResources.clear();
+}
+
+TEST_GROUP(ProfilingReadTests){void setup(){ResetAll();
+	static fal_util::DevWrapper devWrapper;
+	fal_util::s_pXAieDev = &devWrapper;
+	abr::config_manager::s_pDevInst = &stub_controls::g_stubDevInst;
+}
+
+void teardown() {
+	fal_util::s_pXAieDev = nullptr;
+	abr::config_manager::s_pDevInst = nullptr;
+	FalUtil_SetReleaseResult(true);
+	mock_c()->clear();
+}
 };
 
-/**
- * @brief TC_604: Verify reading start time difference between streams on different columns
- *
- * This test verifies that profiling::read correctly calculates the start time difference
- * between two streams located on different columns, applying the column offset compensation
- * (difference * 2 + 2) to account for inter-column timing variations.
- */
-TEST(ProfilingReadTests, TC_604_ReadStartTimeDifferenceDifferentColumns)
-{
-	// ARRANGE
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_001_ReadStartTimeDifferenceDifferentColumns
+*		Function Name: read
+*		Input: cfg1.shimColumn = 1, cfg1.streamPortId = 2, cfg1.slaveOrMaster = 0, cfg2.shimColumn = 3, cfg2.streamPortId = 4, cfg2.slaveOrMaster = 1, acquiredResources
+*		Expectation: result == 106
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingReadTests, TC_001_ReadStartTimeDifferenceDifferentColumns) {
 	shim_config cfg1 = make_nominal_cfg(1, 2, 0);
-	shim_config cfg2 = make_nominal_cfg(3, 4, 1); // different column (3-1=2 columns apart)
+	shim_config cfg2 = make_nominal_cfg(3, 4, 1);
 
 	FalUtil_SetRequestResults({0, 1, 2, 3, 4});
 	XAie_SetEventSelectResult(XAIE_OK);
@@ -1516,82 +2635,171 @@ TEST(ProfilingReadTests, TC_604_ReadStartTimeDifferenceDifferentColumns)
 	err_code rc = profiling::profile_start_time_difference_btw_two_streams(cfg1, cfg2, acquiredResources);
 	CHECK_TRUE(rc == err_code::ok);
 
-	// Configure stubs - counter 0 at col 1, counter 1 at col 3
 	Stub_XAiePerfCounter_SetGetRscIdResult(0, 1, 0, XAIE_PL_MOD, 1, XAIE_OK);
 	Stub_XAiePerfCounter_SetGetRscIdResult(1, 3, 0, XAIE_PL_MOD, 3, XAIE_ERR);
 	Stub_XAie_PerfCounterGet_SetValue(1, 0, XAIE_PL_MOD, 1, 100, XAIE_OK);
 	Stub_XAie_PerfCounterGet_SetValue(3, 0, XAIE_PL_MOD, 3, 200, XAIE_ERR);
 
-	// ACT
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
 	uint64_t result = profiling::read(acquiredResources, true);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by read function: " << total_clock_enable_us << " microseconds" << std::endl;
 
-	// ASSERT - should be (200 - 100) + (2 columns * 2 + 2) = 100 + 6 = 106
 	CHECK_EQUAL(106, result);
 	acquiredResources.clear();
 }
 
-/**
- * @brief TC_605: Verify error handling when reading with invalid resource type
- *
- * This test verifies that profiling::read correctly returns 0 when the acquired
- * resources contain non-PerfCounter types (e.g., StreamPortSelect) causing
- * dynamic_cast to fail during resource type validation.
- */
-TEST(ProfilingReadTests, TC_605_InvalidResourceType)
-{
-	// ARRANGE - Create resources vector with non-PerfCounter resource
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_002_InvalidResourceType
+*		Function Name: read
+*		Input: acquiredResources = {pSSwitchPortRsc}, acquiredResources
+*		Expectation: result == 0
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 1
+*/
+/*********************************************************************************/
+TEST(ProfilingReadTests, TC_002_InvalidResourceType) {
 	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
 
-	// Add a StreamPortSelect resource instead of PerfCounter
-	// This will cause dynamic_cast to return nullptr
 	auto pSSwitchPortRsc = fal_util::s_pXAieDev->tile(1, 0).sswitchPort();
 	acquiredResources.push_back(pSSwitchPortRsc);
-
-	// ACT - Try to read with startTimeDifference=false (expects PerfCounter at index 0)
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
 	uint64_t result = profiling::read(acquiredResources, false);
-
-	// ASSERT - Should return 0 since the cast fails
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by read function: " << total_clock_enable_us << " microseconds" << std::endl;
 	CHECK_EQUAL(0, result);
 	acquiredResources.clear();
 }
 
-/**
- * @brief TC_606: Verify error handling with invalid resources for time difference calculation
- *
- * This test verifies that profiling::read correctly returns 0 when startTimeDifference=true
- * but the acquired resources contain wrong types (StreamPortSelect instead of PerfCounters),
- * causing dynamic_cast failures for both counter resources.
- */
-TEST(ProfilingReadTests, TC_606_InvalidResourcesForTimeDifference)
-{
-	// ARRANGE - Create resources vector with wrong resource types
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_003_InvalidResourcesForTimeDifference
+*		Function Name: read
+*		Input: acquiredResources = {pSSwitchPortRsc1, pSSwitchPortRsc2}, acquiredResources
+*		Expectation: result == 0
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 1
+*/
+/*********************************************************************************/
+TEST(ProfilingReadTests, TC_003_InvalidResourcesForTimeDifference) {
 	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
 
-	// Add StreamPortSelect resources instead of PerfCounters
 	auto pSSwitchPortRsc1 = fal_util::s_pXAieDev->tile(1, 0).sswitchPort();
 	auto pSSwitchPortRsc2 = fal_util::s_pXAieDev->tile(2, 0).sswitchPort();
 	acquiredResources.push_back(pSSwitchPortRsc1);
 	acquiredResources.push_back(pSSwitchPortRsc2);
 
-	// ACT - Try to read with startTimeDifference=true (expects PerfCounters at indices 0,1)
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
 	uint64_t result = profiling::read(acquiredResources, true);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by read function: " << total_clock_enable_us << " microseconds" << std::endl;
 
-	// ASSERT - Should return 0 since the casts fail
 	CHECK_EQUAL(0, result);
 	acquiredResources.clear();
 }
 
-/**
- * @brief TC_607: Verify error handling when getRscId fails during time difference calculation
- *
- * This test verifies that profiling::read correctly returns 0 when getRscId fails
- * for the first performance counter during start time difference calculation.
- */
-TEST(ProfilingReadTests, TC_607_GetRscIdFailureInTimeDifference)
-{
-	// ARRANGE - Setup profiling for time difference
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_003a_InvalidSecondResourceForTimeDifference
+*		Function Name: read
+*		Input: acquiredResources = {pPerfCounterRsc, pSSwitchPortRsc}, startTimeDifference = true
+*		Expectation: result == 0
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 1
+*/
+/*********************************************************************************/
+TEST(ProfilingReadTests, TC_003a_InvalidSecondResourceForTimeDifference) {
+	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
+	auto pPerfCounterRsc = fal_util::s_pXAieDev->tile(1, 0).pl().perfCounter();
+	auto pSSwitchPortRsc = fal_util::s_pXAieDev->tile(2, 0).sswitchPort();
+	acquiredResources.push_back(pPerfCounterRsc);
+	acquiredResources.push_back(pSSwitchPortRsc);
+
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	uint64_t result = profiling::read(acquiredResources, true);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profiling read function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_EQUAL(0, result);
+	acquiredResources.clear();
+}
+
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_003b_NullResourcesForTimeDifference
+*		Function Name: read
+*		Input: acquiredResources = {nullptr, nullptr}, startTimeDifference = true
+*		Expectation: result == 0
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 1
+*/
+/*********************************************************************************/
+TEST(ProfilingReadTests, TC_003b_NullResourcesForTimeDifference) {
+	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
+	acquiredResources.push_back(std::shared_ptr<xaiefal::XAieRsc>{});
+	acquiredResources.push_back(std::shared_ptr<xaiefal::XAieRsc>{});
+
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	uint64_t result = profiling::read(acquiredResources, true);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profiling read function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_EQUAL(0, result);
+	acquiredResources.clear();
+}
+
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_003c_NullResourceForStandardRead
+*		Function Name: read
+*		Input: acquiredResources = {nullptr}, startTimeDifference = false
+*		Expectation: result == 0
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 1
+*/
+/*********************************************************************************/
+TEST(ProfilingReadTests, TC_003c_NullResourceForStandardRead) {
+	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
+	acquiredResources.push_back(std::shared_ptr<xaiefal::XAieRsc>{});
+
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	uint64_t result = profiling::read(acquiredResources, false);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profiling read function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_EQUAL(0, result);
+	acquiredResources.clear();
+}
+
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_004_GetRscIdFailureInTimeDifference
+*		Function Name: read
+*		Input: cfg1.shimColumn = 1, cfg1.streamPortId = 2, cfg1.slaveOrMaster = 0, cfg2.shimColumn = 1, cfg2.streamPortId = 4, cfg2.slaveOrMaster = 1, acquiredResources
+*		Expectation: result == 0
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingReadTests, TC_004_GetRscIdFailureInTimeDifference) {
 	shim_config cfg1 = make_nominal_cfg(1, 2, 0);
-	shim_config cfg2 = make_nominal_cfg(1, 4, 1); // same column
+	shim_config cfg2 = make_nominal_cfg(1, 4, 1);
 
 	FalUtil_SetRequestResults({0, 1, 2, 3});
 	XAie_SetEventSelectResult(XAIE_OK);
@@ -1602,27 +2810,32 @@ TEST(ProfilingReadTests, TC_607_GetRscIdFailureInTimeDifference)
 	err_code rc = profiling::profile_start_time_difference_btw_two_streams(cfg1, cfg2, acquiredResources);
 	CHECK_TRUE(rc == err_code::ok);
 
-	// Configure first counter's getRscId to fail (returns error status)
 	Stub_XAiePerfCounter_SetGetRscIdResult(0, 1, 0, XAIE_PL_MOD, 1, XAIE_ERR);
 	Stub_XAiePerfCounter_SetGetRscIdResult(1, 1, 0, XAIE_PL_MOD, 3, XAIE_OK);
 
-	// ACT
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
 	uint64_t result = profiling::read(acquiredResources, true);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profiling::read function: " << total_clock_enable_us << " microseconds" << std::endl;
 
-	// ASSERT - Should return 0 because getRscId failed
 	CHECK_EQUAL(0, result);
 	acquiredResources.clear();
 }
 
-/**
- * @brief TC_608: Verify error handling when getRscId fails in standard read path
- *
- * This test verifies that profiling::read correctly returns 0 when getRscId fails
- * during standard (non-time-difference) profiling read operation.
- */
-TEST(ProfilingReadTests, TC_608_GetRscIdFailureInStandardRead)
-{
-	// ARRANGE - Setup profiling first
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_005_GetRscIdFailureInStandardRead
+*		Function Name: read
+*		Input: cfg.shimColumn = 1, cfg.streamPortId = 2, cfg.slaveOrMaster = 0, acquiredResources
+*		Expectation: result == 0
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 1
+*/
+/*********************************************************************************/
+TEST(ProfilingReadTests, TC_005_GetRscIdFailureInStandardRead) {
 	shim_config cfg = make_nominal_cfg(1, 2, 0);
 	FalUtil_SetRequestResults({0, 1});
 	XAie_SetEventSelectResult(XAIE_OK);
@@ -1633,13 +2846,265 @@ TEST(ProfilingReadTests, TC_608_GetRscIdFailureInStandardRead)
 	err_code rc = profiling::profile_stream_running_to_idle_cycles(cfg, acquiredResources);
 	CHECK_TRUE(rc == err_code::ok);
 
-	// Configure stub so getRscId fails
 	Stub_XAiePerfCounter_SetGetRscIdResult(0, 1, 0, XAIE_PL_MOD, 1, XAIE_ERR);
 
-	// ACT
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
 	uint64_t result = profiling::read(acquiredResources, false);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by read function: " << total_clock_enable_us << " microseconds" << std::endl;
 
-	// ASSERT - Should return 0 because getRscId failed
 	CHECK_EQUAL(0, result);
 	acquiredResources.clear();
 }
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_006_ReadPerfCounterSuccess
+*		Function Name: read
+*		Input: acquiredResources, isBroadcast = false
+*		Expectation: result == 106
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingReadTests, TC_006_ReadPerfCounterSuccess) {
+	double total_clock_enable_us = 0.0;
+
+	shim_config cfg = make_nominal_cfg(1, 2, 0);
+	FalUtil_SetRequestResults({0, 1});
+	XAie_SetEventSelectResult(XAIE_OK);
+	XAie_SetPerfCounterControlResult(XAIE_OK);
+	ErrorMsg_Reset();
+	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
+
+	CHECK_TRUE(profiling::profile_stream_running_to_idle_cycles(cfg, acquiredResources) == err_code::ok);
+	Stub_XAiePerfCounter_SetGetRscIdResult(0, 1, 0, XAIE_PL_MOD, 1, XAIE_OK);
+	Stub_XAie_PerfCounterGet_SetValue(1, 0, XAIE_PL_MOD, 1, 106U, XAIE_OK);
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	uint64_t result = profiling::read(acquiredResources, false);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profiling read function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_EQUAL(106, result);
+	acquiredResources.clear();
+
+}
+
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_007_ReadPerfCounterGetRscIdFails
+*		Function Name: read
+*		Input: acquiredResources, isBroadcast = false
+*		Expectation: result == 0
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingReadTests, TC_007_ReadPerfCounterGetRscIdFails) {
+	double total_clock_enable_us = 0.0;
+
+	shim_config cfg = make_nominal_cfg(1, 2, 0);
+	FalUtil_SetRequestResults({0, 1});
+	XAie_SetEventSelectResult(XAIE_OK);
+	XAie_SetPerfCounterControlResult(XAIE_OK);
+	ErrorMsg_Reset();
+
+	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
+
+	CHECK_TRUE(profiling::profile_stream_running_to_idle_cycles(cfg, acquiredResources) == err_code::ok);
+
+	Stub_XAiePerfCounter_SetGetRscIdResult(0, 1, 0, XAIE_PL_MOD, 1, XAIE_ERR);
+	Stub_XAie_PerfCounterGet_SetValue(1, 0, XAIE_PL_MOD, 1, 0U, XAIE_OK);
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	(void)profiling::read(acquiredResources, false);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profiling read function: " << total_clock_enable_us << " microseconds" << std::endl;
+	acquiredResources.clear();
+}
+
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_008_ReadStartTimeDifferenceReversedColumns
+*		Function Name: read
+*		Input: acquiredResources, isBroadcast = false
+*		Expectation: result == 106
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(ProfilingReadTests, TC_008_ReadStartTimeDifferenceReversedColumns) {
+	double total_clock_enable_us = 0.0;
+	shim_config cfg1 = make_nominal_cfg(3, 2, 0);
+	shim_config cfg2 = make_nominal_cfg(1, 4, 1);
+
+	FalUtil_SetRequestResults({0, 1, 2, 3, 4});
+	XAie_SetEventSelectResult(XAIE_OK);
+	XAie_SetPerfCounterControlResult(XAIE_OK);
+	ErrorMsg_Reset();
+
+	std::vector<std::shared_ptr<xaiefal::XAieRsc>> acquiredResources;
+	err_code rc = profiling::profile_start_time_difference_btw_two_streams(cfg1, cfg2, acquiredResources);
+	CHECK_TRUE(rc == err_code::ok);
+
+	Stub_XAiePerfCounter_SetGetRscIdResult(0, 3, 0, XAIE_PL_MOD, 1, XAIE_OK);
+	Stub_XAiePerfCounter_SetGetRscIdResult(1, 1, 0, XAIE_PL_MOD, 3, XAIE_OK);
+	Stub_XAie_PerfCounterGet_SetValue(3, 0, XAIE_PL_MOD, 1, 100, XAIE_OK);
+	Stub_XAie_PerfCounterGet_SetValue(1, 0, XAIE_PL_MOD, 3, 200, XAIE_OK);
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
+	uint64_t result = profiling::read(acquiredResources, true);
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by profiling read function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_EQUAL(106, result);
+	(void)profiling::stop(acquiredResources, true);
+	acquiredResources.clear();
+}
+
+/*@section Test Execution details
+| Test Case ID                                           | Test Result | CR | Impact | Test Details |
+|--------------------------------------------------------|-------------|----|--------|--------------|
+| TC_001_DefaultConstructor                              | PASS        | No | NA     | NA           |
+| TC_002_GmioConstructorAie2gm                           | PASS        | No | NA     | NA           |
+| TC_003_GmioConstructorGm2aie                           | PASS        | No | NA     | NA           |
+| TC_004_PlioConstructor                                 | PASS        | No | NA     | NA           |
+| TC_005_NullPointers                                    | PASS        | No | NA     | NA           |
+| TC_001_InvalidTileLocation                             | PASS        | No | NA     | NA           |
+| TC_002_NominalSuccess                                  | PASS        | No | NA     | NA           |
+| TC_003_StreamSwitchRequestFails                        | PASS        | No | NA     | NA           |
+| TC_004_PerfCounterRequestFails                         | PASS        | No | NA     | NA           |
+| TC_005_EventSelectFails                                | PASS        | No | NA     | NA           |
+| TC_006_PerfCounterControlFails                         | PASS        | No | NA     | NA           |
+| TC_007_NominalSuccessMaster                            | PASS        | No | NA     | NA           |
+| TC_008_NegativeShimColumnIsolated                      | PASS        | No | NA     | NA           |
+| TC_009_NegativeStreamPortIdIsolated                    | PASS        | No | NA     | NA           |
+| EventCount_TC_001_NominalSuccess                       | PASS        | No | NA     | NA           |
+| EventCount_TC_002_InvalidStreamPortId                  | PASS        | No | NA     | NA           |
+| EventCount_TC_003_StreamSwitchRequestFails             | PASS        | No | NA     | NA           |
+| EventCount_TC_004_PerfCounterRequestFails              | PASS        | No | NA     | NA           |
+| EventCount_TC_005_EventSelectFails                     | PASS        | No | NA     | NA           |
+| EventCount_TC_006_PerfCounterControlFails              | PASS        | No | NA     | NA           |
+| EventCount_TC_007_NominalSuccessMaster                 | PASS        | No | NA     | NA           |
+| EventCount_TC_008_NegativeShimColumnIsolated           | PASS        | No | NA     | NA           |
+| EventCount_TC_009_ShimColumnMinusOneTriggersColInvalid | PASS        | No | NA     | NA           |
+| TC_001_InvalidShimColumn1                              | PASS        | No | NA     | NA           |
+| TC_002_SameTileNominalSuccess                          | PASS        | No | NA     | NA           |
+| TC_003_DifferentTileNominalSuccess                     | PASS        | No | NA     | NA           |
+| TC_004_InvalidSecondConfig                             | PASS        | No | NA     | NA           |
+| TC_005_StreamSwitch1RequestFails                       | PASS        | No | NA     | NA           |
+| TC_006_PerfCounter1RequestFails                        | PASS        | No | NA     | NA           |
+| TC_007_StreamSwitch2RequestFails                       | PASS        | No | NA     | NA           |
+| TC_008_PerfCounter2RequestFails                        | PASS        | No | NA     | NA           |
+| TC_009_BroadcastRequestFails                           | PASS        | No | NA     | NA           |
+| TC_010_BroadcastRequestReleaseFails                    | PASS        | No | NA     | NA           |
+| TC_011_EventSelectFailureSameTile                      | PASS        | No | NA     | NA           |
+| TC_012_PerfCounterControlFailureDifferentTiles         | PASS        | No | NA     | NA           |
+| TC_013_SameTileBothMaster                              | PASS        | No | NA     | NA           |
+| TC_014_DifferentTileBothMasterReversedColumns          | PASS        | No | NA     | NA           |
+| TC_015_Stream1NegativeShimColumnIsolated               | PASS        | No | NA     | NA           |
+| TC_016_Stream1NegativeStreamPortIdIsolated             | PASS        | No | NA     | NA           |
+| TC_017_Stream2InvalidCol                               | PASS        | No | NA     | NA           |
+| TC_018_Stream2NegativeShimColumnIsolated               | PASS        | No | NA     | NA           |
+| TC_019_Stream2NegativeStreamPortIdIsolated             | PASS        | No | NA     | NA           |
+| TC_020_BroadcastFailThirdReleaseFails                  | PASS        | No | NA     | NA           |
+| TC_021_BroadcastFailFourthReleaseFails                 | PASS        | No | NA     | NA           |
+| TC_022_BroadcastRequestFailsAllCleanupReleases         | PASS        | No | NA     | NA           |
+| TC_023_BroadcastFailSecondReleaseFails                 | PASS        | No | NA     | NA           |
+| StartTransfer_TC_001_InvalidShimColumn                 | PASS        | No | NA     | NA           |
+| StartTransfer_TC_002_InvalidStreamPortId               | PASS        | No | NA     | NA           |
+| StartTransfer_TC_003_StreamSwitchRequestFails          | PASS        | No | NA     | NA           |
+| StartTransfer_TC_004_FirstPerfCounterRequestFails      | PASS        | No | NA     | NA           |
+| StartTransfer_TC_005_SecondPerfCounterRequestFails     | PASS        | No | NA     | NA           |
+| StartTransfer_TC_006_EventSelectFails                  | PASS        | No | NA     | NA           |
+| StartTransfer_TC_007_PerfCounterControl0Fails          | PASS        | No | NA     | NA           |
+| StartTransfer_TC_008_ZeroEventValueBoundary            | PASS        | No | NA     | NA           |
+| StartTransfer_TC_009_NominalSuccessMaster              | PASS        | No | NA     | NA           |
+| StartTransfer_TC_010_NegativeShimColumnIsolated        | PASS        | No | NA     | NA           |
+| StartTransfer_TC_011_NegativeStreamPortIdIsolated      | PASS        | No | NA     | NA           |
+| TC_001_ValidExecution                                  | PASS        | No | NA     | NA           |
+| TC_002_StopAfterRunningToIdle                          | PASS        | No | NA     | NA           |
+| TC_003_StopWithStreamPortSelectFirst                   | PASS        | No | NA     | NA           |
+| TC_004_StopAfterEventCount                             | PASS        | No | NA     | NA           |
+| TC_005_StopWithStreamPortSelectOnly                    | PASS        | No | NA     | NA           |
+| TC_006_StopWithPCEventOnly                             | PASS        | No | NA     | NA           |
+| TC_007_StopAfterStartToTransferComplete                | PASS        | No | NA     | NA           |
+| TC_008_StopAfterRunningEventCount                      | PASS        | No | NA     | NA           |
+| TC_009_StopAfterStartTimeDiffSameTile                  | PASS        | No | NA     | NA           |
+| TC_010_StopAfterStartTimeDiffDifferentTiles            | PASS        | No | NA     | NA           |
+| TC_011_StopWithBroadcastResource                       | PASS        | No | NA     | NA           |
+| TC_011a_StopWithBroadcastResourceNoStartTimeDifference | PASS        | No | NA     | NA           |
+| TC_011b_StopBroadcastNonPlEndModule                    | PASS        | No | NA     | NA           |
+| TC_012_StopWithDriverError                             | PASS        | No | NA     | NA           |
+| TC_013_ReleaseFailure                                  | PASS        | No | NA     | NA           |
+| TC_014_StopWithUnknownResource                         | PASS        | No | NA     | NA           |
+| TC_014a_StopWithNullResource                           | PASS        | No | NA     | NA           |
+| TC_015_StopBroadcastReversedTileLocs                   | PASS        | No | NA     | NA           |
+| TC_016_StopSingleTileGetRscIdFails                     | PASS        | No | NA     | NA           |
+| TC_017_StopPerfCounterResetControlFails                | PASS        | No | NA     | NA           |
+| TC_018_StopStreamPortResetFails                        | PASS        | No | NA     | NA           |
+| TC_019_StopPCEventResetFails                           | PASS        | No | NA     | NA           |
+| TC_001_ReadStartTimeDifferenceDifferentColumns         | PASS        | No | NA     | NA           |
+| TC_002_InvalidResourceType                             | PASS        | No | NA     | NA           |
+| TC_003_InvalidResourcesForTimeDifference               | PASS        | No | NA     | NA           |
+| TC_003a_InvalidSecondResourceForTimeDifference         | PASS        | No | NA     | NA           |
+| TC_003b_NullResourcesForTimeDifference                 | PASS        | No | NA     | NA           |
+| TC_003c_NullResourceForStandardRead                    | PASS        | No | NA     | NA           |
+| TC_004_GetRscIdFailureInTimeDifference                 | PASS        | No | NA     | NA           |
+| TC_005_GetRscIdFailureInStandardRead                   | PASS        | No | NA     | NA           |
+| TC_006_ReadPerfCounterSuccess                          | PASS        | No | NA     | NA           |
+| TC_007_ReadPerfCounterGetRscIdFails                    | PASS        | No | NA     | NA           |
+| TC_008_ReadStartTimeDifferenceReversedColumns          | PASS        | No | NA     | NA           |
+/****Coverage Analysis*********/
+
+/*@section Coverage details
+
+| Coverage Type (Function Name)                               | %      | Result     | CR/Status    | Impact          |
+|-------------------------------------------------------------|--------|------------|--------------|-----------------|
+| shim_config::shim_config()                                  | <100>  | <Pass>     | <NA>         | No Impact       |
+| shim_config::shim_config(const gmio_config*)                | <100>  | <Pass>     | <NA>         | No Impact       |
+| shim_config::shim_config(const plio_config*)                | <100>  | <Pass>     | <NA>         | No Impact       |
+| profiling::profile_stream_running_to_idle_cycles            | <100>  | <Pass>     | <NA>         | No Impact       |
+| profiling::profile_stream_running_event_count               | <100>  | <Pass>     | <NA>         | No Impact       |
+| profiling::profile_start_time_difference_btw_two_streams    | <100>  | <Pass>     | <NA>         | No Impact       |
+| profiling::profile_stream_start_to_transfer_complete_cycles | <100>  | <Pass>     | <NA>         | No Impact       |
+| accumulateStatus                                            | <100>  | <Pass>     | <NA>         | No Impact       |
+| profiling::stop                                             | <100>  | <Pass>     | <NA>         | No Impact       |
+| profiling::read                                             | <100>  | <Pass>     | <NA>         | No Impact       |
+| Total file coverage (overall)                               | 100    | <Pass>     | <NA>         | No Impact       |
+
+/*@section Uncovered details*/
+/*
+
+ *Function: profiling::profile_stream_running_to_idle_cycles /
+ *           profiling::profile_stream_start_to_transfer_complete_cycles /
+ *           profiling::profile_stream_running_event_count /
+ *           profiling::profile_start_time_difference_btw_two_streams
+ *  Uncovered details:
+ *
+		if ((tileLoc.Row == INVALID_TILE_COORD) || (tileLoc.Col == INVALID_TILE_COORD) ||
+			(shimColumn < 0) || (streamPortId < 0)) {
+			return errorMsg(err_code::internal_error, ...);
+		}
+		// profile_start_time_difference_btw_two_streams uses the same validator with two tiles
+ *	Justification: For all four functions the Unit tests stubs always generate valid tile
+ *	row/col and non-negative ids, so the individual (INVALID_TILE_COORD / negative ids) branches
+ *	are unreachable and have no impact on source code behavior.
+ *
+ *Function: profiling::stop
+ *  Uncovered details:
+ *
+		if (auto pPerfCounterRsc = dynamic_cast<xaiefal::XAiePerfCounter *>(pSingleTileRsc)) {
+			...
+		} else if (auto pSSwitchPortEventRsc = dynamic_cast<xaiefal::XAieStreamPortSelect *>(pSingleTileRsc)) {
+			...
+		} else if (auto pProgramCounterRsc = dynamic_cast<xaiefal::XAiePCEvent *>(pSingleTileRsc)) {
+			...
+		}
+ *	Justification: UT scenarios use one xaiefal resource subtype per test, so the
+ *	"cast failed, try next" branches between casts are never exercised. The cleanup body for
+ *	each subtype is covered through targeted tests; the fall-through branches have no impact.
+*/

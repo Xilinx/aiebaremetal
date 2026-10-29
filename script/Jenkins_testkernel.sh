@@ -94,6 +94,14 @@ if [ "$IS_PR_BUILD" = true ]; then
   git checkout $DEST_BRANCH &&
   git remote add source_repo $SOURCE_REPO
   git fetch source_repo
+
+  # Jenkins agent has no global git identity, so the merge below would
+  # abort with "fatal: unable to auto-detect email address". Set a
+  # repo-local identity in this clone so the merge can record a merge
+  # commit if needed.
+  git config user.email "jenkins@xilinx.com"
+  git config user.name "Jenkins CI"
+
   MERGE_RESULT=$(git merge source_repo/$SOURCE_BRANCH 2>&1)
 
 
@@ -133,6 +141,7 @@ fi
 
 # Navigate to build directory
 cd "$BUILD_DIR"
+BUILD_DIR="$(pwd)"
 
 # Set up the environment
 source /proj/xbuilds/HEAD_qualified_latest/installs/lin64/HEAD/Vitis/settings64.sh
@@ -163,7 +172,7 @@ set +e
 
   (
     exec > >(tee -a "$WORKDIR/sim_output.txt") 2>&1
-    stdbuf -oL -eL bash -lc "source runsim.sh"
+    stdbuf -oL -eL bash -lc "source \"$BUILD_DIR/script/runsim.sh\""
   )
   ret=${PIPESTATUS[0]}
 

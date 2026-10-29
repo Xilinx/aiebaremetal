@@ -1,17 +1,12 @@
 // Copyright (C) 2025 - 2026 Advanced Micro Devices, Inc.
 // SPDX-License-Identifier: Apache-2.0
 // This tests using multiple instance of the same kernel using multiple GMIO ports.
-#if (defined(__AIESIM__) || defined(__ADF_FRONTEND__))
+#include "aiebaremetal.h"
+#include "aeg_platform.h"
+#if defined(__ADF_FRONTEND__)
 #include "graph.h"
 Mm mm;
-#else
-#include "xil_cache.h"
-#include "xil_io.h"
-#include "xil_printf.h"
-#include "xtime_l.h"
 #endif
-
-#include "aiebaremetal.h"
 #include <fstream>
 #include <xaiengine.h>
 
@@ -38,9 +33,6 @@ int main(int argc, char **argv) {
     const int input_size_in_bytes = SIZE * sizeof(float);
     const int output_size_in_bytes = SIZE * sizeof(float);
 
-#if (defined(__AIESIM__) || defined(__ADF_FRONTEND__))
-    mm.init();
-#endif
     gr.init();
 
     gr.run(1);

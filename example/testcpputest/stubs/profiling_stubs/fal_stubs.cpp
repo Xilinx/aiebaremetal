@@ -1,13 +1,15 @@
+// Copyright (C) 2025 - 2026 Advanced Micro Devices, Inc.
+// SPDX-License-Identifier: Apache-2.0
 #include "fal_stubs.h"
 #include "aeg_api_message.h"
+#include <atomic>
 
-// XAiePerfCounter instance counter and getRscId implementation
 namespace xaiefal {
     int XAiePerfCounter::s_instanceCounter = 0;
 
-    int XAiePerfCounter::getRscId(XAie_LocType& loc, XAie_ModuleType& module, uint32_t& id)
+    int XAiePerfCounter::getRscId(XAie_LocType& loc, XAie_ModuleType& module, uint32_t& id) noexcept
     {
-        // Use stub_controls to get configured result
+
         if (m_instanceIndex >= 0 && m_instanceIndex < stub_controls::g_perfCfgUsed) {
             const auto& cfg = stub_controls::g_perfCfg[m_instanceIndex];
             if (cfg.valid) {
@@ -17,7 +19,7 @@ namespace xaiefal {
                 return cfg.status;
             }
         }
-        // Default if not configured
+
         loc = XAie_TileLoc(0, 0);
         module = XAIE_PL_MOD;
         id = 0;
@@ -36,16 +38,14 @@ static std::atomic<err_code> g_lastErrCode{};
 static char                  g_lastErrMsg[128];
 
 namespace config_manager {
-// Device instance pointer used by aeg_profiling_api.cpp. The tests control
-// behavior via XAIE stub functions, so we just expose a generic pointer here.
-void* s_pDevInst = nullptr;
-} // namespace config_manager
 
-} // namespace abr
+void* s_pDevInst = nullptr;
+}
+
+}
 
 namespace stub_controls {
 
-// Stub device instance - initialized with valid values to prevent segfaults
 XAie_DevInst g_stubDevInst = {
     .BaseAddr = 0x20000000000ULL,
     .StartCol = 0,
@@ -61,9 +61,8 @@ XAie_DevInst g_stubDevInst = {
     .EccStatus = 0
 };
 
-} // namespace stub_controls
+}
 
-// Message functions are in global namespace to match production header
 abr::err_code errorMsg(abr::err_code code, const char* msg)
 {
     abr::g_lastErrCode.store(code, std::memory_order_relaxed);
@@ -85,49 +84,65 @@ abr::err_code errorMsg(abr::err_code code, std::string msg)
     return errorMsg(code, msg.c_str());
 }
 
-void debugMsg(const char* /*msg*/)
+void debugMsg(const char* )
 {
-    // Swallow messages in unit tests
+
 }
 
-void debugMsg(std::string /*msg*/)
+void debugMsg(std::string )
 {
-    // Swallow messages in unit tests
+
 }
 
-void infoMsg(std::string /*msg*/)
+void infoMsg(std::string )
 {
-    // Swallow messages in unit tests
+
 }
 
 namespace fal_util {
 
-// Global device wrapper pointer used by profiling code
 DevWrapper* s_pXAieDev = nullptr;
 
 std::atomic<int> g_requestCallCount{0};
 static int         g_requestResults[8];
 static std::size_t g_requestResultsCount = 0U;
 
-int request(std::shared_ptr<xaiefal::XAieRsc> /*rsc*/)
+int request(std::shared_ptr<xaiefal::XAieRsc> )
 {
     int idx = g_requestCallCount.fetch_add(1, std::memory_order_relaxed);
     if (idx >= 0 && static_cast<std::size_t>(idx) < g_requestResultsCount)
         return g_requestResults[static_cast<std::size_t>(idx)];
-    return 0; // success by default
+    return 0;
 }
 
-// Release control
 static bool g_releaseResult = true;
+static bool g_releaseResultsSeq[8] = {true,true,true,true,true,true,true,true};
+static std::size_t g_releaseResultsCount = 0;
+static std::atomic<int> g_releaseCallIdx{0};
 
-bool release(std::shared_ptr<xaiefal::XAieRsc> /*rsc*/)
+bool release(std::shared_ptr<xaiefal::XAieRsc> )
 {
-    return g_releaseResult;
+    if (g_releaseResultsCount == 0U)
+        return g_releaseResult;
+    int idx = g_releaseCallIdx.fetch_add(1, std::memory_order_relaxed);
+    if (idx < 0 || static_cast<std::size_t>(idx) >= g_releaseResultsCount)
+        return g_releaseResultsSeq[g_releaseResultsCount - 1U];
+    return g_releaseResultsSeq[static_cast<std::size_t>(idx)];
 }
 
 void setReleaseResult(bool result)
 {
     g_releaseResult = result;
+    g_releaseResultsCount = 0;
+    g_releaseCallIdx.store(0, std::memory_order_relaxed);
+}
+
+void setReleaseResults(const std::vector<bool>& results)
+{
+    g_releaseResultsCount = (results.size() < 8U) ? results.size() : 8U;
+    for (std::size_t i = 0; i < g_releaseResultsCount; ++i)
+        g_releaseResultsSeq[i] = results[i];
+    g_releaseCallIdx.store(0, std::memory_order_relaxed);
 }
 
 void setRequestResults(const std::vector<int>& results)
@@ -137,33 +152,26 @@ void setRequestResults(const std::vector<int>& results)
         g_requestResults[i] = results[i];
 }
 
-} // namespace fal_util
-
-// == stub_controls namespace ==
+}
 
 namespace stub_controls {
 
 using abr::err_code;
 
-// ErrorMsg tracking
 static std::atomic<err_code> g_errCode{static_cast<err_code>(0)};
 static char                  g_errMsg[128];
 
-// XAIE control counters - non-static so they can be accessed from stubs.cpp
 std::atomic<int> g_evtSelectCalls{0};
 std::atomic<int> g_perfCtrlCalls{0};
 std::atomic<int> g_evtSelectResult{0};
 std::atomic<int> g_perfCtrlResult{0};
 
-// Perf counter configurations (structs defined in header)
 PerfCounterCfg g_perfCfg[16];
 int            g_perfCfgUsed = 0;
 
-// PerfCounterGet behaviour controls
 PerfGetCfg       g_perfGetCfg[16];
 std::atomic<int> g_perfGetCallCount{0};
 
-// Reset all stub state (used by tests)
 void ResetAll()
 {
     g_errCode.store(static_cast<err_code>(0), std::memory_order_relaxed);
@@ -174,9 +182,8 @@ void ResetAll()
     g_perfCtrlResult.store(0, std::memory_order_relaxed);
     fal_util::g_requestCallCount.store(0, std::memory_order_relaxed);
     fal_util::setRequestResults({});
-    fal_util::setReleaseResult(true); // default to success
+    fal_util::setReleaseResult(true);
 
-    // Reset XAiePerfCounter instance counter
     xaiefal::XAiePerfCounter::resetInstanceCounter();
     g_perfCfgUsed = 0;
     for (auto &c : g_perfCfg) {
@@ -212,6 +219,11 @@ int FalUtil_GetRequestCallCount()
 void FalUtil_SetReleaseResult(bool result)
 {
     fal_util::setReleaseResult(result);
+}
+
+void FalUtil_SetReleaseResults(const std::vector<bool>& results)
+{
+    fal_util::setReleaseResults(results);
 }
 
 void XAie_SetEventSelectResult(int rc)
@@ -253,7 +265,7 @@ void ErrorMsg_Reset()
 void Stub_XAiePerfCounter_Reset(void)
 {
     g_perfCfgUsed = 0;
-    // Reset the XAiePerfCounter instance counter
+
     xaiefal::XAiePerfCounter::resetInstanceCounter();
     for (auto &c : g_perfCfg) {
         c.valid  = false;
@@ -305,7 +317,7 @@ void Stub_XAie_PerfCounterGet_SetValue(
     u32             value,
     XAie_ReturnCode status)
 {
-    // Find or create slot for this configuration
+
     for (int i = 0; i < 16; ++i) {
         if (!g_perfGetCfg[i].valid ||
             (g_perfGetCfg[i].col == col &&
@@ -329,4 +341,4 @@ int Stub_XAie_PerfCounterGet_GetCallCount(void)
     return g_perfGetCallCount.load(std::memory_order_relaxed);
 }
 
-} // namespace stub_controls
+}

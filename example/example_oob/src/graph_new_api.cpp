@@ -1,36 +1,21 @@
 // Copyright (C) 2026 Advanced Micro Devices, Inc.
 // SPDX-License-Identifier: Apache-2.0
-#if defined(__AEG_METADATA_ONLY__)
+
+#if defined(__AEG_METADATA_ONLY__) || defined(__ADF_FRONTEND__)
 #include "graph.h"
 myGraph gradf;
-int main(int argc, char **argv) {
-    gradf.init();
-    return 0;
-}
 #else
-#include "aiebaremetal.h"
 #include <sstream>
 #include <vector>
 #include <xaiengine.h>
 
-#if defined(__AIESIM__) || defined(__ADF_FRONTEND__)
-#include "graph.h"
-myGraph gradf;
-// BaremetalGraphSim gr("gradf");
-#else
-#include "xil_cache.h"
-#include "xil_io.h"
-#include "xil_printf.h"
-#include "xparameters.h"
-#if (__AIE_ARCH__ != AIE2PS)
-#endif
-// BaremetalGraph gr("gradf");
-#endif
+#include "aiebaremetal.h"
+#include "aeg_platform.h"
 
 AEGGraph<aeg::gradf> gr;
 
 #include "kernels/config.h"
-#if defined(__AIESIM__) || defined(__ADF_FRONTEND__)
+#if 0  // adf_run() was used in the in-process sim flow (now removed)
 void adf_run() {
     std::cout << " adf_run alloc " << NUM_HW_ROWS * MAT_A_CHUNK_SIZE / 1024 << " kB" << std::endl;
     std::vector<int32_t *> inputArray(NUM_HW_ROWS, NULL), inputArrayB(NUM_HW_ROWS, NULL),
@@ -80,7 +65,7 @@ void adf_run() {
 }
 #endif
 int main(int argc, char **argv) {
-#if defined(__AIESIM__) || defined(__ADF_FRONTEND__)
+#if defined(__ADF_FRONTEND__)
     std::cout << "gradf.a  =" << gradf.a << " before init" << std::endl;
     gradf.init();
     std::cout << "after init" << gradf.a << std::endl;
@@ -193,4 +178,4 @@ int main(int argc, char **argv) {
         return 1;
     }
 }
-#endif /* !__AEG_METADATA_ONLY__ */
+#endif /* !__AEG_METADATA_ONLY__ && !__ADF_FRONTEND__ */

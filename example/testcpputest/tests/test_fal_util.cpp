@@ -1,284 +1,418 @@
-/**
- * @file test_fal_util.cpp
- * @brief Unit tests for the FAL utility functions
- *
- * This file contains unit tests for the FAL (Functional Abstraction Layer) utility functions,
- * which provide helper functions for initializing, requesting, and releasing AIE resources.
- *
- * Copyright (C) 2026 Advanced Micro Devices, Inc.
- */
+/******************************************************************************
+* (c) Copyright 2022 Xilinx, Inc. All rights reserved.
+* (c) Copyright 2022-2026 Advanced Micro Devices, Inc. All Rights Reserved.
+*
+* This file contains confidential and proprietary information
+* of Xilinx, Inc. and is protected under U.S. and
+* international copyright and other intellectual property
+* laws.
+*
+* DISCLAIMER
+* This disclaimer is not a license and does not grant any
+* rights to the materials distributed herewith. Except as
+* otherwise provided in a valid license issued to you by
+* Xilinx, and to the maximum extent permitted by applicable
+* law: (1) THESE MATERIALS ARE MADE AVAILABLE "AS IS" AND
+* WITH ALL FAULTS, AND XILINX HEREBY DISCLAIMS ALL WARRANTIES
+* AND CONDITIONS, EXPRESS, IMPLIED, OR STATUTORY, INCLUDING
+* BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, NON-
+* INFRINGEMENT, OR FITNESS FOR ANY PARTICULAR PURPOSE; and
+* (2) Xilinx shall not be liable (whether in contract or tort,
+* including negligence, or under any other theory of
+* liability) for any loss or damage of any kind or nature
+* related to, arising under or in connection with these
+* materials, including for any direct, or any indirect,
+* special, incidental, or consequential loss or damage
+* (including loss of data, profits, goodwill, or any type of
+* loss or damage suffered as a result of any action brought
+* by a third party) even if such damage or loss was
+* reasonably foreseeable or Xilinx had been advised of the
+* possibility of the same.
+*
+* CRITICAL APPLICATIONS
+* Xilinx products are not designed or intended to be fail-
+* safe, or for use in any application requiring fail-safe
+* performance, such as life-support or safety devices or
+* systems, Class III medical devices, nuclear facilities,
+* applications related to the deployment of airbags, or any
+* other applications that could lead to death, personal
+* injury, or severe property or environmental damage
+* (individually and collectively, "Critical
+* Applications"). Customer assumes the sole risk and
+* liability of any use of Xilinx products in Critical
+* Applications, subject only to applicable laws and
+* regulations governing limitations on product liability.
+*
+* THIS COPYRIGHT NOTICE AND DISCLAIMER MUST BE RETAINED AS
+* PART OF THIS FILE AT ALL TIMES.
+******************************************************************************/
 
-#include "fal_util.h"
-#include "test_comparator.h"
-#include "stubs.h"
-#include <xaiegbl.h>
-#include "CppUTest/TestHarness.h"
+/*****************************************************************************/
+/**
+*
+* @file test_fal_util.cpp
+*  This file contains test cases for FAL utility functions
+*
+* <pre>
+* MODIFICATION HISTORY:
+*
+* * Ver	 Who	 Date		Changes
+* ----- -------- -------- ---------------------------------
+* 1.0	 Veera	 05/03/2026	 Initial creation
+* 1.1	 Veera   10/05/2026  updated comment section for FAL utility functions
+* 1.2	 Veera   26/05/2026  updated timing analysis for FAL utility functions
+* </pre>
+*
+******************************************************************************/
+
+/*****************************************************************************/
+/**
+*
+* TEST SPECIFCIATION:
+* Source code version: <2026.1>
+* Verification Environment1:
+	Testing Tool: LDRA
+	Platform: Silicon
+	Target: APU
+	Compiler1: gcc
+* Verification Environment2:
+	Testing Tool: CPPUTEST
+	Platform: Host
+	Target: x86
+    Compiler2: gcc
+* Verification Method:By Specification of test cases
+* Test Procedure: The test execution procedure is same for all the test cases.
+* After the tests have been specified, the test procedure involves:
+*   - building the tests cases for the selected environment
+*   - execution of the binary executable in the selected environment
+*   - recording the results of execution
+*
+/*****************************************************************************/
+/***************************** Include Files *********************************/
+
 #include "CppUTest/CommandLineTestRunner.h"
+#include "CppUTest/TestHarness.h"
 #include "CppUTestExt/MockSupport_c.h"
-// Use mock XAieFAL classes for unit testing
+#include "fal_util.h"
+#include "stubs.h"
+#include "test_comparator.h"
+#include <xaiegbl.h>
+#include <chrono>
+#include <iostream>
+
 #include "profiling_stubs/xaiefal_mock.hpp"
 using namespace xaiefal;
 
 #include <memory>
 
-/**
- * @brief Test group for FAL utility initialization and resource management
- *
- * This test group verifies the functionality of fal_util helper functions,
- * including initialization, resource request, and resource release operations.
- */
-TEST_GROUP(FalUtilInitializeTests)
-{
-	/**
-	 * @brief Set up test fixtures before each test
-	 *
-	 * Clears any existing mock expectations to ensure a clean state.
-	 */
-	void setup()
-	{
-		mock_c()->clear();
+TEST_GROUP(FalUtilInitializeTests){
+	void setup(){mock_c()->clear();
 	}
 
-	/**
-	 * @brief Clean up test fixtures after each test
-	 *
-	 * Clears mock expectations to prepare for the next test.
-	 */
-	void teardown()
-	{
-		mock_c()->clear();
-	}
+	void teardown() { mock_c()->clear(); }
 };
 
-
-/**
- * @brief TC_001: Verify initialization failure with NULL device instance pointer
- *
- * This test verifies that fal_util::initialize correctly handles a NULL
- * XAie_DevInst pointer and returns false to indicate failure.
- */
-TEST(FalUtilInitializeTests, TC_001_InitializeWithNullPointer)
-{
-	// ARRANGE: Set up NULL device instance pointer
-	XAie_DevInst* pDevInst = nullptr;
-
-	// ACT: Call initialize with null pointer
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_001_InitializeWithNullPointer
+*		Function Name: fal_util::initialize
+*		Input: pDevInst = nullptr
+*		Expectation: result == false
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(FalUtilInitializeTests, TC_001_InitializeWithNullPointer) {
+	XAie_DevInst *pDevInst = nullptr;
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
 	bool result = fal_util::initialize(pDevInst);
-
-	// ASSERT: Verify initialization fails
-	CHECK_FALSE(result); // Should return false for null pointer
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by initialize function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_FALSE(result);
 }
-
-/**
- * @brief TC_002: Verify successful initialization with valid device instance pointer
- *
- * This test verifies that fal_util::initialize correctly initializes the shared
- * device pointer when provided with a valid XAie_DevInst pointer.
- */
-TEST(FalUtilInitializeTests, TC_002_InitializeWithValidPointer)
-{
-	// ARRANGE: Set up valid device instance
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_002_InitializeWithValidPointer
+*		Function Name: fal_util::initialize
+*		Input: dev = {}
+*		Expectation: result == true, fal_util::s_pXAieDev != nullptr
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(FalUtilInitializeTests, TC_002_InitializeWithValidPointer) {
 	XAie_DevInst dev{};
-
-	// ACT: Call initialize with valid pointer
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
 	bool result = fal_util::initialize(&dev);
-
-	// ASSERT: Verify initialization succeeds and shared pointer is set
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by initialize function: " << total_clock_enable_us << " microseconds" << std::endl;
 	CHECK_TRUE(result);
 	CHECK(fal_util::s_pXAieDev != nullptr);
 }
-
-/**
- * @brief TC_003: Verify release failure with null resource pointer
- *
- * This test verifies that fal_util::release correctly handles a null
- * resource pointer and returns false to indicate failure.
- */
-TEST(FalUtilInitializeTests, TC_003_ReleaseNullResourceFailure)
-{
-	// ARRANGE: Set up null resource pointer
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_003_ReleaseNullResourceFailure
+*		Function Name: fal_util::release
+*		Input: resource = nullptr
+*		Expectation: result == false
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(FalUtilInitializeTests, TC_003_ReleaseNullResourceFailure) {
 	std::shared_ptr<xaiefal::XAieRsc> resource = nullptr;
-
-	// ACT: Call release with null resource
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
 	bool result = fal_util::release(resource);
-
-	// ASSERT: Verify release fails
-	CHECK_FALSE(result); // Should return false for null resource
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by release function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK_FALSE(result);
 }
-
-/**
- * @brief TC_004: Verify successful resource release
- *
- * This test verifies that fal_util::release correctly releases a resource
- * when the underlying driver returns success.
- */
-TEST(FalUtilInitializeTests, TC_004_ReleaseSuccess)
-{
-	// ARRANGE: Create a generic resource and configure mock for success
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_004_ReleaseSuccess
+*		Function Name: fal_util::release
+*		Input: r = StubXaie_CreateGenericRsc()
+*		Expectation: result == true, StubXaieRsc_GetReleaseCallCount(r) == 1
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(FalUtilInitializeTests, TC_004_ReleaseSuccess) {
 	auto r = StubXaie_CreateGenericRsc();
 	StubXaieRsc_SetReleaseResult(r, XAIE_OK);
-
-	// ACT: Call release
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
 	bool result = fal_util::release(r);
-
-	// ASSERT: Verify release succeeds and was called once
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by release function: " << total_clock_enable_us << " microseconds" << std::endl;
 	CHECK_TRUE(result);
 	LONGS_EQUAL(1, StubXaieRsc_GetReleaseCallCount(r));
 }
 
-/**
- * @brief TC_005: Verify resource release failure
- *
- * This test verifies that fal_util::release correctly handles a release
- * failure from the underlying driver and returns false.
- */
-TEST(FalUtilInitializeTests, TC_005_ReleaseFailure)
-{
-	// ARRANGE: Create a generic resource and configure mock for failure
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_005_ReleaseFailure
+*		Function Name: fal_util::release
+*		Input: r = StubXaie_CreateGenericRsc()
+*		Expectation: result == false
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(FalUtilInitializeTests, TC_005_ReleaseFailure) {
 	auto r = StubXaie_CreateGenericRsc();
 	StubXaieRsc_SetReleaseResult(r, StubXaieRc_ErrorCode());
-
-	// ACT: Call release
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
 	bool result = fal_util::release(r);
-
-	// ASSERT: Verify release fails
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by release function: " << total_clock_enable_us << " microseconds" << std::endl;
 	CHECK_FALSE(result);
 }
-
-/**
- * @brief TC_006: Verify request failure with null resource pointer
- *
- * This test verifies that fal_util::request correctly handles a null
- * resource pointer and returns -1 to indicate failure.
- */
-TEST(FalUtilInitializeTests, TC_006_RequestNullResourceFailure)
-{
-	// ARRANGE: Set up null resource pointer
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_006_RequestNullResourceFailure
+*		Function Name: fal_util::request
+*		Input: resource = nullptr
+*		Expectation: result == -1
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(FalUtilInitializeTests, TC_006_RequestNullResourceFailure) {
 	std::shared_ptr<xaiefal::XAieRsc> resource = nullptr;
-
-	// ACT: Call request with null resource
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
 	int result = fal_util::request(resource);
-
-	// ASSERT: Verify request fails
-	CHECK(result == -1); // Should return -1 for null resource
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by request function: " << total_clock_enable_us << " microseconds" << std::endl;
+	CHECK(result == -1);
 }
 
-/**
- * @brief TC_007: Verify successful broadcast resource request
- *
- * This test verifies that fal_util::request correctly requests a broadcast
- * resource and returns the broadcast ID when reservation succeeds.
- */
-TEST(FalUtilInitializeTests, TC_007_RequestBroadcastSuccess)
-{
-	// ARRANGE: Create broadcast resource and configure mock for success
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_007_RequestBroadcastSuccess
+*		Function Name: fal_util::request
+*		Input: bc = StubXaie_CreateBroadcast()
+*		Expectation: result == 5
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(FalUtilInitializeTests, TC_007_RequestBroadcastSuccess) {
 	auto bc = StubXaie_CreateBroadcast();
 	StubXaieBroadcast_SetReserveResult(bc, XAIE_OK);
 	StubXaieBroadcast_SetBcValue(bc, 5);
-
-	// ACT: Call request
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
 	int id = fal_util::request(bc);
-
-	// ASSERT: Verify correct broadcast ID is returned
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by request function: " << total_clock_enable_us << " microseconds" << std::endl;
 	LONGS_EQUAL(5, id);
 }
 
-/**
- * @brief TC_008: Verify broadcast resource request failure
- *
- * This test verifies that fal_util::request correctly handles a broadcast
- * reservation failure and returns -1.
- */
-TEST(FalUtilInitializeTests, TC_008_RequestBroadcastFailure)
-{
-	// ARRANGE: Create broadcast resource and configure mock for failure
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_008_RequestBroadcastFailure
+*		Function Name: fal_util::request
+*		Input: bc = StubXaie_CreateBroadcast()
+*		Expectation: result == -1
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(FalUtilInitializeTests, TC_008_RequestBroadcastFailure) {
 	auto bc = StubXaie_CreateBroadcast();
 	StubXaieBroadcast_SetReserveResult(bc, StubXaieRc_ErrorCode());
 	StubXaieBroadcast_SetBcValue(bc, 7);
-
-	// ACT: Call request
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
 	int id = fal_util::request(bc);
-
-	// ASSERT: Verify request fails
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by request function: " << total_clock_enable_us << " microseconds" << std::endl;
 	LONGS_EQUAL(-1, id);
 }
-
-/**
- * @brief TC_009: Verify successful single tile resource request
- *
- * This test verifies that fal_util::request correctly requests a single tile
- * resource and returns the resource ID when both reservation and ID retrieval succeed.
- */
-TEST(FalUtilInitializeTests, TC_009_RequestSingleTileSuccess)
-{
-	// ARRANGE: Create single tile resource and configure mock for success
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_009_RequestSingleTileSuccess
+*		Function Name: fal_util::request
+*		Input: r = StubXaie_CreateSingleTile()
+*		Expectation: result == 42, StubXaieSingleTile_GetReserveCallCount(r) == 1, StubXaieSingleTile_GetGetRscIdCallCount(r) == 1
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(FalUtilInitializeTests, TC_009_RequestSingleTileSuccess) {
 	auto r = StubXaie_CreateSingleTile();
 	StubXaieSingleTile_SetReserveResult(r, XAIE_OK);
 	StubXaieSingleTile_SetGetRscIdResult(r, XAIE_OK, 42);
-
-	// ACT: Call request
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
 	int id = fal_util::request(r);
-
-	// ASSERT: Verify correct resource ID is returned and functions were called
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by request function: " << total_clock_enable_us << " microseconds" << std::endl;
 	LONGS_EQUAL(42, id);
 	LONGS_EQUAL(1, StubXaieSingleTile_GetReserveCallCount(r));
 	LONGS_EQUAL(1, StubXaieSingleTile_GetGetRscIdCallCount(r));
 }
 
-/**
- * @brief TC_010: Verify single tile resource request failure during reservation
- *
- * This test verifies that fal_util::request correctly handles a single tile
- * reservation failure and returns -1 without attempting to get the resource ID.
- */
-TEST(FalUtilInitializeTests, TC_010_RequestSingleTileReserveFailure)
-{
-	// ARRANGE: Create single tile resource and configure mock for reserve failure
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_010_RequestSingleTileReserveFailure
+*		Function Name: fal_util::request
+*		Input: r = StubXaie_CreateSingleTile()
+*		Expectation: result == -1, StubXaieSingleTile_GetGetRscIdCallCount(r) == 0
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(FalUtilInitializeTests, TC_010_RequestSingleTileReserveFailure) {
 	auto r = StubXaie_CreateSingleTile();
 	StubXaieSingleTile_SetReserveResult(r, StubXaieRc_ErrorCode());
-
-	// ACT: Call request
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
 	int id = fal_util::request(r);
-
-	// ASSERT: Verify request fails and GetRscId was not called
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by request function: " << total_clock_enable_us << " microseconds" << std::endl;
 	LONGS_EQUAL(-1, id);
 	LONGS_EQUAL(0, StubXaieSingleTile_GetGetRscIdCallCount(r));
 }
 
-/**
- * @brief TC_011: Verify single tile resource request failure during ID retrieval
- *
- * This test verifies that fal_util::request correctly handles a failure when
- * retrieving the resource ID and returns -1.
- */
-TEST(FalUtilInitializeTests, TC_011_RequestSingleTileGetRscIdFailure)
-{
-	// ARRANGE: Create single tile resource and configure mock for GetRscId failure
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_011_RequestSingleTileGetRscIdFailure
+*		Function Name: fal_util::request
+*		Input: r = StubXaie_CreateSingleTile()
+*		Expectation: result == -1
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(FalUtilInitializeTests, TC_011_RequestSingleTileGetRscIdFailure) {
 	auto r = StubXaie_CreateSingleTile();
 	StubXaieSingleTile_SetReserveResult(r, XAIE_OK);
 	StubXaieSingleTile_SetGetRscIdResult(r, StubXaieRc_ErrorCode(), 13);
-
-	// ACT: Call request
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
 	int id = fal_util::request(r);
-
-	// ASSERT: Verify request fails
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by request function: " << total_clock_enable_us << " microseconds" << std::endl;
 	LONGS_EQUAL(-1, id);
 }
 
-/**
- * @brief TC_012: Verify request failure with unsupported resource type
- *
- * This test verifies that fal_util::request correctly handles an unsupported
- * resource type (generic XAieRsc) and returns -1.
- */
-TEST(FalUtilInitializeTests, TC_012_RequestUnsupportedResourceType)
-{
-	// ARRANGE: Create a generic (unsupported) resource
+//*********************************************************************************/
+/*
+*		Unique test case ID: TC_012_RequestUnsupportedResourceType
+*		Function Name: fal_util::request
+*		Input: r = StubXaie_CreateGenericRsc()
+*		Expectation: result == -1
+*		Test Method: Unit testing
+*     	Methods for deriving test case: Analysis of requirement
+*     	Test Environment: 2
+*/
+/*********************************************************************************/
+TEST(FalUtilInitializeTests, TC_012_RequestUnsupportedResourceType) {
 	auto r = StubXaie_CreateGenericRsc();
-
-	// ACT: Call request
+	double total_clock_enable_us = 0.0;
+	const auto clock_enable_t0 = std::chrono::steady_clock::now();
 	int id = fal_util::request(r);
-
-	// ASSERT: Verify request fails
+	const auto clock_enable_t1 = std::chrono::steady_clock::now();
+	total_clock_enable_us = std::chrono::duration<double, std::micro>(clock_enable_t1 - clock_enable_t0).count();
+	std::cout << "Time taken by request function: " << total_clock_enable_us << " microseconds" << std::endl;
 	LONGS_EQUAL(-1, id);
 }
+
+/*@section Test Execution details
+| Test Case ID                              | Test Result | CR  | Impact | Test Details |
+|-------------------------------------------|-------------|-----|--------|--------------|
+| TC_001_InitializeWithNullPointer          | PASS        | No  | NA     | NA           |
+| TC_002_InitializeWithValidPointer         | PASS        | No  | NA     | NA           |
+| TC_003_ReleaseNullResourceFailure         | PASS        | No  | NA     | NA           |
+| TC_004_ReleaseSuccess                     | PASS        | No  | NA     | NA           |
+| TC_005_ReleaseFailure                     | PASS        | No  | NA     | NA           |
+| TC_006_RequestNullResourceFailure         | PASS        | No  | NA     | NA           |
+| TC_007_RequestBroadcastSuccess            | PASS        | No  | NA     | NA           |
+| TC_008_RequestBroadcastFailure            | PASS        | No  | NA     | NA           |
+| TC_009_RequestSingleTileSuccess           | PASS        | No  | NA     | NA           |
+| TC_010_RequestSingleTileReserveFailure    | PASS        | No  | NA     | NA           |
+| TC_011_RequestSingleTileGetRscIdFailure   | PASS        | No  | NA     | NA           |
+| TC_012_RequestUnsupportedResourceType     | PASS        | No  | NA     | NA           |
+
+/****Coverage Analysis*********/
+
+/*@section Coverage details
+
+| Coverage Type (Function Name)        | %      | Result     | CR/Status    | Impact          |
+|--------------------------------------|--------|------------|--------------|-----------------|
+| fal_util::initialize                 | <100>  | <Pass>     | <NA>         | No Impact       |
+| fal_util::release                    | <100>  | <Pass>     | <NA>         | No Impact       |
+| fal_util::request                    | <100>  | <Pass>     | <NA>         | No Impact       |
+| Total file coverage (overall)        | 100    | <Pass>     | <NA>         | No Impact       |
+
+/*@section Uncovered details*/
+/* No uncovered details */

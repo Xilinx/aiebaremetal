@@ -2,23 +2,17 @@
 // SPDX-License-Identifier: Apache-2.0
 #define NUM_SAMPLES 32
 
-#if (defined(__AIESIM__) || defined(__ADF_FRONTEND__))
+#include "aiebaremetal.h"
+#include "aeg_platform.h"
+#if defined(__ADF_FRONTEND__)
 #include "graph.h"
 MyGraph gradf;
-#else
-#include "xil_io.h"
-#include "xil_printf.h"
 #endif
 
-#include "aiebaremetal.h"
 
 AbrGraph g("gradf");
 
-int main() {
-#if (defined(__AIESIM__) || defined(__ADF_FRONTEND__))
-    gradf.init();
-#endif
-
+int main(int argc, char **argv) {
     printf("init()\n");
     g.init();
     g.run(1);

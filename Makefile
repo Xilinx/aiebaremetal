@@ -49,22 +49,34 @@ release: $(TARGET_RELEASE)
 #BAREMETAL_SRCS := $(filter-out $(BAREMETAL_SRCS_EXCLUDE), $(wildcard $(BAREMETAL_SRCS_DIR)/*.cc)) 
 #BAREMETAL_SRCS_CPP := $(filter-out $(BAREMETAL_SRCS_EXCLUDE), $(wildcard $(BAREMETAL_SRCS_DIR)/*/*.cpp)) 
 BAREMETAL_SRCS_CC := $(filter-out $(BAREMETAL_SRCS_EXCLUDE), $(wildcard $(BAREMETAL_SRCS_DIR)/*.cc))
+BAREMETAL_SRCS_EXCLUDE += $(BAREMETAL_SRCS_DIR)/ipc/aeg_ipc_server.cpp \
+	$(BAREMETAL_SRCS_DIR)/ipc/aeg_ps_ipc_backend.cpp
 BAREMETAL_SRCS_CPP = $(filter-out $(BAREMETAL_SRCS_EXCLUDE), $(wildcard $(BAREMETAL_SRCS_DIR)/*/*.cpp))
 BAREMETAL_SRCS_CPP2 = $(filter-out $(BAREMETAL_SRCS_EXCLUDE), $(wildcard $(BAREMETAL_SRCS_DIR)/*/*/*.cpp))
 
 BAREMETAL_OBJS := $(BAREMETAL_SRCS_CC:%.cc=%.o) $(BAREMETAL_SRCS_CPP:%.cpp=%.o) $(BAREMETAL_SRCS_CPP2:%.cpp=%.o)
-#OTHER_LIB
+
+platform ?= baremetal
+
 $(TARGETA72): $(AIEMETAOBJ) $(BAREMETAL_OBJS) |$(TEMP_DIR)
 	rm -f $(TEMP_DIR)/*.o
+ifeq ($(platform),linux)
+	$(AR) $(EXTRA_ARCHIVE_FLAGS) ${RELEASEDIR}/$(TARGETA72) $(BAREMETAL_OBJS) $(AIEMETAOBJ)
+else
 	$(AR) --output $(TEMP_DIR) -x $(OTHER_LIB)
 	$(AR) $(EXTRA_ARCHIVE_FLAGS) ${RELEASEDIR}/$(TARGETA72) $(BAREMETAL_OBJS) $(TEMP_DIR)/*.o \
 		$(AIEMETAOBJ)
+endif
 
 $(TARGETA78): $(AIEMETAOBJ) $(BAREMETAL_OBJS) |$(TEMP_DIR)
 	rm -f $(TEMP_DIR)/*.o
+ifeq ($(platform),linux)
+	$(AR) $(EXTRA_ARCHIVE_FLAGS) ${RELEASEDIR}/$(TARGETA78) $(BAREMETAL_OBJS) $(AIEMETAOBJ)
+else
 	$(AR) --output $(TEMP_DIR) -x $(OTHER_LIB)
 	$(AR) $(EXTRA_ARCHIVE_FLAGS) ${RELEASEDIR}/$(TARGETA78) $(BAREMETAL_OBJS) $(TEMP_DIR)/*.o \
 		$(AIEMETAOBJ)
+endif
 
 $(TARGET_RELEASE_AIELIB): $(AIEMETAOBJ) $(BAREMETAL_OBJS) |$(TEMP_DIR)
 	rm -f $(TEMP_DIR)/*.o

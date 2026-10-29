@@ -34,9 +34,13 @@ OBJ="${BASE%.*}.o"
 INCLUDE_XAIE="../../thirdparty/aielib/aie-rt/driver/internal/"
 INCLUDE_BSP="../../thirdparty/arch/ps/cortexa78_0/standalone_cortexa78_0/bsp/include/"
 
-# Source the PetaLinux environment
-# Adjust the path if your environment differs
-source /proj/petalinux/2023.2/petalinux-v2023.2_daily_latest/tool/petalinux-v2023.2-final/settings.sh
+_TUTORIAL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck disable=SC1091
+source "${_TUTORIAL_DIR}/vitis_env.sh"
+if ! command -v aarch64-none-elf-gcc &>/dev/null; then
+    echo "Error: aarch64-none-elf-gcc not found. Source Vitis settings64.sh first." >&2
+    exit 1
+fi
 
 # Compile
 # Note: using aarch64-none-elf-gcc for C++; consider aarch64-none-elf-g++ if you need C++ standard library linking.

@@ -1,24 +1,24 @@
+#!/usr/bin/env bash
 # Copyright (C) 2026 Advanced Micro Devices, Inc.
 # SPDX-License-Identifier: Apache-2.0
-
-#!/usr/bin/env bash
 #   -new_api
 
 BSP_LIB_DIR="./dependency/integration_flow/test_bsp/lib"
 # Check BSP lib dir
 if [[ ! -d "$BSP_LIB_DIR" ]]; then
-  echo "Error: BSP library directory not found: $BSP_LIB_DIR" >&2
-  echo "Please ensure the BSP is generated/populated before building." >&2
-  exit 1
+    echo "Error: BSP library directory not found: $BSP_LIB_DIR" >&2
+    echo "Please ensure the BSP is generated/populated before building." >&2
+    return 1 2>/dev/null || exit 1
 fi
 BUILDELF_ARGS=("$@")
 set --
-PETALINUX_SETTINGS="/proj/petalinux/2023.2/petalinux-v2023.2_daily_latest/tool/petalinux-v2023.2-final/settings.sh"
-[[ -f "$PETALINUX_SETTINGS" ]] && source "$PETALINUX_SETTINGS"
+_TUTORIAL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck disable=SC1091
+source "${_TUTORIAL_DIR}/vitis_env.sh" || return 1 2>/dev/null || exit 1
 set -- "${BUILDELF_ARGS[@]}"
-if ! command -v armr5-none-eabi-gcc &>/dev/null; then
-    echo "Error: armr5-none-eabi-gcc not found. Source Petalinux or Vitis settings, or set PATH to your ARM toolchain." >&2
-    exit 1
+if ! command -v armr5-none-eabi-g++ &>/dev/null; then
+    echo "Error: armr5-none-eabi-g++ not found. Source Vitis settings64.sh first." >&2
+    return 1 2>/dev/null || exit 1
 fi
 
 new_api=false
@@ -30,7 +30,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         *)
             echo "Unknown option: $1" >&2
-            exit 1
+            return 1 2>/dev/null || exit 1
             ;;
     esac
 done

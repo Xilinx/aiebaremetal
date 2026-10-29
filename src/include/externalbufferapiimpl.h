@@ -14,73 +14,77 @@
  * under the License.
  * -->
  */
-
+#ifndef EXTERNALBUFFERAPIIMPL_H_
+#define EXTERNALBUFFERAPIIMPL_H_
 // This file contains implementation of external buffer runtime APIs.
-#include <queue>
-#include <map>
+#include <array>
+#include <cinttypes>
 #include <cstdint>
-#include "xaiemem.h"
+#include <map>
+#include <memory>
+#include <queue>
+#include <string_view>
 #include "aeg_log.h"
 #include "common_layer/aeg_api_config.h"
 #include "common_layer/aeg_runtime_api.h"
 #include "common_layer/aeg_aie_control_api.h"
-#include <cstdint>
-#include <iostream>
-#include <ostream>
-using namespace std;
-using namespace abr;
-typedef struct _TransactionInfo {
-  public:
-    void *virtualAddr;
-    uint64_t physicalAddr;
-    size_t size;
+#include "xaiemem.h"
+namespace externalbufferapiimpl {
 
-    _TransactionInfo(void *virtual_addr, uint64_t physical_addr, size_t transaction_size) {
+
+
+struct TransactionInfo {
+  public:
+    void *virtualAddr = nullptr;
+    uint64_t physicalAddr = 0U;
+    size_t size = 0U;
+
+    TransactionInfo(void *virtual_addr, uint64_t physical_addr, size_t transaction_size) {
         virtualAddr = virtual_addr;
         physicalAddr = physical_addr;
         size = transaction_size;
     }
-    _TransactionInfo() {}
-} TransactionInfo;
+    TransactionInfo() {}
+};
 
 class ExternalBufferApiImpl {
   private:
-    std::string ebufferName;
+    std::string_view ebufferName;
     abr::external_buffer_config config;
     void *ddr_address = nullptr;
-    void *pingpong_address[2] = {nullptr, nullptr};
-    std::shared_ptr<XAieMem> xaiemem;
+    std::array<void*, 2> pingpong_address = {{nullptr, nullptr}};
+    std::shared_ptr<xaiemem::XAieMem> xaiemem;
     std::queue<TransactionInfo> aie2gm_buf_queue;
     std::queue<TransactionInfo> gm2aie_buf_queue;
-    abr::err_code getAddress(uint64_t &phy_address, void *const ddr_address) {
-        // use physical address for bare metal and AIESIM
-        int ret;
-        AEG_LOG("DDR address from getaddress():%x\n", ddr_address);
-        ret = xaiemem->get_dev_addr(const_cast<void *>(ddr_address), &phy_address);
-        if (ret)
+    abr::err_code getAddress(uint64_t &phy_address, void *const ddr_mem) const {
+        int32_t ret = 0;
+        AEG_LOG("DDR address from getaddress():%p\n", ddr_mem);
+        ret = xaiemem->get_dev_addr(const_cast<void *>(ddr_mem), &phy_address);
+        if (ret != 0) {
             return abr::err_code::aie_driver_error;
+        }
         return abr::err_code::ok;
     }
-
   public:
-    ExternalBufferApiImpl(abr::external_buffer_config ebconfig, std::string name, std::shared_ptr<XAieMem> mem)
-        : config(ebconfig), ebufferName(name), xaiemem(mem) {}
+    ExternalBufferApiImpl(abr::external_buffer_config ebconfig, std::string_view name, std::shared_ptr<xaiemem::XAieMem> mem)
+        : ebufferName(name), config(std::move(ebconfig)), xaiemem(std::move(mem)) {}
 
     void setAddress(void *ptr) {
         if (ddr_address == nullptr) {
             ddr_address = ptr;
         } else {
-            std::cout << "Address is already set" << "\n";
+            AEG_ERROR("Address is already set\n");
         }
-        printf("ddr address:%x\n", ddr_address);
+        AEG_LOG("ddr address:%p\n", ddr_address);
     }
-    abr::err_code wait(std::string port_name) {
+    abr::err_code wait(std::string_view port_name) {
         abr::err_code status = abr::err_code::ok;
         bool valid_port = false;
-        if (config.shimPortConfigs.empty())
+        if (config.shimPortConfigs.empty()) {
             return status;
+        }
 
-        shim_port_config port_config;
+        abr::shim_port_config port_config{};
         for (auto &t_portConfig : config.shimPortConfigs) {
             if (port_name == t_portConfig.portName) {
                 port_config = t_portConfig;
@@ -90,26 +94,26 @@ class ExternalBufferApiImpl {
         }
 
         if (!valid_port) {
-            std::cout << port_name << " is not a valid port" << std::endl;
+            AEG_ERROR("port_name:%.*s is not a valid port\n", static_cast<int32_t>(port_name.size()), port_name.data());
             return status;
         }
 
-        status = (abr::err_code)dma_api::waitDMAChannelDone(1, port_config.column, 0 /*shim row*/,
-                                                            port_config.S2MMOrMM2S, port_config.channel);
+        status = static_cast<abr::err_code>(abr::dma_api::waitDMAChannelDone(1,static_cast<uint8_t>(port_config.column), 0 /*shim row*/,
+                        port_config.S2MMOrMM2S, static_cast<uint8_t>(port_config.channel)));
 #if defined(__AIESIM__)
         // 0:S2MM, 1:MM2S
         AEG_LOG("This line should only show under SIMULATOR mode--If you see it in HW,SOMETHING WRONG !!! \n");
-        if (port_config.S2MMOrMM2S) {
+        if (port_config.S2MMOrMM2S != 0) {
             while (!gm2aie_buf_queue.empty()) {
                 auto var = gm2aie_buf_queue.front();
                 gm2aie_buf_queue.pop();
-                xaiemem->sync_for_cpu(reinterpret_cast<void *>(var.virtualAddr), var.size);
+                static_cast<void>(xaiemem->sync_for_cpu(reinterpret_cast<void *>(var.virtualAddr), var.size));
             }
         } else {
             while (!aie2gm_buf_queue.empty()) {
                 auto var = aie2gm_buf_queue.front();
                 aie2gm_buf_queue.pop();
-                xaiemem->sync_for_cpu(reinterpret_cast<void *>(var.virtualAddr), var.size);
+                static_cast<void>(xaiemem->sync_for_cpu(reinterpret_cast<void *>(var.virtualAddr), var.size));
             }
         }
         return status;
@@ -117,13 +121,14 @@ class ExternalBufferApiImpl {
         return status;
     }
 
-    abr::err_code gm2aie_nb(std::string port_name) {
+    abr::err_code gm2aie_nb(std::string_view port_name) {
         abr::err_code status = abr::err_code::ok;
         bool valid_port = false;
-        if (config.shimPortConfigs.empty())
+        if (config.shimPortConfigs.empty()) {
             return status;
+        }
 
-        shim_port_config port_config;
+        abr::shim_port_config port_config{};
 
         for (auto &t_portConfig : config.shimPortConfigs) {
             if (port_name == t_portConfig.portName) {
@@ -134,51 +139,59 @@ class ExternalBufferApiImpl {
         }
 
         if (!valid_port) {
-            std::cout << port_name << " is not a valid port" << std::endl;
+            AEG_ERROR("port_name:%.*s is not a valid port\n", static_cast<int32_t>(port_name.size()), port_name.data());
             return status;
         }
 
-        int start_bd = -1;
+        int32_t start_bd = -1;
         uint64_t transaction_size = 0;
-        uint64_t phy_address;
+        uint64_t phy_address = 0;
         status = getAddress(phy_address, ddr_address);
-        AEG_LOG("physical address:%x\n", (unsigned)phy_address);
-        for (const auto &shim_bd_info : port_config.shimBDInfos) {
-            auto buf_idx = shim_bd_info.buf_idx;
-
-            uint64_t bd_address =
-                phy_address +
-                shim_bd_info.offset *
-                    4; // adf::dma_buffer_descriptor::offset is in 32bit word, but driver address is in bytes
-            status = dma_api::updateBDAddress(1, port_config.column, 0, (uint8_t)shim_bd_info.bd_id, bd_address);
-
-            transaction_size += shim_bd_info.transaction_size;
-            if (start_bd < 0)
-                start_bd = shim_bd_info.bd_id;
+        if (status != abr::err_code::ok) {
+            AEG_ERROR("Failed to get physical address\n");
         }
-        AEG_LOG("Transaction size:%zu\n", (size_t)transaction_size);
+        AEG_LOG("physical address:0x%" PRIx64 "\n", phy_address);
+        for (const auto &shim_bd_info : port_config.shimBDInfos) {
+            const uint64_t shim_offset_bytes =
+                (static_cast<uint64_t>(shim_bd_info.offset)) * (static_cast<uint64_t>(4U));
+            uint64_t bd_address =
+                phy_address + shim_offset_bytes; // offset is 32-bit words; address in bytes
+            status = abr::dma_api::updateBDAddress(1, static_cast<uint8_t>(port_config.column), 0 /*shim row*/,
+                                            static_cast<uint8_t>(shim_bd_info.bd_id), bd_address);
+            if (status != abr::err_code::ok) {
+                AEG_ERROR("Failed to update BD address\n");
+            }
+
+            transaction_size += static_cast<uint64_t>(shim_bd_info.transaction_size);
+            if (start_bd < 0){
+                start_bd = static_cast<int32_t>(shim_bd_info.bd_id);
+            }
+        }
+        AEG_LOG("Transaction size:%zu\n", static_cast<size_t>(transaction_size));
 #if defined(__AIESIM__)
-        TransactionInfo transaction((void *)((uint64_t)ddr_address), phy_address, transaction_size);
+        TransactionInfo transaction(ddr_address, phy_address, static_cast<std::size_t>(transaction_size));
         gm2aie_buf_queue.emplace(transaction);
 #endif
 
-        xaiemem->sync_for_dev(reinterpret_cast<void *>((uint64_t)ddr_address), transaction_size);
+        static_cast<void>(xaiemem->sync_for_dev(ddr_address, static_cast<uint64_t>(transaction_size)));
 
-        status = dma_api::enqueueTask(1, port_config.column, 0, port_config.S2MMOrMM2S, port_config.channel,
-                                      port_config.taskRepetition, port_config.enable_task_complete_token,
-                                      static_cast<uint8_t>(start_bd));
+        status = abr::dma_api::enqueueTask(1, static_cast<std::uint8_t>(port_config.column), 0,
+                                        port_config.S2MMOrMM2S, static_cast<std::uint8_t>(port_config.channel),
+                                        static_cast<uint32_t>(port_config.taskRepetition),
+                                        port_config.enable_task_complete_token,
+                                        static_cast<uint8_t>(start_bd));
 
         return status;
     }
 
-    abr::err_code aie2gm_nb(std::string port_name) {
+    abr::err_code aie2gm_nb(std::string_view port_name) {
         abr::err_code status = abr::err_code::ok;
         bool valid_port = false;
 
-        if (config.shimPortConfigs.empty())
+        if (config.shimPortConfigs.empty()) {
             return status;
-
-        shim_port_config port_config;
+        }
+        abr::shim_port_config port_config{};
 
         for (auto &t_port_config : config.shimPortConfigs) {
             if (port_name == t_port_config.portName) {
@@ -189,115 +202,141 @@ class ExternalBufferApiImpl {
         }
 
         if (!valid_port) {
-            std::cout << port_name << " is not a valid port" << std::endl;
+            AEG_ERROR("port_name:%.*s is not a valid port\n", static_cast<int32_t>(port_name.size()), port_name.data());
             return status;
         }
 
-        int start_bd = -1;
+        int32_t start_bd = -1;
         uint64_t transaction_size = 0;
-        uint64_t phy_address;
+        uint64_t phy_address = 0;
         status = getAddress(phy_address, ddr_address);
-        AEG_LOG("physical address:%x\n", (unsigned)phy_address);
+        if (status != abr::err_code::ok) {
+            AEG_ERROR("Failed to get physical address\n");
+        }
+        AEG_LOG("physical address:0x%" PRIx64 "\n", phy_address);
         for (const auto &shim_bd_info : port_config.shimBDInfos) {
-            auto buf_idx = shim_bd_info.buf_idx;
+            const uint64_t shim_offset_bytes =
+                (static_cast<uint64_t>(shim_bd_info.offset)) * (static_cast<uint64_t>(4U));
+            uint64_t bd_address = phy_address + shim_offset_bytes; // offset is 32-bit words; address in bytes
+            status = abr::dma_api::updateBDAddress(1, static_cast<uint8_t>(port_config.column), 0 /*shim row*/,
+                                            static_cast<uint8_t>(shim_bd_info.bd_id), bd_address);
+            if (status != abr::err_code::ok) {
+                AEG_ERROR("Failed to update BD address\n");
+            }
 
-            uint64_t bd_address =
-                phy_address +
-                shim_bd_info.offset *
-                    4; // adf::dma_buffer_descriptor::offset is in 32bit word, but driver address is in bytes
-            status = dma_api::updateBDAddress(1, port_config.column, 0 /*shim row*/, (uint8_t)shim_bd_info.bd_id,
-                                              bd_address);
             transaction_size += shim_bd_info.transaction_size;
-            if (start_bd < 0)
-                start_bd = shim_bd_info.bd_id;
+            if (start_bd < 0) {
+                start_bd = static_cast<int32_t>(shim_bd_info.bd_id);
+            }
         }
 
 #if defined(__AIESIM__)
-        TransactionInfo transaction((void *)((uint64_t)ddr_address), phy_address, transaction_size);
+        TransactionInfo transaction(ddr_address, phy_address, static_cast<size_t>(transaction_size));
         aie2gm_buf_queue.emplace(transaction);
 #else
 
-        xaiemem->sync_for_dev(reinterpret_cast<void *>(phy_address), transaction_size);
+        static_cast<void>(xaiemem->sync_for_dev(reinterpret_cast<void *>(phy_address), static_cast<uint64_t>(transaction_size)));
 #endif
-        status = dma_api::enqueueTask(1, port_config.column, 0, port_config.S2MMOrMM2S, port_config.channel,
-                                      port_config.taskRepetition, port_config.enable_task_complete_token,
-                                      static_cast<uint8_t>(start_bd));
+        status = abr::dma_api::enqueueTask(1, static_cast<uint8_t>(port_config.column), 0,
+                                        port_config.S2MMOrMM2S, static_cast<uint8_t>(port_config.channel),
+                                        static_cast<uint32_t>(port_config.taskRepetition),
+                                        port_config.enable_task_complete_token,
+                                        static_cast<uint8_t>(start_bd));
 
         return status;
     }
 
-    abr::err_code gm2aie(std::string port_name) {
+    abr::err_code gm2aie(std::string_view port_name) {
         abr::err_code status = gm2aie_nb(port_name);
         if (status == abr::err_code::ok) {
-            wait(port_name);
+            static_cast<void>(wait(port_name));
         }
         return status;
     }
 
-    abr::err_code aie2gm(std::string port_name) {
+    abr::err_code aie2gm(std::string_view port_name) {
         abr::err_code status = aie2gm_nb(port_name);
         if (status == abr::err_code::ok) {
-            wait(port_name);
+            static_cast<void>(wait(port_name));
         }
         return status;
     }
 
-    abr::err_code setupPingPongBuffers(void *const ptr1, void *const ptr2) {
+    abr::err_code setupPingPongBuffers(void *const ptr1, void *const ptr2, bool sync_cache = true) {
         abr::err_code status = abr::err_code::ok;
         if ((pingpong_address[0] == nullptr) && (pingpong_address[1] == nullptr)) {
             pingpong_address[0] = ptr1;
             pingpong_address[1] = ptr2;
         } else {
-            std::cout << "Address is already set" << "\n";
+            AEG_ERROR("Address is already set\n");
         }
 
-        if (config.shimPortConfigs.empty())
+        if (config.shimPortConfigs.empty()) {
             return status;
-
-        shim_port_config port_config;
+        }
 
         // All ports of the externalbuffer
         for (auto &port_config : config.shimPortConfigs) {
-            int start_bd = -1;
-            TransactionInfo transaction;
-            uint64_t phy_address;
+            int32_t start_bd = -1;
+#if defined(__AIESIM__)
+            TransactionInfo transaction{};
+#endif
+            uint64_t phy_address = 0;
             uint64_t transaction_size = 0;
 
             for (const auto &shim_bd_info : port_config.shimBDInfos) {
                 auto buf_idx = shim_bd_info.buf_idx;
                 status = getAddress(phy_address, pingpong_address[buf_idx]);
-                AEG_LOG("physical address:%x\n", (unsigned)phy_address);
+                if (status != abr::err_code::ok) {
+                    AEG_ERROR("Failed to get physical address\n");
+                }
+                AEG_LOG("physical address:0x%" PRIx64 "\n", phy_address);
 
-                uint64_t bd_address =
-                    phy_address +
-                    shim_bd_info.offset *
-                        4; // adf::dma_buffer_descriptor::offset is in 32bit word, but driver address is in bytes
-                status = dma_api::updateBDAddress(1, port_config.column, 0 /*shim row*/, (uint8_t)shim_bd_info.bd_id,
-                                                  bd_address);
+                const uint64_t shim_offset_bytes =
+                    (static_cast<uint64_t>(shim_bd_info.offset)) * (static_cast<uint64_t>(4U));
+                uint64_t const bd_address = phy_address + shim_offset_bytes; // words → bytes
+                status = abr::dma_api::updateBDAddress(1, static_cast<uint8_t>(port_config.column), 0 /*shim row*/,
+                                                    static_cast<uint8_t>(shim_bd_info.bd_id), bd_address);
+                if (status != abr::err_code::ok) {
+                    AEG_ERROR("Failed to update BD address\n");
+                }
                 transaction_size += shim_bd_info.transaction_size;
-                if (start_bd < 0)
-                    start_bd = shim_bd_info.bd_id;
+                if (start_bd < 0) {
+                    start_bd = static_cast<int32_t>(shim_bd_info.bd_id);
+                }
 
-                transaction.virtualAddr = (void *)((uint64_t)pingpong_address[buf_idx]);
+#if defined(__AIESIM__)
+                transaction.virtualAddr = pingpong_address[static_cast<size_t>(buf_idx)];
                 transaction.physicalAddr = phy_address;
                 transaction.size = transaction_size;
+#endif
             }
 
 #if defined(__AIESIM__)
 
-            if (port_config.S2MMOrMM2S == 0 /*s2mm*/) /*aie2gm*/
+            if (port_config.S2MMOrMM2S == 0 /*s2mm*/) /*aie2gm*/{
                 aie2gm_buf_queue.emplace(transaction);
-            else
+            } else {
                 gm2aie_buf_queue.emplace(transaction);
+            }
 
 #else
-
-            xaiemem->sync_for_dev(reinterpret_cast<void *>(phy_address), transaction_size);
+            if (sync_cache) {
+                static_cast<void>(xaiemem->sync_for_dev(reinterpret_cast<void *>(phy_address), static_cast<uint64_t>(transaction_size)));
+            }
 #endif
-            status = dma_api::enqueueTask(1, port_config.column, 0, port_config.S2MMOrMM2S, port_config.channel,
-                                          port_config.taskRepetition, port_config.enable_task_complete_token,
-                                          static_cast<uint8_t>(start_bd));
+
+            status = abr::dma_api::enqueueTask(static_cast<int32_t>(1), static_cast<uint8_t>(port_config.column), static_cast<uint8_t>(0),
+                                            static_cast<int32_t>(port_config.S2MMOrMM2S), static_cast<uint8_t>(port_config.channel),
+                                            static_cast<uint32_t>(port_config.taskRepetition),
+                                            port_config.enable_task_complete_token,
+                                            static_cast<uint8_t>(start_bd));
+            if (status != abr::err_code::ok) {
+                AEG_ERROR("Failed to enqueue task\n");
+            }
         }
         return status;
     }
 };
+} // namespace externalbufferapiimpl
+#endif /* EXTERNALBUFFERAPIIMPL_H_ */

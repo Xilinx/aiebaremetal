@@ -25,18 +25,19 @@
 // liability.
 // THIS COPYRIGHT NOTICE AND DISCLAIMER MUST BE RETAINED AS PART OF THIS FILE AT ALL TIMES.
 
-#if (defined(__AIESIM__) || defined(__ADF_FRONTEND__))
+#include "aiebaremetal.h"
+#if defined(__ADF_FRONTEND__)
 #include "graph.h"
 FFT2D_graphall gradf;
 #endif
 
-#include "aiebaremetal.h"
 #include <fstream>
 #include <xaiengine.h>
 
 #include "golden.data"
 #include "hw_config.h"
 #include "input.data"
+#include "perf.h"
 #include <stdio.h>
 
 #define CHECK 1
@@ -259,7 +260,9 @@ int main(int argc, char **argv) {
     }
 
     unsigned int itrc = ITER_CNT;
-    // #if defined(__AIESIM__) || defined(__ADF_FRONTEND__)
+    PERF_DECLARE();
+    PERF_RUN_BEGIN("legacy", itrc);
+    // #if defined(__ADF_FRONTEND__)
     // 	//std::cout << "gradf.a  =" << gradf.a << std::endl;
     // 	gradf.init();
     // 	///adf_run();
@@ -273,7 +276,9 @@ int main(int argc, char **argv) {
     //   XTime tStart, tEnd;
     //   //init_platform();
     // #endif
+    PERF_TIC();
     gr.init();
+    PERF_TOC("init");
 
     // writing the input file
     //  ofstream fout("data/input1.txt");
@@ -289,10 +294,12 @@ int main(int argc, char **argv) {
 
     printf("Initialising  Graph ...\n");
 #if CHECK
+    PERF_TIC();
     shim_config1(DevInst);
     shim_config2(DevInst);
     shim_config3(DevInst);
     shim_config4(DevInst);
+    PERF_TOC("dma_config");
 
     // shim_perf_config(DevInst);
 #endif
@@ -310,6 +317,7 @@ int main(int argc, char **argv) {
     uint32_t temp_buffer[2048 * 64 * 4];
     memcpy(temp_buffer, m_fft_buffer_mapped, 2048 * 64 * 4);
 
+    PERF_TIC();
     buffer_in_mm2s_map_1 = (uint32_t *)gr.malloc(2048 * 64 * 4 * 8 * 24);
     buffer_in_mm2s_map_2 = (uint32_t *)gr.malloc(2048 * 64 * 4 * 8 * 24);
     buffer_in_mm2s_map_3 = (uint32_t *)gr.malloc(2048 * 64 * 4 * 8 * 24);
@@ -319,7 +327,9 @@ int main(int argc, char **argv) {
     buffer_in_s2mm_map_2 = (int32_t *)gr.malloc(2048 * 64 * 4 * 8 * 24);
     buffer_in_s2mm_map_3 = (int32_t *)gr.malloc(2048 * 64 * 4 * 8 * 24);
     buffer_in_s2mm_map_4 = (int32_t *)gr.malloc(2048 * 64 * 4 * 8 * 24);
+    PERF_TOC("malloc");
 
+    PERF_TIC();
     // To reduce input data storage in DDR, we are only storing unique chirps for 64 Groups
     // i.e. input data buffer in DDR is [64][2048].
     // mm2s data mover takes these unique chirp sequence for each Group and generate chirps
@@ -362,15 +372,18 @@ int main(int argc, char **argv) {
     memcpy(buffer_in_mm2s_map_2, buffer_in_mm2s_map_1, 2048 * 64 * 4 * 8 * 24);
     memcpy(buffer_in_mm2s_map_3, buffer_in_mm2s_map_1, 2048 * 64 * 4 * 8 * 24);
     memcpy(buffer_in_mm2s_map_4, buffer_in_mm2s_map_1, 2048 * 64 * 4 * 8 * 24);
+    PERF_TOC("preprocess");
 
     printf("K is :%d\n", k);
     printf("memcopy done\n");
     printf("Data transfer through GMIO is starting\n");
 
+    PERF_TIC();
     gr.gm2aie_nb("gradf.gm_in[0]", reinterpret_cast<char *>(buffer_in_mm2s_map_1), 64 * 4 * 8 * 24 * 2048);
     gr.gm2aie_nb("gradf.gm_in[1]", reinterpret_cast<char *>(buffer_in_mm2s_map_2), 64 * 4 * 8 * 24 * 2048);
     gr.gm2aie_nb("gradf.gm_in[2]", reinterpret_cast<char *>(buffer_in_mm2s_map_3), 64 * 4 * 8 * 24 * 2048);
     gr.gm2aie_nb("gradf.gm_in[3]", reinterpret_cast<char *>(buffer_in_mm2s_map_4), 64 * 4 * 8 * 24 * 2048);
+    PERF_TOC("gm2aie");
 
     printf("Data transfer through GMIO in progress\n");
 
@@ -391,8 +404,14 @@ int main(int argc, char **argv) {
     // XAie_Read32(&DevInst  ,  XAie_GetTileAddr(&DevInst, mem_loc.Row, mem_loc.Col) , &mem_tile_data);
     // printf("memory tile data - %d\n", mem_tile_data);
 
+    PERF_TIC();
     gr.run(2048 * 64 * 8 * 24);
+#if !defined(PERF)
+    // Skipped in -perf builds: this fixed 100 s delay would dominate the
+    // run_output_wait phase and make old-vs-new comparison meaningless.
+    // The golden check passes without it.
     sleep(100);
+#endif
 
     printf("*************data memory of tile(2, 3) after run***************\n");
     // XAie_Read32(&DevInst  , XAie_GetTileAddr(&DevInst, core_loc.Row, core_loc.Col) +
@@ -417,9 +436,11 @@ int main(int argc, char **argv) {
         gr.gmio_wait("gradf.gm_out[1]");
         gr.gmio_wait("gradf.gm_out[2]");
         gr.gmio_wait("gradf.gm_out[3]");
+        PERF_TOC("run_output_wait");
 
         printf("Kernels execution completed ...\n");
         // Golden check ffor 1 iteration
+        PERF_TIC();
         for (int j = 0; j < 2048 * 64 * 8 * 24; j++) {
 
             if (buffer_in_s2mm_map_1[j] != golden_data[j] || buffer_in_s2mm_map_2[j] != golden_data[j] ||
@@ -427,6 +448,7 @@ int main(int argc, char **argv) {
                 errCnt++;
             }
         }
+        PERF_TOC("golden_check");
         printf("errCnt after running value %d...\n", errCnt);
         if (errCnt == 0) {
             printf("\n ******** Golden Check Passed ******** \n");
@@ -445,6 +467,8 @@ int main(int argc, char **argv) {
     // gr.end();
 
     printf(" Graph end....\n");
+    PERF_RUN_END();
+
     gr.free(buffer_in_mm2s_map_1);
     gr.free(buffer_in_mm2s_map_2);
     gr.free(buffer_in_mm2s_map_3);

@@ -9,7 +9,9 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKDIR="$SCRIPT_DIR/../example/testkernel_rtp"
-TEST_NAME="testkernel_rtp QEMU Test"
+TEST_NAME="${TEST_NAME:-testkernel_rtp QEMU Test}"
+RUNTIME_SOURCE="${RUNTIME_SOURCE:-./src/graph.cpp}"
+COMPILE_API_FLAG="${COMPILE_API_FLAG:-}"
 
 # Jenkins-friendly stages: search console for [STAGE] or FAIL AREA
 qemu_log_stage() {
@@ -40,51 +42,22 @@ echo ""
 qemu_log_stage 1 6 "Environment — Vitis and QEMU binary"
 qemu_log_hint "FAIL AREA: Vitis not installed at expected path, or qemu-system-aarch64 missing on agent PATH."
 # Govind: this path sets PATH for qemu — always use it when present
-VITIS_ROOT="/proj/xbuilds/2025.2_daily_latest/installs/lin64/2025.2/Vitis"
+VITIS_ROOT="${VITIS_ROOT:-/proj/xbuilds/2026.2_daily_latest/installs/lin64/2026.2/Vitis}"
 VITIS_SETUP="$VITIS_ROOT/settings64.sh"
-# Explicit path to qemu under that Vitis (same layout as example/testkernel emu scripts)
-QEMU_EXPLICIT="$VITIS_ROOT/data/emulation/qemu/comp/qemu/sysroots/x86_64-petalinux-linux/usr/bin/qemu-system-aarch64"
 
 source $SCRIPT_DIR/../script/settings.sh 1
+source "$SCRIPT_DIR/qemu_hw_emu_common.sh"
 
 if [ -f "$VITIS_SETUP" ]; then
     echo "Sourcing Vitis environment ($VITIS_SETUP)..."
     source "$VITIS_SETUP"
+    export XILINX_VITIS_AIETOOLS="$XILINX_VITIS/aietools"
 elif [ -z "$XILINX_VITIS" ]; then
     echo "Sourcing Vitis environment..."
     source "$VITIS_SETUP"
 fi
 
-# Use explicit path first (go straight there for Jenkins / Govind path)
-QEMU_BIN=""
-if [ -x "$QEMU_EXPLICIT" ]; then
-    QEMU_BIN="$QEMU_EXPLICIT"
-    echo "Using QEMU: $QEMU_BIN"
-fi
-if [ -z "$QEMU_BIN" ] && command -v qemu-system-aarch64 &> /dev/null; then
-    QEMU_BIN="qemu-system-aarch64"
-fi
-if [ -z "$QEMU_BIN" ] && [ -n "$XILINX_VITIS" ]; then
-    QEMU_PATH=$(find "$XILINX_VITIS" -maxdepth 8 -type f -name 'qemu-system-aarch64' 2>/dev/null | head -1)
-    if [ -n "$QEMU_PATH" ]; then
-        export PATH="$(dirname "$QEMU_PATH"):$PATH"
-        QEMU_BIN="qemu-system-aarch64"
-    fi
-fi
-if [ -z "$QEMU_BIN" ] && [ -n "${XILINX_PETALINUX:-}" ]; then
-    QEMU_PATH=$(find "$XILINX_PETALINUX" -maxdepth 8 -type f -name 'qemu-system-aarch64' 2>/dev/null | head -1)
-    if [ -n "$QEMU_PATH" ]; then
-        export PATH="$(dirname "$QEMU_PATH"):$PATH"
-        QEMU_BIN="qemu-system-aarch64"
-    fi
-fi
-if [ -z "$QEMU_BIN" ]; then
-    export PATH="/usr/bin:/usr/local/bin:$PATH"
-    if command -v qemu-system-aarch64 &> /dev/null; then
-        QEMU_BIN="qemu-system-aarch64"
-    fi
-fi
-if [ -z "$QEMU_BIN" ]; then
+if ! require_qemu_bin "$XILINX_VITIS"; then
     echo "ERROR: qemu-system-aarch64 not found."
     echo "  [FAIL AREA: STAGE 1] Vitis was sourced (XILINX_VITIS=${XILINX_VITIS:-unset}) but QEMU not found."
     echo "Install QEMU on the Jenkins agent, e.g.: sudo apt-get install -y qemu-system-arm"
@@ -92,7 +65,6 @@ if [ -z "$QEMU_BIN" ]; then
     echo "FAIL: $TEST_NAME"
     exit 1
 fi
-echo "  QEMU resolved: $QEMU_BIN"
 
 cd "$WORKDIR"
 
@@ -106,11 +78,24 @@ if [ -n "${JENKINS_QEMU_QUIET:-}" ] && [ "${JENKINS_QEMU_QUIET}" != "0" ]; then
 fi
 echo "Log mode: BUILD_QUIET=$BUILD_QUIET QEMU_QUIET=$QEMU_QUIET (JENKINS_QEMU_QUIET=${JENKINS_QEMU_QUIET:-unset})"
 
-qemu_log_stage 2 6 "Build — source build.sh 2 qemu"
+qemu_log_stage 2 6 "Build — inlined build.sh 2 qemu (Vitis 2026.2)"
 qemu_log_hint "FAIL AREA: compile/link errors, missing Vitis libs, or wrong example dir."
+run_inline_build() {
+    local compile_api_args=()
+    if [ -n "$COMPILE_API_FLAG" ]; then
+        compile_api_args+=("$COMPILE_API_FLAG")
+    fi
+    source ../../script/settings.sh 1
+    if [ -f "$VITIS_SETUP" ]; then
+        source "$VITIS_SETUP"
+        export XILINX_VITIS_AIETOOLS="$XILINX_VITIS/aietools"
+    fi
+    echo "  v++ Vitis: ${XILINX_VITIS:-unset}"
+    source compile.sh "${compile_api_args[@]}" --runtime_source_file "$RUNTIME_SOURCE" --aie_version 2 --hw_qemu
+}
 if [ "$BUILD_QUIET" = true ]; then
     BUILD_LOG="${TMPDIR:-/tmp}/qemu_build_$$.log"
-    if ! source ./build.sh 2 qemu >> "$BUILD_LOG" 2>&1; then
+    if ! run_inline_build >> "$BUILD_LOG" 2>&1; then
         echo "ERROR: Build failed. Last 300 lines of build log:"
         tail -n 300 "$BUILD_LOG"
         echo "FAIL: $TEST_NAME"
@@ -118,7 +103,7 @@ if [ "$BUILD_QUIET" = true ]; then
     fi
     echo "Build completed (full log in $BUILD_LOG)."
 else
-    if ! source ./build.sh 2 qemu; then
+    if ! run_inline_build; then
         echo "ERROR: Build failed"
         echo "FAIL: $TEST_NAME"
         exit 1
@@ -180,13 +165,27 @@ if [ -f "$WORKDIR/launch_hw_emu.sh" ]; then
     qemu_log_hint "This stage wraps ./launch_hw_emu.sh with timeout ${QEMU_TIMEOUT}s; log file: $QEMU_LOG"
     qemu_log_hint "We stop the wrapper as soon as 'Test Passed' appears (emulator may otherwise run until timeout)."
     [ "$QEMU_QUIET" = true ] && echo "  Quiet mode: most emulator output only in $QEMU_LOG (periodic status here)."
-    if [ "$QEMU_QUIET" = true ]; then
-        ( cd "$WORKDIR" && timeout "$QEMU_TIMEOUT" ./launch_hw_emu.sh 2>&1 ) >> "$QEMU_LOG" 2>&1 &
-    else
-        ( cd "$WORKDIR" && timeout "$QEMU_TIMEOUT" ./launch_hw_emu.sh 2>&1 ) | tee "$QEMU_LOG" &
+
+    setsid bash -c "cd '$WORKDIR' && exec timeout $QEMU_TIMEOUT ./launch_hw_emu.sh 2>&1" > "$QEMU_LOG" 2>&1 &
+    EMU_PID=$!
+    EMU_PGID=$(ps -o pgid= -p "$EMU_PID" 2>/dev/null | tr -d ' ')
+    [ -z "$EMU_PGID" ] && EMU_PGID="$EMU_PID"
+    echo "  Emulator started (PID $EMU_PID, PGID $EMU_PGID); output -> $QEMU_LOG"
+    # Verbose: stream the log live to the CI console (replaces old tee).
+    TAIL_PID=""
+    if [ "$QEMU_QUIET" != true ]; then
+        tail -n +1 -f "$QEMU_LOG" 2>/dev/null &
+        TAIL_PID=$!
     fi
-    TEE_PID=$!
-    echo "  Emulator pipeline started (PID $TEE_PID)."
+    stop_emulator() {
+        kill -TERM "-$EMU_PGID" 2>/dev/null || true
+        for _ in 1 2 3 4 5 6; do
+            kill -0 "-$EMU_PGID" 2>/dev/null || break
+            sleep 0.5
+        done
+        kill -KILL "-$EMU_PGID" 2>/dev/null || true
+        [ -n "$TAIL_PID" ] && kill "$TAIL_PID" 2>/dev/null || true
+    }
     POLL_START=$(date +%s)
     POLL_END=$((POLL_START + QEMU_TIMEOUT + 120))
     LAST_STATUS=0
@@ -202,8 +201,8 @@ if [ -f "$WORKDIR/launch_hw_emu.sh" ]; then
             EARLY_PASS=true
             break
         fi
-        if ! kill -0 "$TEE_PID" 2>/dev/null; then
-            echo "  Emulator pipeline (PID $TEE_PID) exited before early-pass detection."
+        if ! kill -0 "-$EMU_PGID" 2>/dev/null; then
+            echo "  Emulator (PGID $EMU_PGID) exited before early-pass detection."
             break
         fi
         ELAPSED=$(($(date +%s) - POLL_START))
@@ -224,10 +223,10 @@ if [ -f "$WORKDIR/launch_hw_emu.sh" ]; then
         echo "  [WARN] Poll window ended (~$((POLL_END - POLL_START))s after start); stopping pipeline."
         qemu_log_hint "FAIL AREA: hung boot, xsim/QEMU stuck, or test never printed 'Test Passed'."
     fi
-    echo "  Stopping emulator pipeline (SIGTERM to PID $TEE_PID)..."
-    kill "$TEE_PID" 2>/dev/null || true
-    wait "$TEE_PID" 2>/dev/null || true
-    echo "  Emulator stop complete (wait returned)."
+    echo "  Stopping emulator process group (PGID $EMU_PGID)..."
+    stop_emulator
+    wait "$EMU_PID" 2>/dev/null || true
+    echo "  Emulator stop complete."
     if [ -f "$WORKDIR/qemu_output.log" ]; then
         echo "  Merging qemu_output.log into combined log for verification."
         cat "$WORKDIR/qemu_output.log" >> "$QEMU_LOG"

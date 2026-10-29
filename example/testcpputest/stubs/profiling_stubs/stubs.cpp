@@ -1,3 +1,5 @@
+// Copyright (C) 2025 - 2026 Advanced Micro Devices, Inc.
+// SPDX-License-Identifier: Apache-2.0
 #include "stubs.h"
 #include "fal_stubs.h"
 #include <string>
@@ -5,7 +7,6 @@
 #include <atomic>
 #include "CppUTestExt/MockSupport_c.h"
 
-// External control variables from stub_controls namespace in fal_stubs.cpp
 namespace stub_controls {
     extern std::atomic<int> g_evtSelectCalls;
     extern std::atomic<int> g_perfCtrlCalls;
@@ -15,7 +16,6 @@ namespace stub_controls {
     extern std::atomic<int> g_perfGetCallCount;
 }
 
-// Local control for reset functions
 namespace {
     std::atomic<int> g_perfCounterResetResult{XAIE_OK};
     std::atomic<int> g_perfCounterResetCtrlResult{XAIE_OK};
@@ -27,7 +27,7 @@ XAie_ReturnCode XAie_PerfCounterReset(
     void*           devInst,
     XAie_LocType    loc,
     XAie_ModuleType module,
-    u8              counterId)
+    u8              counterId) noexcept
 {
     (void)devInst;
     (void)loc;
@@ -38,7 +38,7 @@ XAie_ReturnCode XAie_PerfCounterReset(
 XAie_ReturnCode XAie_EventPCReset(
     void*        devInst,
     XAie_LocType loc,
-    u8           pcId)
+    u8           pcId) noexcept
 {
     (void)devInst;
     (void)loc;
@@ -49,7 +49,7 @@ XAie_ReturnCode XAie_PerfCounterResetControlReset(
     void*           devInst,
     XAie_LocType    loc,
     XAie_ModuleType module,
-    u8              counterId)
+    u8              counterId) noexcept
 {
     (void)devInst;
     (void)loc;
@@ -60,7 +60,7 @@ XAie_ReturnCode XAie_PerfCounterResetControlReset(
 XAie_ReturnCode XAie_EventSelectStrmPortReset(
     void*        devInst,
     XAie_LocType loc,
-    u8           portId)
+    u8           portId) noexcept
 {
     (void)devInst;
     (void)loc;
@@ -72,7 +72,7 @@ XAie_ReturnCode XAie_EventGenerate(
     void*           devInst,
     XAie_LocType    loc,
     XAie_ModuleType module,
-    XAie_Events     event)
+    XAie_Events     event) noexcept
 {
     (void)devInst;
     (void)loc;
@@ -86,7 +86,7 @@ XAie_ReturnCode XAie_PerfCounterEventValueSet(
     XAie_LocType    loc,
     XAie_ModuleType module,
     u8              counterId,
-    u32             value)
+    u32             value) noexcept
 {
     (void)devInst;
     (void)loc;
@@ -102,7 +102,7 @@ XAie_ReturnCode XAie_EventBroadcastBlockMapDir(
     XAie_ModuleType module,
     XAie_Events     switchEvent,
     u8              broadcastId,
-    u32             directionsMask)
+    u32             directionsMask) noexcept
 {
     (void)devInst;
     (void)loc;
@@ -118,7 +118,7 @@ XAie_ReturnCode XAie_EventBroadcast(
     XAie_LocType    loc,
     XAie_ModuleType module,
     u8              broadcastId,
-    XAie_Events     event)
+    XAie_Events     event) noexcept
 {
     (void)devInst;
     (void)loc;
@@ -128,19 +128,17 @@ XAie_ReturnCode XAie_EventBroadcast(
     return XAIE_OK;
 }
 
-// Add XAie_PerfCounterGet stub
 XAie_ReturnCode XAie_PerfCounterGet(
     void*           devInst,
     XAie_LocType    loc,
     XAie_ModuleType module,
     u8              counterId,
-    u32*            value)
+    u32*            value) noexcept
 {
     (void)devInst;
 
     stub_controls::g_perfGetCallCount.fetch_add(1, std::memory_order_relaxed);
 
-    // Search for matching configuration
     for (int i = 0; i < 16; ++i) {
         if (stub_controls::g_perfGetCfg[i].valid &&
             stub_controls::g_perfGetCfg[i].col == loc.Col &&
@@ -154,7 +152,6 @@ XAie_ReturnCode XAie_PerfCounterGet(
         }
     }
 
-    // Default if not configured
     if (value) *value = 0;
     return XAIE_OK;
 }
@@ -163,7 +160,7 @@ XAie_ReturnCode XAie_EventBroadcastReset(
     void*           devInst,
     XAie_LocType    loc,
     XAie_ModuleType module,
-    u8              broadcastId)
+    u8              broadcastId) noexcept
 {
     (void)devInst;
     (void)loc;
@@ -178,7 +175,7 @@ XAie_ReturnCode XAie_EventBroadcastUnblockDir(
     XAie_ModuleType module,
     XAie_Events     switchEvent,
     u8              broadcastId,
-    XAie_Events     directionsMask)
+    XAie_Events     directionsMask) noexcept
 {
     (void)devInst;
     (void)loc;
@@ -195,7 +192,7 @@ XAie_ReturnCode XAie_EventSelectStrmPort(
     u8                 eventPortId,
     XAie_StrmSwPortType slaveOrMaster,
     XAie_Direction      dir,
-    u8                 streamPortId)
+    u8                 streamPortId) noexcept
 {
     (void)devInst;
     (void)loc;
@@ -213,7 +210,7 @@ XAie_ReturnCode XAie_PerfCounterControlSet(
     XAie_ModuleType module,
     u8              counterId,
     XAie_Events     startEvent,
-    XAie_Events     stopEvent)
+    XAie_Events     stopEvent) noexcept
 {
     (void)devInst;
     (void)loc;
@@ -225,7 +222,6 @@ XAie_ReturnCode XAie_PerfCounterControlSet(
     return static_cast<XAie_ReturnCode>(stub_controls::g_perfCtrlResult.load(std::memory_order_relaxed));
 }
 
-// Stub control setter functions
 void XAie_SetPerfCounterResetResult(int result) {
     g_perfCounterResetResult.store(result, std::memory_order_relaxed);
 }

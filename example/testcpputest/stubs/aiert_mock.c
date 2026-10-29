@@ -1,3 +1,5 @@
+// Copyright (C) 2025 - 2026 Advanced Micro Devices, Inc.
+// SPDX-License-Identifier: Apache-2.0
 #include "CppUTestExt/MockSupport_c.h"
 
 #include <xaiengine/xaiegbl.h>
@@ -5,6 +7,10 @@
 #include <string.h>
 #include <stdbool.h>
 
+#ifdef __BAREMETAL_UTESTS__
+uint32_t g_ut_backtrack_next_valid_calls_remaining = 0U;
+uint32_t g_ut_backtrack_error_count_override = 0U;
+#endif
 
 AieRC XAie_CoreReadDoneBit(XAie_DevInst *DevInst, XAie_LocType Loc, u8 *DoneBit) {
 	return (AieRC) mock_c()->actualCall("XAie_CoreReadDoneBit")
@@ -39,8 +45,7 @@ AieRC XAie_SetupPartitionConfig(XAie_DevInst *DevInst, u64 PartBaseAddr, u8 Part
 		->withUnsignedIntParameters("PartStartCol", PartStartCol)
 		->withUnsignedIntParameters("PartNumCols", PartNumCols)
 		->returnIntValueOrDefault(XAIE_OK);
-	/* Real driver fills DevInst; mock must mirror it. When driver blob has partition_num_cols==0,
-	 * still set a minimal valid range so clock APIs and BacktrackErrors() see NumCols>0. */
+
 	if (DevInst != NULL && rc == XAIE_OK) {
 		if (PartNumCols != 0U) {
 			DevInst->StartCol = PartStartCol;
@@ -405,6 +410,10 @@ AieRC XScuGic_DeviceInterruptHandler(void *InstancePtr) {
 		->returnIntValueOrDefault(XAIE_OK);
 }
 
+void Xil_ExceptionInit(void) {
+	mock_c()->actualCall("Xil_ExceptionInit");
+}
+
 AieRC Xil_ExceptionRegisterHandler(u32 ExceptionId, void *Handler, void *Data) {
 	return mock_c()->actualCall("Xil_ExceptionRegisterHandler")
 		->withUnsignedIntParameters("ExceptionId", ExceptionId)
@@ -501,10 +510,24 @@ AieRC XAie_BacktrackErrorInterrupts(XAie_DevInst *DevInst, XAie_ErrorMetaData *M
 		->withPointerParameters("DevInst", DevInst)
 		->withPointerParameters("MData", MData)
 		->returnIntValueOrDefault(XAIE_OK);
-	/* Caller reads ErrorCount / IsNextInfoValid; default mock leaves zeros → empty cache → nullptr */
+
 	if (MData != NULL && rc == XAIE_OK) {
+#ifdef __BAREMETAL_UTESTS__
+		if (g_ut_backtrack_error_count_override != 0U) {
+			MData->ErrorCount = g_ut_backtrack_error_count_override;
+		} else {
+			MData->ErrorCount = 1U;
+		}
+		if (g_ut_backtrack_next_valid_calls_remaining > 0U) {
+			MData->IsNextInfoValid = 1U;
+			g_ut_backtrack_next_valid_calls_remaining--;
+		} else {
+			MData->IsNextInfoValid = 0U;
+		}
+#else
 		MData->ErrorCount = 1U;
 		MData->IsNextInfoValid = 0U;
+#endif
 		if (MData->Payload != NULL && MData->ArraySize > 0U) {
 			memset(&MData->Payload[0], 0, sizeof(XAie_ErrorPayload));
 		}
@@ -676,26 +699,24 @@ AieRC XAie_Write32(XAie_DevInst *DevInst, u64 RegOff, u32 Value) {
 }
 
 AieRC XAie_MemSyncForCPU(XAie_MemInst *MemInst) {
-	// Side effect: simulate firmware setting completion signal (for testcpputest)
+
 	extern uint32_t* g_test_completion_ptr;
 	extern void* g_test_comp_sig_meminst;
 	extern int g_test_sync_call_count;
 	extern int g_test_completion_threshold;
 	extern uint32_t g_test_completion_value;
 
-	// Only count and set signal when syncing the completion signal MemInst
 	if (g_test_comp_sig_meminst != NULL && MemInst == g_test_comp_sig_meminst) {
-	    g_test_sync_call_count++;
-	    if (g_test_completion_ptr != NULL && g_test_sync_call_count > g_test_completion_threshold) {
-	        *g_test_completion_ptr = g_test_completion_value;
-	    }
+		g_test_sync_call_count++;
+		if (g_test_completion_ptr != NULL && g_test_sync_call_count > g_test_completion_threshold) {
+			*g_test_completion_ptr = g_test_completion_value;
+		}
 	}
 
 	return mock_c()->actualCall("XAie_MemSyncForCPU")
 		->withPointerParameters("MemInst", MemInst)
 		->returnIntValueOrDefault(XAIE_OK);
 }
-
 
 AieRC XAie_MemSyncForDev(XAie_MemInst *MemInst) {
 	return mock_c()->actualCall("XAie_MemSyncForDev")
@@ -758,12 +779,9 @@ AieRC XAie_WaitCycles(XAie_DevInst *DevInst, XAie_LocType Loc, XAie_ModuleType M
 		->withUnsignedLongLongIntParameters("CycleCnt", CycleCnt)
 		->returnIntValueOrDefault(XAIE_OK);
 }
-// Mock function to replace GetTTypefromLoc
+
 u8 _XAie_GetTTypefromLoc(XAie_DevInst *DevInst, XAie_LocType Loc) {
-	// return mock_c()->actualCall("GetTTypefromLoc")
-	//       ->withPointerParameters("DevInst", DevInst)
-	//       ->withParameterOfType("XAie_LocType", "Loc", &Loc)
-	//       ->returnIntValueOrDefault(XAIE_OK);
+
 	return 1;
 }
 u32  XAie_GetNumRows(XAie_DevInst *DevInst,u8 TileType) {
@@ -849,7 +867,7 @@ AieRC XAie_EventPhysicalToLogicalConv(XAie_DevInst *DevInst, XAie_LocType Loc,
 		->withPointerParameters("DevInst", DevInst)
 		->withParameterOfType("XAie_LocType", "Loc", &Loc)
 		->withIntParameters("Module", Module)
-		->withIntParameters("HwEvent", HwEvent)  // Corrected to handle non-pointer type
+		->withIntParameters("HwEvent", HwEvent)
 		->withPointerParameters("EnumEvent", EnumEvent)
 		->returnIntValueOrDefault(XAIE_OK);
 }

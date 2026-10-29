@@ -1,3 +1,5 @@
+// Copyright (C) 2025 - 2026 Advanced Micro Devices, Inc.
+// SPDX-License-Identifier: Apache-2.0
 #ifndef STUB_CERT_ELF_LOADER_H
 #define STUB_CERT_ELF_LOADER_H
 
@@ -16,9 +18,8 @@ void Stub_CertElfLoader_SetColumns(uint32_t num_cols, const int *col_ids, const 
 #ifdef __cplusplus
 }
 
-// C++-only function
 void StubCertElfLoader_SetColsLayout(unsigned int count,
                                      const std::vector<size_t> &sizes);
 #endif
 
-#endif /* STUB_CERT_ELF_LOADER_H */
+#endif

@@ -4,7 +4,7 @@
 #define __KERNELS__
 #include "kernels/config.h"
 #include <adf.h>
-#if (__AIE_ARCH__ == _AIE_GEN1_)
+#if (__AIE_ARCH__ == ARCH_AIE)
 void OneInput(input_window<int32> *__restrict dataIn, output_window<int32> *__restrict aOut,
               output_window<int32> *__restrict result, output_cascade<acc48> *bOut);
 

@@ -14,9 +14,9 @@ class Mm : public adf::graph {
 
   public:
     // Will be obsoleted
-    input_plio inA;
-    input_plio inB;
-    output_plio out;
+    input_gmio inA;
+    input_gmio inB;
+    output_gmio out;
     input_port increment_in;
     inout_port increment_out;
 
@@ -24,9 +24,9 @@ class Mm : public adf::graph {
         // create kernels
         mm0 = kernel::create(krnlmm);
 
-        inA = input_plio::create("Data_Source1", adf::plio_32_bits, "data/inputSource.txt");
-        inB = input_plio::create("Data_Source2", adf::plio_32_bits, "data/inputSource.txt");
-        out = output_plio::create("Data_Sink", adf::plio_32_bits, "data/outputSink.txt");
+        inA = input_gmio::create("in_source1", 64, 100);
+        inB = input_gmio::create("in_source2", 64, 100);
+        out = output_gmio::create("out_sink", 64, 100);
 
         connect<window<SIZE * NBYTES_DATA>> net_gc_inA(inA.out[0], mm0.in[0]);
         connect<window<SIZE * NBYTES_DATA>> net_gc_inB(inB.out[0], mm0.in[1]);

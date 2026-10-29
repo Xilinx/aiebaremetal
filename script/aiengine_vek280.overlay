@@ -1,0 +1,50 @@
+/*
+ * AIE devicetree overlay for VEK280 (gen-1 Versal AI Edge, AIE-ML / devgen 2).
+ *
+ * Copyright (C) 2025 - 2026 Advanced Micro Devices, Inc.
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Counterpart of script/aiengine.overlay (VEK385). Values from the generated
+ * VEK280 SDT (ai_engine@20000000000): reg base 0x2_0000_0000 size 4GB, aie-gen 2,
+ * 38 cols, 11 rows (1 shim + 2 mem + 8 core), col-shift 25, row-shift 20.
+ */
+
+/*
+ * Attach to the amba/axi bus (2 addr / 2 size cells), which lopper regenerates
+ * into versal_apu.dts from the VEK280 SDT, so the 4-cell reg below is valid.
+ */
+/ {
+	aliases {
+		aie0 = &aiengine0;
+	};
+	amba: axi {
+		aiengine0: aiengine@20000000000 {
+			compatible = "xlnx,aiengine";
+			#address-cells = <2>;
+			#size-cells = <2>;
+			reg = <0x200 0x0 0x1 0x0>;
+			num-cols = <38>;
+			num-rows = <0xb>;
+			mem-rows = <0x2>;
+			mem-row-start = <0x1>;
+			shim-rows = <0x1>;
+			shim-row-start = <0x0>;
+			core-rows = <0x8>;
+			core-row-start = <0x3>;
+			aie-gen = <0x2>;
+			col-shift = <0x19>;
+			row-shift = <0x14>;
+			status = "okay";
+		};
+	};
+};
+
+/*
+ * Workaround: lopper emits the OSPI node without the binding-required
+ * clock-frequency (fails DT validation). testkernel doesn't use OSPI, so give a
+ * nominal value and disable the node.
+ */
+&ospi {
+	clock-frequency = <200000000>;
+	status = "disabled";
+};

@@ -1,3 +1,5 @@
+# Copyright (C) 2025 - 2026 Advanced Micro Devices, Inc.
+# SPDX-License-Identifier: Apache-2.0
 _x/
 .crashReporter/
 .ipcache/
@@ -32,3 +34,25 @@ compile_commands.json
 .cache/clangd/
 .cursor/
 thirdparty/
+
+lddebug_ref_runtime.*
+*_ipc_app
+ps_ipc_client
+
+example/example_external_buffer/Work/
+example/example_external_buffer/arch/
+example/testkernel/arch
+example/testaie/kernel/arch
+example/example_oob_4x4/arch/
+example/example_oob_4x4/ipc/
+example/example_oob_4x4/worklocal/
+example/example_oob_4x4/debugcache/
+ipc_server.sock
+ipc_sim.pid
+ipc_build.log
+ipc_app.log
+ipc_client.log
+ipc_server.log
+aeg_metadata_wrapper.cpp
+
+docs/reference/

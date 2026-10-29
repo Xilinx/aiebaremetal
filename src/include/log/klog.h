@@ -4,7 +4,7 @@
 #define _K_LOG_
 #include "kcommon.h"
 #include <adf.h>
-#include <xaiengine/xaie_helper.h>
+//#include <xaiengine/xaie_helper.h>
 #define DISABLE_LOG
 static void wlog(const char *format, uint32_t value) {
     // Fix the log beyond the boundry issue

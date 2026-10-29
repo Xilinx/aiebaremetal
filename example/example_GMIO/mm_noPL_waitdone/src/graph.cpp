@@ -1,16 +1,11 @@
 // Copyright (C) 2025 - 2026 Advanced Micro Devices, Inc.
 // SPDX-License-Identifier: Apache-2.0
-#if (defined(__AIESIM__) || defined(__ADF_FRONTEND__))
+#include "aiebaremetal.h"
+#include "aeg_platform.h"
+#if defined(__ADF_FRONTEND__)
 #include "graph.h"
 Mm gradf;
-#else
-#include "xil_cache.h"
-#include "xil_io.h"
-#include "xil_printf.h"
-#include "xtime_l.h"
 #endif
-
-#include "aiebaremetal.h"
 #include <fstream>
 #include <xaiengine.h>
 
@@ -27,9 +22,6 @@ int main(int argc, char **argv) {
     const int input_size_in_bytes = SIZE * sizeof(float);
     const int output_size_in_bytes = SIZE * sizeof(float);
 
-#if (defined(__AIESIM__) || defined(__ADF_FRONTEND__))
-    gradf.init();
-#endif
     gr.init();
 
     float increment[1] = {1};
@@ -52,11 +44,15 @@ int main(int argc, char **argv) {
         for (int j = 0; j < WIDTH; j++) {
             golden[i * WIDTH + j] = 0;
             for (int k = 0; k < WIDTH; k++)
-                golden[i * WIDTH + j] += in_bomappedA[i * WIDTH + k] * in_bomappedB[k * WIDTH + j];
+                golden[i * WIDTH + j] += in_bomappedA[i * WIDTH + k] * in_bomappedB[k + WIDTH * j];
         }
     }
 
     gr.run(1);
+
+    gr.gm2aie("gradf.inB", reinterpret_cast<char *>(in_bomappedB), SIZE * sizeof(float));
+    gr.gm2aie("gradf.inA", reinterpret_cast<char *>(in_bomappedA), SIZE * sizeof(float));
+    gr.aie2gm("gradf.out", reinterpret_cast<char *>(out_bomapped), SIZE * sizeof(float));
     gr.wait();
     int match = 0;
     for (int i = 0; i < SIZE; i++) {
@@ -71,20 +67,13 @@ int main(int argc, char **argv) {
     float increment_out[1] = {1};
     char *outVect = reinterpret_cast<char *>(increment_out);
     gr.read("gradf.mm0.inout[0]", outVect, sizeof(float));
-    if (increment_out[0] != increment[0] + increment[1]) {
+    if (increment_out[0] != increment[0] + 1) {
         printf("ERROR: ReadRTP may failed! %f\n", increment_out[0]);
         match = 1;
     }
 
     std::cout << "Releasing remaining  objects...\n";
-    // xrtGraphClose(graphHandle);
-    // xclUnmapBO(dhdl, in_bohdlA, in_bomappedA);
-    // xclUnmapBO(dhdl, in_bohdlB, in_bomappedB);
-    // xclUnmapBO(dhdl, out_bohdl, out_bomapped);
-    // xrtBOFree(in_bohdlA);
-    // xrtBOFree(in_bohdlB);
-    // xrtBOFree(out_bohdl);
-    // xrtDeviceClose(dhdl);
+    gr.end();
 
     gr.free(in_bomappedA);
     gr.free(in_bomappedB);

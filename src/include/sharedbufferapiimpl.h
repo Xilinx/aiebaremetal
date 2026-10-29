@@ -15,8 +15,8 @@
  * -->
  */
 
-#ifndef __SHAREDBUFFERAPIIMPL_H__
-#define __SHAREDBUFFERAPIIMPL_H__
+#ifndef SHAREDBUFFERAPIIMPL_H_
+#define SHAREDBUFFERAPIIMPL_H_
 
 #include "common_layer/aeg_api_config.h"
 #include "common_layer/aeg_runtime_api.h"
@@ -28,11 +28,12 @@
  * This class holds the configuration and graph_api reference for direct shared buffer operations,
  * eliminating the need for string-based lookups on each method call.
  */
+namespace sharedbufferapiimpl {
 class SharedBufferApiImpl {
   public:
     SharedBufferApiImpl(const abr::shared_buffer_config &config, std::shared_ptr<abr::graph_api> graphApi,
-                        const std::string &bufferName)
-        : bufferConfig(config), graphApi(graphApi), bufferName(bufferName) {}
+                        const std::string_view bufferName)
+        : bufferConfig(config), graphApi(std::move(graphApi)), bufferName(bufferName) {}
 
     /**
      * @brief Updates shared buffer with new data
@@ -40,19 +41,19 @@ class SharedBufferApiImpl {
      * @param len Size of data in bytes
      * @return Error code
      */
-    abr::err_code update(void *data, size_t len) {
+    abr::err_code update(void *data, size_t len) const {
         if (!graphApi) {
             return abr::err_code::internal_error;
         }
         return graphApi->update(&bufferConfig, data, len);
     }
 
-    const std::string &getBufferName() const { return bufferName; }
+    const std::string_view getBufferName() const { return bufferName; }
 
   private:
     abr::shared_buffer_config bufferConfig;
     std::shared_ptr<abr::graph_api> graphApi;
-    std::string bufferName;
+    std::string_view bufferName;
 };
-
-#endif // __SHAREDBUFFERAPIIMPL_H__
+} // namespace sharedbufferapiimpl
+#endif // SHAREDBUFFERAPIIMPL_H_

@@ -1,16 +1,12 @@
 // Copyright (C) 2025 - 2026 Advanced Micro Devices, Inc.
 // SPDX-License-Identifier: Apache-2.0
-#if (defined(__AIESIM__) || defined(__ADF_FRONTEND__))
+#include "aiebaremetal.h"
+#include "aeg_platform.h"
+#if defined(__ADF_FRONTEND__)
 #include "graph.h"
 myGraph gradf;
-#else
-#include "xil_cache.h"
-#include "xil_io.h"
-#include "xil_printf.h"
-// #include "xtime_l.h"
 #endif
 
-#include "aiebaremetal.h"
 #include "config.h"
 #include <fstream>
 #include <xaiengine.h>
@@ -39,14 +35,8 @@ AbrGraph gr("gradf");
 
 int main(int argc, char **argv) {
     printf("adfr--2---\n");
-#if (defined(__AIESIM__) || defined(__ADF_FRONTEND__))
-    gradf.init();
-#else
-#ifdef _RPU_
-    // RPU need to disable data cache, without cache diable app will stuck
+#if defined(AEG_HARDWARE) && defined(_RPU_)
     Xil_DCacheDisable();
-    // Xil_ICacheDisable();
-#endif
 #endif
 
     gr.init();

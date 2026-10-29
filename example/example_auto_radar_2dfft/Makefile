@@ -4,7 +4,12 @@
 #                            Makefile for this example
 ####################################################################################
 
-TEST_BENCH               = src/graph.cpp 
+NEW_API ?= 0
+ifeq ($(NEW_API), 1)
+TEST_BENCH               = src/graph_new_api.cpp
+else
+TEST_BENCH               = src/graph.cpp
+endif
 
 DEVICE_FILE              = xcvc1902      # aie
 DSP_LIB                  = dsp_lib/dsp

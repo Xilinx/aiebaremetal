@@ -25,7 +25,7 @@ export ARCH_72_DIR=$ARCH_DIR/psv_cortexa72_0/
   source $ARCH_DIR/env.sh
 )
 
-_AIE_GEN1_=10
+AIE=10
 AIEML=20
 if [ ${AIE_GEN} -ge 2 ]; then
 	BIF=vek280_boot_image.bif
@@ -36,7 +36,7 @@ else
 	BIF=vck190_boot_image.bif
 	BOOTBIN=Vck190BOOT.BIN
 	ELF=vck190.elf
-	__AIE_ARCH__=${_AIE_GEN1_}
+	__AIE_ARCH__=${AIE}
 fi
 
 #build the vek280/a72 app

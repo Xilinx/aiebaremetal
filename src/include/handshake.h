@@ -219,7 +219,7 @@ typedef struct {
 
 #define CTRL_EXTERNAL (HSA_LOCATION == EXTERNAL_AXI_MM)
 
-#define ALIVE_MAGIC 0x404C5645
+#define ALIVE_MAGIC 0x404C5645U
 #define LX7_ALIVE (lx7_handshake.mpaie_alive)
 
 #ifdef SNL_BAREMETAL

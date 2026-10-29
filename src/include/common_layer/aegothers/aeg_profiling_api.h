@@ -15,11 +15,13 @@
  * -->
  */
 
-#pragma once
+#ifndef AEG_PROFILING_API_H
+#define AEG_PROFILING_API_H
 
 #include "aeg_api_config.h"
 #include "aeg_api_message.h"
 
+#include <cstdint>
 #include <memory>
 
 namespace xaiefal {
@@ -30,11 +32,11 @@ namespace abr {
 
 struct shim_config {
     shim_config();
-    shim_config(const gmio_config *pConfig);
-    shim_config(const plio_config *pConfig);
+    explicit shim_config(const gmio_config *pConfig);
+    explicit shim_config(const plio_config *pConfig);
 
-    int shimColumn;
-    int streamPortId;
+    int32_t shimColumn;
+    int32_t streamPortId;
     uint8_t slaveOrMaster; // 0:slave, 1:master
 };
 
@@ -60,3 +62,4 @@ class profiling {
 };
 
 } // namespace abr
+#endif // AEG_PROFILING_API_H

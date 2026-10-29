@@ -1,0 +1,1335 @@
+// Copyright (C) 2025 - 2026 Advanced Micro Devices, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+#include "adf/adf_api/AIERuntimeControl.h"
+
+#ifdef __AIE_RUNTIME_CONTROL_LOG__
+#define __LOG__(msg) std::cout << msg << std::endl;
+#else
+#define __LOG__(msg)
+#endif
+
+#if defined(__TXN_BIN__)
+extern "C"
+{
+ #include <xaiengine.h>
+}
+extern XAie_DevInst DevInst;
+#endif
+
+#ifdef __TXN_BIN__
+void AddDDRCustomOp(uint32_t action, uint64_t bufId, uint64_t offsetInBytes, uint8_t shimCol, uint8_t bdId, std::string bufName, int32_t patch_op_code);
+void AddRecordTimerCustomOp(uint32_t id, int32_t op_code);
+uint8_t* ReadSerializedTransactionFromBin(std::string TxnBinFileName);
+void XAie_SubmitSerializedTransaction(uint8_t *Ptr);
+void AddWaitTctCustomOp(adf::tile_type tileType, uint32_t column, uint32_t row, adf::dma_channel_dir dir, uint32_t channel, uint32_t numTokens, int32_t tct_op_code);
+#else
+void ProcessLayerEvent(uint32_t id);
+#endif
+void executeRuntimeControlInternal()
+{
+    //multi-layer schedule for overlay
+#ifdef __TXN_BIN__
+    int32_t patch_op_code = XAIE_IO_CUSTOM_OP_DDR_PATCH;
+    int32_t temp = XAie_RequestCustomTxnOp(&DevInst);
+    int32_t record_timer_op_code = XAie_RequestCustomTxnOp(&DevInst);
+    int32_t tct_op_code = XAIE_IO_CUSTOM_OP_TCT;
+#endif
+    {
+        __LOG__("Initialize lock for compute_graph.ifm_ddr")
+        adf::initializeLock(adf::shim_tile,2,0, 0, 0);
+        __LOG__("Initialize lock for compute_graph.ifm_ddr")
+        adf::initializeLock(adf::shim_tile,2,0, 1, 0);
+        __LOG__("Initialize lock for compute_graph.ifm")
+        adf::initializeLock(adf::memory_tile,0,0, 0, 0);
+        __LOG__("Initialize lock for compute_graph.ifm")
+        adf::initializeLock(adf::memory_tile,0,0, 1, 0);
+        {
+            __LOG__("Configure BD for compute_graph.ifm_ddr.out[0]")
+            {
+                adf::dma_buffer_descriptor bd = 
+                {
+#ifdef __PL_CTRL_EXT_BUF_NAME__
+                    .address = adf::getExternalBufferAddress("compute_graph.ifm_ddr", 0)/4,
+#elif defined(__TXN_BIN__)
+                    .address = 0,
+#else // not compiling control code, e.g., simulation
+                    .address = 0 + adf::getExternalBufferAddress(1)/4,
+#endif
+                    .length = 82944,
+                    .stepsize = {1},
+                    .wrap = {},
+                    .padding = {},
+                    .enable_packet = false,
+                    .packet_id = 0,
+                    .out_of_order_bd_id = 0,
+                    .tlast_suppress = false,
+                    .iteration_stepsize = 0,
+                    .iteration_wrap = 0,
+                    .iteration_current = 0,
+                    .enable_compression = false,
+                    .lock_acq_enable = true,
+                    .lock_acq_value = 0,
+                    .lock_acq_id = 1,
+                    .lock_rel_value = 0,
+                    .lock_rel_id = 0,
+                    .use_next_bd = false,
+                    .next_bd = 0
+                };
+                adf::configureBufferDescriptor(adf::shim_tile,2,0, 0, bd);
+#ifdef __TXN_BIN__
+                AddDDRCustomOp(0,1, bd.address*4, 2,0,"compute_graph.ifm_ddr", patch_op_code);
+#endif
+            }
+            __LOG__("Enqueue task for compute_graph.ifm_ddr.out[0]")
+            adf::enqueueTask(adf::shim_tile,2,0, adf::dma_mm2s, 0, 0, 1, false);
+        }
+        {
+            __LOG__("Configure BD for compute_graph.ifm.in[0]")
+            {
+                adf::dma_buffer_descriptor bd = 
+                {
+                    .address = 131072,
+                    .length = 82944,
+                    .stepsize = {1},
+                    .wrap = {},
+                    .padding = {{0, 0}},
+                    .enable_packet = false,
+                    .packet_id = 0,
+                    .out_of_order_bd_id = 0,
+                    .tlast_suppress = false,
+                    .iteration_stepsize = 0,
+                    .iteration_wrap = 0,
+                    .iteration_current = 0,
+                    .enable_compression = false,
+                    .lock_acq_enable = true,
+                    .lock_acq_value = 0,
+                    .lock_acq_id = 64,
+                    .lock_rel_value = 1,
+                    .lock_rel_id = 65,
+                    .use_next_bd = false,
+                    .next_bd = 0
+                };
+                adf::configureBufferDescriptor(adf::memory_tile,0,0, 0, bd);
+            }
+            __LOG__("Enqueue task for compute_graph.ifm.in[0]")
+            adf::enqueueTask(adf::memory_tile,0,0, adf::dma_s2mm, 0, 0, 1, false);
+        }
+        __LOG__("Acquire synchronization lock between producers and consumers of compute_graph.ifm")
+        adf::acquireLock(adf::memory_tile,0,0, 1, 1);
+        __LOG__("Initialize lock for compute_graph.layer.wts_ddr")
+        adf::initializeLock(adf::shim_tile,3,0, 0, 0);
+        __LOG__("Initialize lock for compute_graph.layer.wts_ddr")
+        adf::initializeLock(adf::shim_tile,3,0, 1, 0);
+        __LOG__("Initialize lock for compute_graph.layer.wts")
+        adf::initializeLock(adf::memory_tile,3,0, 0, 0);
+        __LOG__("Initialize lock for compute_graph.layer.wts")
+        adf::initializeLock(adf::memory_tile,3,0, 1, 0);
+        {
+            __LOG__("Configure BD for compute_graph.layer.wts_ddr.out[0]")
+            {
+                adf::dma_buffer_descriptor bd = 
+                {
+#ifdef __PL_CTRL_EXT_BUF_NAME__
+                    .address = adf::getExternalBufferAddress("compute_graph.layer.wts_ddr", 0)/4,
+#elif defined(__TXN_BIN__)
+                    .address = 0,
+#else // not compiling control code, e.g., simulation
+                    .address = 0 + adf::getExternalBufferAddress(0)/4,
+#endif
+                    .length = 9984,
+                    .stepsize = {1},
+                    .wrap = {},
+                    .padding = {},
+                    .enable_packet = false,
+                    .packet_id = 0,
+                    .out_of_order_bd_id = 0,
+                    .tlast_suppress = false,
+                    .iteration_stepsize = 0,
+                    .iteration_wrap = 0,
+                    .iteration_current = 0,
+                    .enable_compression = false,
+                    .lock_acq_enable = true,
+                    .lock_acq_value = 0,
+                    .lock_acq_id = 1,
+                    .lock_rel_value = 0,
+                    .lock_rel_id = 0,
+                    .use_next_bd = false,
+                    .next_bd = 0
+                };
+                adf::configureBufferDescriptor(adf::shim_tile,3,0, 0, bd);
+#ifdef __TXN_BIN__
+                AddDDRCustomOp(0,0, bd.address*4, 3,0,"compute_graph.layer.wts_ddr", patch_op_code);
+#endif
+            }
+            __LOG__("Enqueue task for compute_graph.layer.wts_ddr.out[0]")
+            adf::enqueueTask(adf::shim_tile,3,0, adf::dma_mm2s, 0, 0, 1, false);
+        }
+        {
+            __LOG__("Configure BD for compute_graph.layer.wts.in[0]")
+            {
+                adf::dma_buffer_descriptor bd = 
+                {
+                    .address = 131072,
+                    .length = 9984,
+                    .stepsize = {1},
+                    .wrap = {},
+                    .padding = {{0, 0}},
+                    .enable_packet = false,
+                    .packet_id = 0,
+                    .out_of_order_bd_id = 0,
+                    .tlast_suppress = false,
+                    .iteration_stepsize = 0,
+                    .iteration_wrap = 0,
+                    .iteration_current = 0,
+                    .enable_compression = false,
+                    .lock_acq_enable = true,
+                    .lock_acq_value = 0,
+                    .lock_acq_id = 64,
+                    .lock_rel_value = 1,
+                    .lock_rel_id = 65,
+                    .use_next_bd = false,
+                    .next_bd = 0
+                };
+                adf::configureBufferDescriptor(adf::memory_tile,3,0, 0, bd);
+            }
+            __LOG__("Enqueue task for compute_graph.layer.wts.in[0]")
+            adf::enqueueTask(adf::memory_tile,3,0, adf::dma_s2mm, 0, 0, 1, false);
+        }
+        __LOG__("Acquire synchronization lock between producers and consumers of compute_graph.layer.wts")
+        adf::acquireLock(adf::memory_tile,3,0, 1, 1);
+        __LOG__("Initialize lock for compute_graph.layer.ofm")
+        adf::initializeLock(adf::memory_tile,1,0, 0, 0);
+        __LOG__("Initialize lock for compute_graph.layer.ofm")
+        adf::initializeLock(adf::memory_tile,1,0, 1, 0);
+        {
+            __LOG__("Configure BD for compute_graph.ifm.out[0]")
+            {
+                adf::dma_buffer_descriptor bd = 
+                {
+                    .address = 0,
+                    .length = 6400,
+                    .stepsize = {1, 144, 1152, 288},
+                    .wrap = {38, 2, 19},
+                    .padding = {{2, 0}, {0, 0}, {1, 0}},
+                    .enable_packet = false,
+                    .packet_id = 0,
+                    .out_of_order_bd_id = 0,
+                    .tlast_suppress = false,
+                    .iteration_stepsize = 0,
+                    .iteration_wrap = 0,
+                    .iteration_current = 0,
+                    .enable_compression = false,
+                    .lock_acq_enable = true,
+                    .lock_acq_value = 1,
+                    .lock_acq_id = 1,
+                    .lock_rel_value = 0,
+                    .lock_rel_id = 0,
+                    .use_next_bd = false,
+                    .next_bd = 0
+                };
+                adf::configureBufferDescriptor(adf::memory_tile,1,0, 0, bd);
+            }
+            __LOG__("Enqueue task for compute_graph.ifm.out[0]")
+            adf::enqueueTask(adf::memory_tile,1,0, adf::dma_mm2s, 0, 0, 1, false);
+            __LOG__("Configure BD for compute_graph.ifm.out[0]")
+            {
+                adf::dma_buffer_descriptor bd = 
+                {
+                    .address = 30,
+                    .length = 6400,
+                    .stepsize = {1, 144, 1152, 288},
+                    .wrap = {40, 2, 19},
+                    .padding = {{0, 0}, {0, 0}, {1, 0}},
+                    .enable_packet = false,
+                    .packet_id = 0,
+                    .out_of_order_bd_id = 0,
+                    .tlast_suppress = false,
+                    .iteration_stepsize = 32,
+                    .iteration_wrap = 3,
+                    .iteration_current = 0,
+                    .enable_compression = false,
+                    .lock_acq_enable = true,
+                    .lock_acq_value = 1,
+                    .lock_acq_id = 1,
+                    .lock_rel_value = 0,
+                    .lock_rel_id = 0,
+                    .use_next_bd = false,
+                    .next_bd = 0
+                };
+                adf::configureBufferDescriptor(adf::memory_tile,1,0, 1, bd);
+            }
+            __LOG__("Enqueue task for compute_graph.ifm.out[0]")
+            adf::enqueueTask(adf::memory_tile,1,0, adf::dma_mm2s, 0, 1, 3, false);
+            __LOG__("Configure BD for compute_graph.ifm.out[0]")
+            {
+                adf::dma_buffer_descriptor bd = 
+                {
+                    .address = 126,
+                    .length = 6400,
+                    .stepsize = {1, 144, 1152, 288},
+                    .wrap = {18, 2, 19},
+                    .padding = {{0, 22}, {0, 0}, {1, 0}},
+                    .enable_packet = false,
+                    .packet_id = 0,
+                    .out_of_order_bd_id = 0,
+                    .tlast_suppress = false,
+                    .iteration_stepsize = 0,
+                    .iteration_wrap = 0,
+                    .iteration_current = 0,
+                    .enable_compression = false,
+                    .lock_acq_enable = true,
+                    .lock_acq_value = 1,
+                    .lock_acq_id = 1,
+                    .lock_rel_value = 0,
+                    .lock_rel_id = 0,
+                    .use_next_bd = false,
+                    .next_bd = 0
+                };
+                adf::configureBufferDescriptor(adf::memory_tile,1,0, 2, bd);
+            }
+            __LOG__("Enqueue task for compute_graph.ifm.out[0]")
+            adf::enqueueTask(adf::memory_tile,1,0, adf::dma_mm2s, 0, 2, 1, false);
+        }
+        {
+            __LOG__("Configure BD for compute_graph.ifm.out[1]")
+            {
+                adf::dma_buffer_descriptor bd = 
+                {
+                    .address = 19584,
+                    .length = 6400,
+                    .stepsize = {1, 144, 1152, 288},
+                    .wrap = {38, 2, 20},
+                    .padding = {{2, 0}, {0, 0}, {0, 0}},
+                    .enable_packet = false,
+                    .packet_id = 0,
+                    .out_of_order_bd_id = 0,
+                    .tlast_suppress = false,
+                    .iteration_stepsize = 0,
+                    .iteration_wrap = 0,
+                    .iteration_current = 0,
+                    .enable_compression = false,
+                    .lock_acq_enable = true,
+                    .lock_acq_value = 1,
+                    .lock_acq_id = 1,
+                    .lock_rel_value = 0,
+                    .lock_rel_id = 0,
+                    .use_next_bd = false,
+                    .next_bd = 0
+                };
+                adf::configureBufferDescriptor(adf::memory_tile,1,0, 24, bd);
+            }
+            __LOG__("Enqueue task for compute_graph.ifm.out[1]")
+            adf::enqueueTask(adf::memory_tile,1,0, adf::dma_mm2s, 1, 24, 1, false);
+            __LOG__("Configure BD for compute_graph.ifm.out[1]")
+            {
+                adf::dma_buffer_descriptor bd = 
+                {
+                    .address = 19614,
+                    .length = 6400,
+                    .stepsize = {1, 144, 1152, 288},
+                    .wrap = {40, 2, 20},
+                    .padding = {{0, 0}, {0, 0}, {0, 0}},
+                    .enable_packet = false,
+                    .packet_id = 0,
+                    .out_of_order_bd_id = 0,
+                    .tlast_suppress = false,
+                    .iteration_stepsize = 32,
+                    .iteration_wrap = 3,
+                    .iteration_current = 0,
+                    .enable_compression = false,
+                    .lock_acq_enable = true,
+                    .lock_acq_value = 1,
+                    .lock_acq_id = 1,
+                    .lock_rel_value = 0,
+                    .lock_rel_id = 0,
+                    .use_next_bd = false,
+                    .next_bd = 0
+                };
+                adf::configureBufferDescriptor(adf::memory_tile,1,0, 25, bd);
+            }
+            __LOG__("Enqueue task for compute_graph.ifm.out[1]")
+            adf::enqueueTask(adf::memory_tile,1,0, adf::dma_mm2s, 1, 25, 3, false);
+            __LOG__("Configure BD for compute_graph.ifm.out[1]")
+            {
+                adf::dma_buffer_descriptor bd = 
+                {
+                    .address = 19710,
+                    .length = 6400,
+                    .stepsize = {1, 144, 1152, 288},
+                    .wrap = {18, 2, 20},
+                    .padding = {{0, 22}, {0, 0}, {0, 0}},
+                    .enable_packet = false,
+                    .packet_id = 0,
+                    .out_of_order_bd_id = 0,
+                    .tlast_suppress = false,
+                    .iteration_stepsize = 0,
+                    .iteration_wrap = 0,
+                    .iteration_current = 0,
+                    .enable_compression = false,
+                    .lock_acq_enable = true,
+                    .lock_acq_value = 1,
+                    .lock_acq_id = 1,
+                    .lock_rel_value = 0,
+                    .lock_rel_id = 0,
+                    .use_next_bd = false,
+                    .next_bd = 0
+                };
+                adf::configureBufferDescriptor(adf::memory_tile,1,0, 26, bd);
+            }
+            __LOG__("Enqueue task for compute_graph.ifm.out[1]")
+            adf::enqueueTask(adf::memory_tile,1,0, adf::dma_mm2s, 1, 26, 1, false);
+        }
+        {
+            __LOG__("Configure BD for compute_graph.ifm.out[2]")
+            {
+                adf::dma_buffer_descriptor bd = 
+                {
+                    .address = 40320,
+                    .length = 6400,
+                    .stepsize = {1, 144, 1152, 288},
+                    .wrap = {38, 2, 20},
+                    .padding = {{2, 0}, {0, 0}, {0, 0}},
+                    .enable_packet = false,
+                    .packet_id = 0,
+                    .out_of_order_bd_id = 0,
+                    .tlast_suppress = false,
+                    .iteration_stepsize = 0,
+                    .iteration_wrap = 0,
+                    .iteration_current = 0,
+                    .enable_compression = false,
+                    .lock_acq_enable = true,
+                    .lock_acq_value = 1,
+                    .lock_acq_id = 1,
+                    .lock_rel_value = 0,
+                    .lock_rel_id = 0,
+                    .use_next_bd = false,
+                    .next_bd = 0
+                };
+                adf::configureBufferDescriptor(adf::memory_tile,1,0, 3, bd);
+            }
+            __LOG__("Enqueue task for compute_graph.ifm.out[2]")
+            adf::enqueueTask(adf::memory_tile,1,0, adf::dma_mm2s, 2, 3, 1, false);
+            __LOG__("Configure BD for compute_graph.ifm.out[2]")
+            {
+                adf::dma_buffer_descriptor bd = 
+                {
+                    .address = 40350,
+                    .length = 6400,
+                    .stepsize = {1, 144, 1152, 288},
+                    .wrap = {40, 2, 20},
+                    .padding = {{0, 0}, {0, 0}, {0, 0}},
+                    .enable_packet = false,
+                    .packet_id = 0,
+                    .out_of_order_bd_id = 0,
+                    .tlast_suppress = false,
+                    .iteration_stepsize = 32,
+                    .iteration_wrap = 3,
+                    .iteration_current = 0,
+                    .enable_compression = false,
+                    .lock_acq_enable = true,
+                    .lock_acq_value = 1,
+                    .lock_acq_id = 1,
+                    .lock_rel_value = 0,
+                    .lock_rel_id = 0,
+                    .use_next_bd = false,
+                    .next_bd = 0
+                };
+                adf::configureBufferDescriptor(adf::memory_tile,1,0, 4, bd);
+            }
+            __LOG__("Enqueue task for compute_graph.ifm.out[2]")
+            adf::enqueueTask(adf::memory_tile,1,0, adf::dma_mm2s, 2, 4, 3, false);
+            __LOG__("Configure BD for compute_graph.ifm.out[2]")
+            {
+                adf::dma_buffer_descriptor bd = 
+                {
+                    .address = 40446,
+                    .length = 6400,
+                    .stepsize = {1, 144, 1152, 288},
+                    .wrap = {18, 2, 20},
+                    .padding = {{0, 22}, {0, 0}, {0, 0}},
+                    .enable_packet = false,
+                    .packet_id = 0,
+                    .out_of_order_bd_id = 0,
+                    .tlast_suppress = false,
+                    .iteration_stepsize = 0,
+                    .iteration_wrap = 0,
+                    .iteration_current = 0,
+                    .enable_compression = false,
+                    .lock_acq_enable = true,
+                    .lock_acq_value = 1,
+                    .lock_acq_id = 1,
+                    .lock_rel_value = 0,
+                    .lock_rel_id = 0,
+                    .use_next_bd = false,
+                    .next_bd = 0
+                };
+                adf::configureBufferDescriptor(adf::memory_tile,1,0, 5, bd);
+            }
+            __LOG__("Enqueue task for compute_graph.ifm.out[2]")
+            adf::enqueueTask(adf::memory_tile,1,0, adf::dma_mm2s, 2, 5, 1, false);
+        }
+        {
+            __LOG__("Configure BD for compute_graph.ifm.out[3]")
+            {
+                adf::dma_buffer_descriptor bd = 
+                {
+                    .address = 61056,
+                    .length = 6400,
+                    .stepsize = {1, 144, 1152, 288},
+                    .wrap = {38, 2, 19},
+                    .padding = {{2, 0}, {0, 0}, {0, 1}},
+                    .enable_packet = false,
+                    .packet_id = 0,
+                    .out_of_order_bd_id = 0,
+                    .tlast_suppress = false,
+                    .iteration_stepsize = 0,
+                    .iteration_wrap = 0,
+                    .iteration_current = 0,
+                    .enable_compression = false,
+                    .lock_acq_enable = true,
+                    .lock_acq_value = 1,
+                    .lock_acq_id = 1,
+                    .lock_rel_value = 0,
+                    .lock_rel_id = 0,
+                    .use_next_bd = false,
+                    .next_bd = 0
+                };
+                adf::configureBufferDescriptor(adf::memory_tile,1,0, 27, bd);
+            }
+            __LOG__("Enqueue task for compute_graph.ifm.out[3]")
+            adf::enqueueTask(adf::memory_tile,1,0, adf::dma_mm2s, 3, 27, 1, false);
+            __LOG__("Configure BD for compute_graph.ifm.out[3]")
+            {
+                adf::dma_buffer_descriptor bd = 
+                {
+                    .address = 61086,
+                    .length = 6400,
+                    .stepsize = {1, 144, 1152, 288},
+                    .wrap = {40, 2, 19},
+                    .padding = {{0, 0}, {0, 0}, {0, 1}},
+                    .enable_packet = false,
+                    .packet_id = 0,
+                    .out_of_order_bd_id = 0,
+                    .tlast_suppress = false,
+                    .iteration_stepsize = 32,
+                    .iteration_wrap = 3,
+                    .iteration_current = 0,
+                    .enable_compression = false,
+                    .lock_acq_enable = true,
+                    .lock_acq_value = 1,
+                    .lock_acq_id = 1,
+                    .lock_rel_value = 0,
+                    .lock_rel_id = 0,
+                    .use_next_bd = false,
+                    .next_bd = 0
+                };
+                adf::configureBufferDescriptor(adf::memory_tile,1,0, 28, bd);
+            }
+            __LOG__("Enqueue task for compute_graph.ifm.out[3]")
+            adf::enqueueTask(adf::memory_tile,1,0, adf::dma_mm2s, 3, 28, 3, false);
+            __LOG__("Configure BD for compute_graph.ifm.out[3]")
+            {
+                adf::dma_buffer_descriptor bd = 
+                {
+                    .address = 61182,
+                    .length = 6400,
+                    .stepsize = {1, 144, 1152, 288},
+                    .wrap = {18, 2, 19},
+                    .padding = {{0, 22}, {0, 0}, {0, 1}},
+                    .enable_packet = false,
+                    .packet_id = 0,
+                    .out_of_order_bd_id = 0,
+                    .tlast_suppress = false,
+                    .iteration_stepsize = 0,
+                    .iteration_wrap = 0,
+                    .iteration_current = 0,
+                    .enable_compression = false,
+                    .lock_acq_enable = true,
+                    .lock_acq_value = 1,
+                    .lock_acq_id = 1,
+                    .lock_rel_value = 0,
+                    .lock_rel_id = 0,
+                    .use_next_bd = false,
+                    .next_bd = 0
+                };
+                adf::configureBufferDescriptor(adf::memory_tile,1,0, 29, bd);
+            }
+            __LOG__("Enqueue task for compute_graph.ifm.out[3]")
+            adf::enqueueTask(adf::memory_tile,1,0, adf::dma_mm2s, 3, 29, 1, false);
+        }
+        {
+            __LOG__("Configure BD for compute_graph.layer.wts.out[0]")
+            {
+                adf::dma_buffer_descriptor bd = 
+                {
+                    .address = 131072,
+                    .length = 2496,
+                    .stepsize = {1},
+                    .wrap = {},
+                    .padding = {},
+                    .enable_packet = false,
+                    .packet_id = 0,
+                    .out_of_order_bd_id = 0,
+                    .tlast_suppress = false,
+                    .iteration_stepsize = 0,
+                    .iteration_wrap = 0,
+                    .iteration_current = 0,
+                    .enable_compression = false,
+                    .lock_acq_enable = true,
+                    .lock_acq_value = 1,
+                    .lock_acq_id = 65,
+                    .lock_rel_value = 0,
+                    .lock_rel_id = 64,
+                    .use_next_bd = false,
+                    .next_bd = 0
+                };
+                adf::configureBufferDescriptor(adf::memory_tile,3,0, 0, bd);
+            }
+            __LOG__("Enqueue task for compute_graph.layer.wts.out[0]")
+            adf::enqueueTask(adf::memory_tile,3,0, adf::dma_mm2s, 0, 0, 5, false);
+        }
+        {
+            __LOG__("Configure BD for compute_graph.layer.wts.out[1]")
+            {
+                adf::dma_buffer_descriptor bd = 
+                {
+                    .address = 133568,
+                    .length = 2496,
+                    .stepsize = {1},
+                    .wrap = {},
+                    .padding = {},
+                    .enable_packet = false,
+                    .packet_id = 0,
+                    .out_of_order_bd_id = 0,
+                    .tlast_suppress = false,
+                    .iteration_stepsize = 0,
+                    .iteration_wrap = 0,
+                    .iteration_current = 0,
+                    .enable_compression = false,
+                    .lock_acq_enable = true,
+                    .lock_acq_value = 1,
+                    .lock_acq_id = 65,
+                    .lock_rel_value = 0,
+                    .lock_rel_id = 64,
+                    .use_next_bd = false,
+                    .next_bd = 0
+                };
+                adf::configureBufferDescriptor(adf::memory_tile,3,0, 24, bd);
+            }
+            __LOG__("Enqueue task for compute_graph.layer.wts.out[1]")
+            adf::enqueueTask(adf::memory_tile,3,0, adf::dma_mm2s, 1, 24, 5, false);
+        }
+        {
+            __LOG__("Configure BD for compute_graph.layer.wts.out[2]")
+            {
+                adf::dma_buffer_descriptor bd = 
+                {
+                    .address = 136064,
+                    .length = 2496,
+                    .stepsize = {1},
+                    .wrap = {},
+                    .padding = {},
+                    .enable_packet = false,
+                    .packet_id = 0,
+                    .out_of_order_bd_id = 0,
+                    .tlast_suppress = false,
+                    .iteration_stepsize = 0,
+                    .iteration_wrap = 0,
+                    .iteration_current = 0,
+                    .enable_compression = false,
+                    .lock_acq_enable = true,
+                    .lock_acq_value = 1,
+                    .lock_acq_id = 65,
+                    .lock_rel_value = 0,
+                    .lock_rel_id = 64,
+                    .use_next_bd = false,
+                    .next_bd = 0
+                };
+                adf::configureBufferDescriptor(adf::memory_tile,3,0, 1, bd);
+            }
+            __LOG__("Enqueue task for compute_graph.layer.wts.out[2]")
+            adf::enqueueTask(adf::memory_tile,3,0, adf::dma_mm2s, 2, 1, 5, false);
+        }
+        {
+            __LOG__("Configure BD for compute_graph.layer.wts.out[3]")
+            {
+                adf::dma_buffer_descriptor bd = 
+                {
+                    .address = 138560,
+                    .length = 2496,
+                    .stepsize = {1},
+                    .wrap = {},
+                    .padding = {},
+                    .enable_packet = false,
+                    .packet_id = 0,
+                    .out_of_order_bd_id = 0,
+                    .tlast_suppress = false,
+                    .iteration_stepsize = 0,
+                    .iteration_wrap = 0,
+                    .iteration_current = 0,
+                    .enable_compression = false,
+                    .lock_acq_enable = true,
+                    .lock_acq_value = 1,
+                    .lock_acq_id = 65,
+                    .lock_rel_value = 0,
+                    .lock_rel_id = 64,
+                    .use_next_bd = false,
+                    .next_bd = 0
+                };
+                adf::configureBufferDescriptor(adf::memory_tile,3,0, 25, bd);
+            }
+            __LOG__("Enqueue task for compute_graph.layer.wts.out[3]")
+            adf::enqueueTask(adf::memory_tile,3,0, adf::dma_mm2s, 3, 25, 5, false);
+        }
+        {
+            __LOG__("Configure BD for compute_graph.layer.ofm.in[0]")
+            {
+                adf::dma_buffer_descriptor bd = 
+                {
+                    .address = 196608,
+                    .length = 1152,
+                    .stepsize = {1, 160, 1280},
+                    .wrap = {32, 2, 18},
+                    .padding = {{0, 0}, {0, 0}, {0, 0}},
+                    .enable_packet = false,
+                    .packet_id = 0,
+                    .out_of_order_bd_id = 0,
+                    .tlast_suppress = false,
+                    .iteration_stepsize = 32,
+                    .iteration_wrap = 5,
+                    .iteration_current = 0,
+                    .enable_compression = false,
+                    .lock_acq_enable = true,
+                    .lock_acq_value = 0,
+                    .lock_acq_id = 64,
+                    .lock_rel_value = 0,
+                    .lock_rel_id = 65,
+                    .use_next_bd = false,
+                    .next_bd = 0
+                };
+                adf::configureBufferDescriptor(adf::memory_tile,1,0, 23, bd);
+            }
+            __LOG__("Configure BD for compute_graph.layer.ofm.in[0]")
+            {
+                adf::dma_buffer_descriptor bd = 
+                {
+                    .address = 196928,
+                    .length = 1152,
+                    .stepsize = {1, 160, 1280},
+                    .wrap = {32, 2, 18},
+                    .padding = {{0, 0}, {0, 0}, {0, 0}},
+                    .enable_packet = false,
+                    .packet_id = 0,
+                    .out_of_order_bd_id = 0,
+                    .tlast_suppress = false,
+                    .iteration_stepsize = 32,
+                    .iteration_wrap = 5,
+                    .iteration_current = 0,
+                    .enable_compression = false,
+                    .lock_acq_enable = true,
+                    .lock_acq_value = 0,
+                    .lock_acq_id = 64,
+                    .lock_rel_value = 0,
+                    .lock_rel_id = 65,
+                    .use_next_bd = false,
+                    .next_bd = 0
+                };
+                adf::configureBufferDescriptor(adf::memory_tile,1,0, 22, bd);
+            }
+            __LOG__("Configure BD for compute_graph.layer.ofm.in[0]")
+            {
+                adf::dma_buffer_descriptor bd = 
+                {
+                    .address = 197248,
+                    .length = 1152,
+                    .stepsize = {1, 160, 1280},
+                    .wrap = {32, 2, 18},
+                    .padding = {{0, 0}, {0, 0}, {0, 0}},
+                    .enable_packet = false,
+                    .packet_id = 0,
+                    .out_of_order_bd_id = 0,
+                    .tlast_suppress = false,
+                    .iteration_stepsize = 32,
+                    .iteration_wrap = 5,
+                    .iteration_current = 0,
+                    .enable_compression = false,
+                    .lock_acq_enable = true,
+                    .lock_acq_value = 0,
+                    .lock_acq_id = 64,
+                    .lock_rel_value = 0,
+                    .lock_rel_id = 65,
+                    .use_next_bd = false,
+                    .next_bd = 0
+                };
+                adf::configureBufferDescriptor(adf::memory_tile,1,0, 21, bd);
+            }
+            __LOG__("Configure BD for compute_graph.layer.ofm.in[0]")
+            {
+                adf::dma_buffer_descriptor bd = 
+                {
+                    .address = 197568,
+                    .length = 1152,
+                    .stepsize = {1, 160, 1280},
+                    .wrap = {32, 2, 18},
+                    .padding = {{0, 0}, {0, 0}, {0, 0}},
+                    .enable_packet = false,
+                    .packet_id = 0,
+                    .out_of_order_bd_id = 0,
+                    .tlast_suppress = false,
+                    .iteration_stepsize = 32,
+                    .iteration_wrap = 5,
+                    .iteration_current = 0,
+                    .enable_compression = false,
+                    .lock_acq_enable = true,
+                    .lock_acq_value = 0,
+                    .lock_acq_id = 64,
+                    .lock_rel_value = 0,
+                    .lock_rel_id = 65,
+                    .use_next_bd = false,
+                    .next_bd = 0
+                };
+                adf::configureBufferDescriptor(adf::memory_tile,1,0, 20, bd);
+            }
+            __LOG__("Enqueue task for compute_graph.layer.ofm.in[0]")
+            adf::enqueueTask(adf::memory_tile,1,0, adf::dma_s2mm, 0, 0, 20, false);
+        }
+        {
+            __LOG__("Configure BD for compute_graph.layer.ofm.in[1]")
+            {
+                adf::dma_buffer_descriptor bd = 
+                {
+                    .address = 219648,
+                    .length = 1152,
+                    .stepsize = {1, 160, 1280},
+                    .wrap = {32, 2, 18},
+                    .padding = {{0, 0}, {0, 0}, {0, 0}},
+                    .enable_packet = false,
+                    .packet_id = 0,
+                    .out_of_order_bd_id = 0,
+                    .tlast_suppress = false,
+                    .iteration_stepsize = 32,
+                    .iteration_wrap = 5,
+                    .iteration_current = 0,
+                    .enable_compression = false,
+                    .lock_acq_enable = true,
+                    .lock_acq_value = 0,
+                    .lock_acq_id = 64,
+                    .lock_rel_value = 0,
+                    .lock_rel_id = 65,
+                    .use_next_bd = false,
+                    .next_bd = 0
+                };
+                adf::configureBufferDescriptor(adf::memory_tile,1,0, 47, bd);
+            }
+            __LOG__("Configure BD for compute_graph.layer.ofm.in[1]")
+            {
+                adf::dma_buffer_descriptor bd = 
+                {
+                    .address = 219968,
+                    .length = 1152,
+                    .stepsize = {1, 160, 1280},
+                    .wrap = {32, 2, 18},
+                    .padding = {{0, 0}, {0, 0}, {0, 0}},
+                    .enable_packet = false,
+                    .packet_id = 0,
+                    .out_of_order_bd_id = 0,
+                    .tlast_suppress = false,
+                    .iteration_stepsize = 32,
+                    .iteration_wrap = 5,
+                    .iteration_current = 0,
+                    .enable_compression = false,
+                    .lock_acq_enable = true,
+                    .lock_acq_value = 0,
+                    .lock_acq_id = 64,
+                    .lock_rel_value = 0,
+                    .lock_rel_id = 65,
+                    .use_next_bd = false,
+                    .next_bd = 0
+                };
+                adf::configureBufferDescriptor(adf::memory_tile,1,0, 46, bd);
+            }
+            __LOG__("Configure BD for compute_graph.layer.ofm.in[1]")
+            {
+                adf::dma_buffer_descriptor bd = 
+                {
+                    .address = 220288,
+                    .length = 1152,
+                    .stepsize = {1, 160, 1280},
+                    .wrap = {32, 2, 18},
+                    .padding = {{0, 0}, {0, 0}, {0, 0}},
+                    .enable_packet = false,
+                    .packet_id = 0,
+                    .out_of_order_bd_id = 0,
+                    .tlast_suppress = false,
+                    .iteration_stepsize = 32,
+                    .iteration_wrap = 5,
+                    .iteration_current = 0,
+                    .enable_compression = false,
+                    .lock_acq_enable = true,
+                    .lock_acq_value = 0,
+                    .lock_acq_id = 64,
+                    .lock_rel_value = 0,
+                    .lock_rel_id = 65,
+                    .use_next_bd = false,
+                    .next_bd = 0
+                };
+                adf::configureBufferDescriptor(adf::memory_tile,1,0, 45, bd);
+            }
+            __LOG__("Configure BD for compute_graph.layer.ofm.in[1]")
+            {
+                adf::dma_buffer_descriptor bd = 
+                {
+                    .address = 220608,
+                    .length = 1152,
+                    .stepsize = {1, 160, 1280},
+                    .wrap = {32, 2, 18},
+                    .padding = {{0, 0}, {0, 0}, {0, 0}},
+                    .enable_packet = false,
+                    .packet_id = 0,
+                    .out_of_order_bd_id = 0,
+                    .tlast_suppress = false,
+                    .iteration_stepsize = 32,
+                    .iteration_wrap = 5,
+                    .iteration_current = 0,
+                    .enable_compression = false,
+                    .lock_acq_enable = true,
+                    .lock_acq_value = 0,
+                    .lock_acq_id = 64,
+                    .lock_rel_value = 0,
+                    .lock_rel_id = 65,
+                    .use_next_bd = false,
+                    .next_bd = 0
+                };
+                adf::configureBufferDescriptor(adf::memory_tile,1,0, 44, bd);
+            }
+            __LOG__("Enqueue task for compute_graph.layer.ofm.in[1]")
+            adf::enqueueTask(adf::memory_tile,1,0, adf::dma_s2mm, 1, 24, 20, false);
+        }
+        {
+            __LOG__("Configure BD for compute_graph.layer.ofm.in[2]")
+            {
+                adf::dma_buffer_descriptor bd = 
+                {
+                    .address = 242688,
+                    .length = 1152,
+                    .stepsize = {1, 160, 1280},
+                    .wrap = {32, 2, 18},
+                    .padding = {{0, 0}, {0, 0}, {0, 0}},
+                    .enable_packet = false,
+                    .packet_id = 0,
+                    .out_of_order_bd_id = 0,
+                    .tlast_suppress = false,
+                    .iteration_stepsize = 32,
+                    .iteration_wrap = 5,
+                    .iteration_current = 0,
+                    .enable_compression = false,
+                    .lock_acq_enable = true,
+                    .lock_acq_value = 0,
+                    .lock_acq_id = 64,
+                    .lock_rel_value = 0,
+                    .lock_rel_id = 65,
+                    .use_next_bd = false,
+                    .next_bd = 0
+                };
+                adf::configureBufferDescriptor(adf::memory_tile,1,0, 19, bd);
+            }
+            __LOG__("Configure BD for compute_graph.layer.ofm.in[2]")
+            {
+                adf::dma_buffer_descriptor bd = 
+                {
+                    .address = 243008,
+                    .length = 1152,
+                    .stepsize = {1, 160, 1280},
+                    .wrap = {32, 2, 18},
+                    .padding = {{0, 0}, {0, 0}, {0, 0}},
+                    .enable_packet = false,
+                    .packet_id = 0,
+                    .out_of_order_bd_id = 0,
+                    .tlast_suppress = false,
+                    .iteration_stepsize = 32,
+                    .iteration_wrap = 5,
+                    .iteration_current = 0,
+                    .enable_compression = false,
+                    .lock_acq_enable = true,
+                    .lock_acq_value = 0,
+                    .lock_acq_id = 64,
+                    .lock_rel_value = 0,
+                    .lock_rel_id = 65,
+                    .use_next_bd = false,
+                    .next_bd = 0
+                };
+                adf::configureBufferDescriptor(adf::memory_tile,1,0, 18, bd);
+            }
+            __LOG__("Configure BD for compute_graph.layer.ofm.in[2]")
+            {
+                adf::dma_buffer_descriptor bd = 
+                {
+                    .address = 243328,
+                    .length = 1152,
+                    .stepsize = {1, 160, 1280},
+                    .wrap = {32, 2, 18},
+                    .padding = {{0, 0}, {0, 0}, {0, 0}},
+                    .enable_packet = false,
+                    .packet_id = 0,
+                    .out_of_order_bd_id = 0,
+                    .tlast_suppress = false,
+                    .iteration_stepsize = 32,
+                    .iteration_wrap = 5,
+                    .iteration_current = 0,
+                    .enable_compression = false,
+                    .lock_acq_enable = true,
+                    .lock_acq_value = 0,
+                    .lock_acq_id = 64,
+                    .lock_rel_value = 0,
+                    .lock_rel_id = 65,
+                    .use_next_bd = false,
+                    .next_bd = 0
+                };
+                adf::configureBufferDescriptor(adf::memory_tile,1,0, 17, bd);
+            }
+            __LOG__("Configure BD for compute_graph.layer.ofm.in[2]")
+            {
+                adf::dma_buffer_descriptor bd = 
+                {
+                    .address = 243648,
+                    .length = 1152,
+                    .stepsize = {1, 160, 1280},
+                    .wrap = {32, 2, 18},
+                    .padding = {{0, 0}, {0, 0}, {0, 0}},
+                    .enable_packet = false,
+                    .packet_id = 0,
+                    .out_of_order_bd_id = 0,
+                    .tlast_suppress = false,
+                    .iteration_stepsize = 32,
+                    .iteration_wrap = 5,
+                    .iteration_current = 0,
+                    .enable_compression = false,
+                    .lock_acq_enable = true,
+                    .lock_acq_value = 0,
+                    .lock_acq_id = 64,
+                    .lock_rel_value = 0,
+                    .lock_rel_id = 65,
+                    .use_next_bd = false,
+                    .next_bd = 0
+                };
+                adf::configureBufferDescriptor(adf::memory_tile,1,0, 16, bd);
+            }
+            __LOG__("Enqueue task for compute_graph.layer.ofm.in[2]")
+            adf::enqueueTask(adf::memory_tile,1,0, adf::dma_s2mm, 2, 0, 20, false);
+        }
+        {
+            __LOG__("Configure BD for compute_graph.layer.ofm.in[3]")
+            {
+                adf::dma_buffer_descriptor bd = 
+                {
+                    .address = 265728,
+                    .length = 1152,
+                    .stepsize = {1, 160, 1280},
+                    .wrap = {32, 2, 18},
+                    .padding = {{0, 0}, {0, 0}, {0, 0}},
+                    .enable_packet = false,
+                    .packet_id = 0,
+                    .out_of_order_bd_id = 0,
+                    .tlast_suppress = false,
+                    .iteration_stepsize = 32,
+                    .iteration_wrap = 5,
+                    .iteration_current = 0,
+                    .enable_compression = false,
+                    .lock_acq_enable = true,
+                    .lock_acq_value = 0,
+                    .lock_acq_id = 64,
+                    .lock_rel_value = 0,
+                    .lock_rel_id = 65,
+                    .use_next_bd = false,
+                    .next_bd = 0
+                };
+                adf::configureBufferDescriptor(adf::memory_tile,1,0, 43, bd);
+            }
+            __LOG__("Configure BD for compute_graph.layer.ofm.in[3]")
+            {
+                adf::dma_buffer_descriptor bd = 
+                {
+                    .address = 266048,
+                    .length = 1152,
+                    .stepsize = {1, 160, 1280},
+                    .wrap = {32, 2, 18},
+                    .padding = {{0, 0}, {0, 0}, {0, 0}},
+                    .enable_packet = false,
+                    .packet_id = 0,
+                    .out_of_order_bd_id = 0,
+                    .tlast_suppress = false,
+                    .iteration_stepsize = 32,
+                    .iteration_wrap = 5,
+                    .iteration_current = 0,
+                    .enable_compression = false,
+                    .lock_acq_enable = true,
+                    .lock_acq_value = 0,
+                    .lock_acq_id = 64,
+                    .lock_rel_value = 0,
+                    .lock_rel_id = 65,
+                    .use_next_bd = false,
+                    .next_bd = 0
+                };
+                adf::configureBufferDescriptor(adf::memory_tile,1,0, 42, bd);
+            }
+            __LOG__("Configure BD for compute_graph.layer.ofm.in[3]")
+            {
+                adf::dma_buffer_descriptor bd = 
+                {
+                    .address = 266368,
+                    .length = 1152,
+                    .stepsize = {1, 160, 1280},
+                    .wrap = {32, 2, 18},
+                    .padding = {{0, 0}, {0, 0}, {0, 0}},
+                    .enable_packet = false,
+                    .packet_id = 0,
+                    .out_of_order_bd_id = 0,
+                    .tlast_suppress = false,
+                    .iteration_stepsize = 32,
+                    .iteration_wrap = 5,
+                    .iteration_current = 0,
+                    .enable_compression = false,
+                    .lock_acq_enable = true,
+                    .lock_acq_value = 0,
+                    .lock_acq_id = 64,
+                    .lock_rel_value = 0,
+                    .lock_rel_id = 65,
+                    .use_next_bd = false,
+                    .next_bd = 0
+                };
+                adf::configureBufferDescriptor(adf::memory_tile,1,0, 41, bd);
+            }
+            __LOG__("Configure BD for compute_graph.layer.ofm.in[3]")
+            {
+                adf::dma_buffer_descriptor bd = 
+                {
+                    .address = 266688,
+                    .length = 1152,
+                    .stepsize = {1, 160, 1280},
+                    .wrap = {32, 2, 18},
+                    .padding = {{0, 0}, {0, 0}, {0, 0}},
+                    .enable_packet = false,
+                    .packet_id = 0,
+                    .out_of_order_bd_id = 0,
+                    .tlast_suppress = false,
+                    .iteration_stepsize = 32,
+                    .iteration_wrap = 5,
+                    .iteration_current = 0,
+                    .enable_compression = false,
+                    .lock_acq_enable = true,
+                    .lock_acq_value = 0,
+                    .lock_acq_id = 64,
+                    .lock_rel_value = 0,
+                    .lock_rel_id = 65,
+                    .use_next_bd = false,
+                    .next_bd = 0
+                };
+                adf::configureBufferDescriptor(adf::memory_tile,1,0, 40, bd);
+            }
+            __LOG__("Enqueue task for compute_graph.layer.ofm.in[3]")
+            adf::enqueueTask(adf::memory_tile,1,0, adf::dma_s2mm, 3, 24, 20, false);
+        }
+        __LOG__("Wait s2mm channels done between producers and consumers of compute_graph.layer.ofm")
+        adf::waitDMAChannelDone(adf::memory_tile,1,0, adf::dma_s2mm, 0);
+        __LOG__("Wait s2mm channels done between producers and consumers of compute_graph.layer.ofm")
+        adf::waitDMAChannelDone(adf::memory_tile,1,0, adf::dma_s2mm, 1);
+        __LOG__("Wait s2mm channels done between producers and consumers of compute_graph.layer.ofm")
+        adf::waitDMAChannelDone(adf::memory_tile,1,0, adf::dma_s2mm, 2);
+        __LOG__("Wait s2mm channels done between producers and consumers of compute_graph.layer.ofm")
+        adf::waitDMAChannelDone(adf::memory_tile,1,0, adf::dma_s2mm, 3);
+        __LOG__("Initialize lock for compute_graph.ofm_ddr")
+        adf::initializeLock(adf::shim_tile,2,0, 0, 0);
+        __LOG__("Initialize lock for compute_graph.ofm_ddr")
+        adf::initializeLock(adf::shim_tile,2,0, 1, 0);
+        {
+            __LOG__("Configure BD for compute_graph.layer.ofm.out[0]")
+            {
+                adf::dma_buffer_descriptor bd = 
+                {
+                    .address = 65536,
+                    .length = 82944,
+                    .stepsize = {1, 160},
+                    .wrap = {144, 576},
+                    .padding = {{0, 0}, {0, 0}},
+                    .enable_packet = false,
+                    .packet_id = 0,
+                    .out_of_order_bd_id = 0,
+                    .tlast_suppress = false,
+                    .iteration_stepsize = 0,
+                    .iteration_wrap = 0,
+                    .iteration_current = 0,
+                    .enable_compression = false,
+                    .lock_acq_enable = true,
+                    .lock_acq_value = 0,
+                    .lock_acq_id = 1,
+                    .lock_rel_value = 0,
+                    .lock_rel_id = 0,
+                    .use_next_bd = false,
+                    .next_bd = 0
+                };
+                adf::configureBufferDescriptor(adf::memory_tile,2,0, 0, bd);
+            }
+            __LOG__("Enqueue task for compute_graph.layer.ofm.out[0]")
+            adf::enqueueTask(adf::memory_tile,2,0, adf::dma_mm2s, 0, 0, 1, false);
+        }
+        {
+            __LOG__("Configure BD for compute_graph.ofm_ddr.in[0]")
+            {
+                adf::dma_buffer_descriptor bd = 
+                {
+#ifdef __PL_CTRL_EXT_BUF_NAME__
+                    .address = adf::getExternalBufferAddress("compute_graph.ofm_ddr", 0)/4,
+#elif defined(__TXN_BIN__)
+                    .address = 0,
+#else // not compiling control code, e.g., simulation
+                    .address = 0 + adf::getExternalBufferAddress(2)/4,
+#endif
+                    .length = 82944,
+                    .stepsize = {1},
+                    .wrap = {},
+                    .padding = {},
+                    .enable_packet = false,
+                    .packet_id = 0,
+                    .out_of_order_bd_id = 0,
+                    .tlast_suppress = false,
+                    .iteration_stepsize = 0,
+                    .iteration_wrap = 0,
+                    .iteration_current = 0,
+                    .enable_compression = false,
+                    .lock_acq_enable = true,
+                    .lock_acq_value = 0,
+                    .lock_acq_id = 0,
+                    .lock_rel_value = 1,
+                    .lock_rel_id = 1,
+                    .use_next_bd = false,
+                    .next_bd = 0
+                };
+                adf::configureBufferDescriptor(adf::shim_tile,2,0, 0, bd);
+#ifdef __TXN_BIN__
+                AddDDRCustomOp(0,2, bd.address*4, 2,0,"compute_graph.ofm_ddr", patch_op_code);
+#endif
+            }
+            __LOG__("Enqueue task for compute_graph.ofm_ddr.in[0]")
+            adf::enqueueTask(adf::shim_tile,2,0, adf::dma_s2mm, 0, 0, 1, false);
+        }
+        __LOG__("Acquire synchronization lock between producers and consumers of compute_graph.ofm_ddr")
+        adf::acquireLock(adf::shim_tile,2,0, 1, 1);
+    }
+}
+
+#ifdef __TXN_BIN__
+typedef struct{
+  int temp;
+  unsigned int size_in_bytes;
+} op_base;
+typedef struct{
+  uint32_t id;
+} record_timer_id_op_t;
+struct PatchShimOp {
+  op_base op;
+  uint32_t action;
+  uint64_t regAddr;
+  uint64_t extBufId;
+  uint64_t argplus;
+};
+uint64_t ComputePatchRegAddr(uint8_t shimColumn, uint8_t bdId) {
+  // get tile info
+  XAie_LocType tileLoc = XAie_TileLoc(shimColumn, 0); //XAie_TileLoc(Col, Row)
+  XAie_DmaDesc dmaInst;
+  int driverStatus = XAie_DmaDescInit(&DevInst, &dmaInst, tileLoc);
+  if (driverStatus != AieRC::XAIE_OK)
+    std::cout << "########## ComputePatchRegAddr: AIE Driver Error" << std::endl;
+
+  u64 regAddr = dmaInst.DmaMod->BaseAddr 
+    + bdId * dmaInst.DmaMod->IdxOffset 
+    + _XAie_GetTileAddr(&DevInst, tileLoc.Row, tileLoc.Col) 
+    + dmaInst.DmaMod->BdProp->Buffer->ShimDmaBuff.AddrLow.Idx * 4U;
+
+
+  return regAddr;
+}
+
+void DumpCustomOp(PatchShimOp op, std::string bufName)
+{
+  std::cout << "Custom op for: " << bufName << std::endl;
+  std::cout << "action: " << op.action << ", regAddr: " << std::hex << op.regAddr << " , extBufId " << op.extBufId << " , argplus: " << std::hex << op.argplus << std::endl;
+}
+void AddDDRCustomOp(uint32_t action, uint64_t bufId, uint64_t offsetInBytes, uint8_t shimCol, uint8_t bdId, std::string bufName, int32_t patch_op_code)
+{
+    PatchShimOp op;
+    op.action = action;
+    op.regAddr = ComputePatchRegAddr(shimCol, bdId);
+    op.extBufId = bufId;
+    op.argplus = offsetInBytes;
+
+#ifdef __AIE_RUNTIME_CONTROL_LOG__
+    DumpCustomOp(op, bufName);
+#endif
+    XAie_AddCustomTxnOp(&DevInst, patch_op_code, (void*)&op, sizeof(op));
+}
+
+void AddRecordTimerCustomOp(uint32_t id, int32_t op_code)
+{
+    record_timer_id_op_t op;
+    op.id = id;
+    XAie_AddCustomTxnOp(&DevInst, op_code, (void*)&op, sizeof(op));
+}
+
+
+    typedef struct {
+        uint32_t word;
+        uint32_t config;
+    } tct_op_t;
+
+    void AddWaitTctCustomOp(adf::tile_type tileType, uint32_t column, uint32_t row, adf::dma_channel_dir dir, uint32_t channel, uint32_t numTokens, int32_t tct_op_code)
+    {
+        while (numTokens > 0) {
+            uint32_t word = 0;
+            word |= (column << 16);
+            word |= (dir == adf::dma_channel_dir::dma_mm2s) ? 1 : 0;
+            if (tileType == adf::memory_tile)
+                word |= (1 << 8);
+                
+            uint32_t config = 0;
+            config |= (channel << 24);
+            config |= (1 << 16);
+            config |= (1 << 8);
+            numTokens--;
+
+            tct_op_t tct_op;
+            tct_op.word = word;
+            tct_op.config = config;
+
+            __LOG__("Adding TctOp column " << column << " row " << row << " tile type: " << ((tileType == adf::memory_tile)?"mem tile" : "shim tile"));
+            XAie_AddCustomTxnOp(&DevInst, tct_op_code, (void*)&tct_op, sizeof(tct_op));
+        }
+    }
+    
+#else
+void ProcessLayerEvent(uint32_t id)
+{
+    return adf::recordTimer(id);
+}
+#endif
+
+void executeRuntimeControl()
+{
+
+
+#ifdef __AIESIM__ 
+    adf::syncPSToGM();
+#endif
+#if defined(__TXN_BIN__) && defined(__AIESIM__)
+    uint8_t *Ptr =  ReadSerializedTransactionFromBin("Work/ps/ml_txn/ml_txn.bin");
+    XAie_SubmitSerializedTransaction(Ptr);
+#else
+    executeRuntimeControlInternal();
+#endif
+#ifdef __AIESIM__ 
+    adf::syncPSFromGM();
+#endif
+
+
+}
+
